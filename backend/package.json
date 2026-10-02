@@ -1,0 +1,37 @@
+{
+  "name": "@wallet/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio"
+  },
+  "dependencies": {
+    "@wallet/shared": "*",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.0",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.0",
+    "@types/supertest": "^6.0.3",
+    "drizzle-kit": "^0.31.5",
+    "supertest": "^7.1.4",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
+  }
+}

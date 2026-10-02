@@ -1,0 +1,35 @@
+<div class="flex min-h-dvh flex-col md:flex-row">
+  <aside class="border-b border-slate-200 bg-white md:w-56 md:shrink-0 md:border-r md:border-b-0">
+    <div class="flex items-center justify-between px-4 py-4">
+      <a routerLink="/dashboard" class="text-lg font-semibold tracking-tight">Wallet</a>
+      <span
+        class="inline-flex items-center gap-1.5 text-xs text-slate-500"
+        [attr.title]="health.error() ? 'API unreachable' : 'API connected'"
+      >
+        <span
+          class="size-2 rounded-full"
+          [class.bg-emerald-500]="health.hasValue()"
+          [class.bg-rose-500]="health.error()"
+          [class.bg-slate-300]="health.isLoading()"
+        ></span>
+        API
+      </span>
+    </div>
+    <nav aria-label="Main" class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
+      @for (item of nav; track item.path) {
+        <a
+          [routerLink]="item.path"
+          routerLinkActive="bg-slate-900 text-white hover:bg-slate-900"
+          ariaCurrentWhenActive="page"
+          class="rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-100"
+        >
+          {{ item.label }}
+        </a>
+      }
+    </nav>
+  </aside>
+
+  <main class="flex-1 p-4 md:p-8">
+    <router-outlet />
+  </main>
+</div>

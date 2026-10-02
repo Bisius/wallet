@@ -1,0 +1,28 @@
+{
+  "name": "wallet",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Personal finance manager: salary, subscriptions, budgets and spendings",
+  "workspaces": [
+    "shared",
+    "backend",
+    "frontend"
+  ],
+  "engines": {
+    "node": "^22.22.3 || >=24.15.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w @wallet/backend\" \"npm run start -w @wallet/frontend\"",
+    "build": "npm run build -w @wallet/frontend && npm run build -w @wallet/backend",
+    "start": "npm run start -w @wallet/backend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm test --workspaces --if-present",
+    "format": "prettier --write .",
+    "db:generate": "npm run db:generate -w @wallet/backend --",
+    "db:migrate": "npm run db:migrate -w @wallet/backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.8.1"
+  }
+}

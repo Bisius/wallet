@@ -1,0 +1,21 @@
+{
+  "name": "@wallet/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Types, zod schemas and pure helpers shared by backend and frontend",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vitest": "^4.0.8"
+  }
+}
