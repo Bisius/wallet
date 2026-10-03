@@ -12,6 +12,7 @@ import { healthRoutes } from './modules/health/health.routes';
 import { incomeRoutes } from './modules/incomes/incomes.routes';
 import { monthRoutes } from './modules/months/months.routes';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes';
+import { reportRoutes } from './modules/reports/reports.routes';
 import { salaryRoutes } from './modules/salary/salary.routes';
 import { savingsRoutes } from './modules/savings/savings.routes';
 import { requireOnboarded } from './modules/settings/require-onboarded';
@@ -65,6 +66,7 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   api.use('/goals', onboarded, goalRoutes(deps));
   api.use('/transfers', onboarded, transferRoutes(deps));
   api.use('/tags', onboarded, tagRoutes(deps));
+  api.use('/reports', onboarded, reportRoutes(deps));
   api.use((_req, _res, next) => next(notFound('Route')));
   app.use('/api', api);
 

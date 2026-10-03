@@ -31,7 +31,13 @@ import type {
   SpendingUpdateInput,
   SpendingsPage,
 } from './spendings';
-import type { SubscriptionCreateInput, SubscriptionDto } from './subscriptions';
+import type { YearlyReportDto, YearlyReportMonth } from './reports';
+import type {
+  SubscriptionCreateInput,
+  SubscriptionDto,
+  UpcomingRenewalDto,
+  UpcomingRenewalsQuery,
+} from './subscriptions';
 import type { TagCreateInput, TagDto, TagUpdateInput } from './tags';
 import type { TransferCreateInput, TransferDto, TransferListQuery } from './transfers';
 
@@ -300,6 +306,31 @@ describe('contract types', () => {
 
   it('the transaction list is a plain Page', () => {
     expectTypeOf<Page<SavingsTransactionDto>['items']>().toEqualTypeOf<SavingsTransactionDto[]>();
+  });
+
+  it('upcoming renewals', () => {
+    expectTypeOf<UpcomingRenewalsQuery>().toEqualTypeOf<{ days?: number | undefined }>();
+    expectTypeOf<UpcomingRenewalDto>().toEqualTypeOf<{
+      id: number;
+      name: string;
+      color: string | null;
+      frequency: 'monthly' | 'yearly';
+      yearly: boolean;
+      date: IsoDate;
+      daysUntil: number;
+      amount: Cents;
+      reserved: Cents | null;
+      unreserved: Cents | null;
+    }>();
+  });
+
+  it('yearly report', () => {
+    expectTypeOf<YearlyReportMonth['status']>().toEqualTypeOf<MonthView['status']>();
+    expectTypeOf<YearlyReportMonth['income']>().toEqualTypeOf<MonthView['income']>();
+    expectTypeOf<YearlyReportMonth['savedBreakdown']>().toEqualTypeOf<SavingsDueBreakdown>();
+    expectTypeOf<YearlyReportDto['months']>().toEqualTypeOf<YearlyReportMonth[]>();
+    expectTypeOf<YearlyReportDto['year']>().toEqualTypeOf<number>();
+    expectTypeOf<YearlyReportDto['saved']>().toEqualTypeOf<Cents>();
   });
 
   it('MonthSummary repeats the MonthView totals', () => {

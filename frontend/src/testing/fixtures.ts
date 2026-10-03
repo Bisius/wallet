@@ -17,6 +17,9 @@ import type {
   SubscriptionDto,
   TagDto,
   TransferDto,
+  UpcomingRenewalDto,
+  YearlyReportDto,
+  YearlyReportMonth,
 } from '@wallet/shared';
 
 /**
@@ -349,4 +352,79 @@ export function transactionsPage(
   overrides: Partial<Page<SavingsTransactionDto>> = {},
 ): Page<SavingsTransactionDto> {
   return { items, total: items.length, limit: 50, offset: 0, ...overrides };
+}
+
+/** A renewal of `GET /api/subscriptions/upcoming`. Defaults: a monthly 9.99 subscription in 5 days. */
+export function upcomingRenewal(overrides: Partial<UpcomingRenewalDto> = {}): UpcomingRenewalDto {
+  return {
+    id: 1,
+    name: 'Streaming',
+    color: null,
+    frequency: 'monthly',
+    yearly: false,
+    date: '2026-10-07',
+    daysUntil: 5,
+    amount: 999,
+    reserved: null,
+    unreserved: null,
+    ...overrides,
+  };
+}
+
+/** One month of the yearly report. Defaults: a closed month of 2700.00 income, 100.00 spent. */
+export function reportMonth(overrides: Partial<YearlyReportMonth> = {}): YearlyReportMonth {
+  return {
+    month: '2026-06',
+    status: 'closed',
+    income: { salary: 270000, extra: 0, total: 270000 },
+    fixedCosts: 20000,
+    allocated: 40000,
+    spent: 10000,
+    unallocated: 210000,
+    saved: 240000,
+    savedBreakdown: { unallocated: 210000, budgetsSettled: 30000, reservesReleased: 0 },
+    ...overrides,
+  };
+}
+
+/**
+ * The yearly report of 2026 from June (the default start month) to December. Like `monthView`, the
+ * totals are worked out from the months unless a spec sets them, which also lets a spec give
+ * figures that do not add up to prove the page shows what it is told.
+ */
+export function yearlyReport(overrides: Partial<YearlyReportDto> = {}): YearlyReportDto {
+  const year = overrides.year ?? 2026;
+  const months =
+    overrides.months ??
+    monthRange(`${year}-06`, `${year}-12`).map((month) =>
+      reportMonth({
+        month,
+        status: month < '2026-10' ? 'closed' : month === '2026-10' ? 'current' : 'future',
+      }),
+    );
+  const sum = (pick: (month: YearlyReportMonth) => number) =>
+    months.reduce((total, month) => total + pick(month), 0);
+  return {
+    year,
+    firstMonth: months[0]?.month ?? `${year}-01`,
+    lastMonth: months.at(-1)?.month ?? `${year}-12`,
+    months,
+    income: {
+      salary: sum((m) => m.income.salary),
+      extra: sum((m) => m.income.extra),
+      total: sum((m) => m.income.total),
+    },
+    fixedCosts: { total: sum((m) => m.fixedCosts), paid: 0, subscriptions: [] },
+    budgets: [],
+    allocated: sum((m) => m.allocated),
+    spent: sum((m) => m.spent),
+    unallocated: sum((m) => m.unallocated),
+    saved: sum((m) => m.saved),
+    savedBreakdown: {
+      unallocated: sum((m) => m.savedBreakdown.unallocated),
+      budgetsSettled: sum((m) => m.savedBreakdown.budgetsSettled),
+      reservesReleased: sum((m) => m.savedBreakdown.reservesReleased),
+    },
+    ...overrides,
+  };
 }

@@ -2,7 +2,13 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { MonthSummary, MonthView, SavingsDto, SettingsDto } from '@wallet/shared';
+import type {
+  MonthSummary,
+  MonthView,
+  SavingsDto,
+  SettingsDto,
+  UpcomingRenewalDto,
+} from '@wallet/shared';
 import { getByRole, queryAllByRole, queryByRole, textOf } from '../../../testing/dom';
 import {
   budgetLine,
@@ -89,11 +95,14 @@ describe('DashboardPage', () => {
     settings?: SettingsDto;
     /** The savings overview the block "Savings to move" reads. Default: nothing to move. */
     savings?: SavingsDto;
+    /** The renewals of the next 30 days. Default: none. */
+    upcoming?: UpcomingRenewalDto[];
     /** The query the trend request is expected to carry. */
     range?: string;
   }
 
   const monthsUrl = (range: string) => `/api/months?${range}`;
+  const UPCOMING_URL = '/api/subscriptions/upcoming?days=30';
 
   /** Creates the page for a month, and returns before either request is answered. */
   async function create(month = '2026-10', settings?: SettingsDto) {
@@ -113,6 +122,7 @@ describe('DashboardPage', () => {
       .expectOne(monthsUrl(data.range ?? `from=2026-06&to=${month}`))
       .flush(data.months ?? SUMMARIES);
     http.expectOne('/api/savings').flush(data.savings ?? savingsDto());
+    http.expectOne(UPCOMING_URL).flush(data.upcoming ?? []);
     await settle(fixture);
     return page(fixture);
   }
@@ -161,6 +171,7 @@ describe('DashboardPage', () => {
       expect(Array.from(p.element.querySelectorAll('h2')).map((h) => textOf(h))).toEqual([
         'October 2026 at a glance',
         'Savings to move',
+        'Upcoming renewals',
         'Budget progress',
         'Spending per budget',
         'Income, spent and saved',
@@ -336,6 +347,7 @@ describe('DashboardPage', () => {
       const fixture = await create();
       http.expectOne('/api/months/2026-10').flush(OCTOBER);
       http.expectOne(monthsUrl('from=2026-06&to=2026-10')).flush(SUMMARIES);
+      http.expectOne(UPCOMING_URL).flush([]);
       await settle(fixture);
       const p = page(fixture);
       expect(textOf(p.savings())).toContain('Loading the savings to move…');
@@ -741,6 +753,7 @@ describe('DashboardPage', () => {
       expect(statuses).toEqual([
         "Loading this month's figures…",
         'Loading the savings to move…',
+        'Loading the upcoming renewals…',
         'Loading budget progress…',
         'Loading the spending chart…',
         'Loading the monthly trend…',
@@ -749,11 +762,13 @@ describe('DashboardPage', () => {
       http.expectOne('/api/months/2026-10').flush(OCTOBER);
       http.expectOne(monthsUrl('from=2026-06&to=2026-10')).flush(SUMMARIES);
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
     });
 
     it('keeps the blocks that have their data while another is still loading', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       http.expectOne('/api/months/2026-10').flush(OCTOBER);
       await settle(fixture);
       const p = page(fixture);
@@ -768,6 +783,7 @@ describe('DashboardPage', () => {
     it('shows what the API said where the month could not be loaded, and keeps the trend', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       flushError(
         http.expectOne('/api/months/2026-10'),
         500,
@@ -795,6 +811,7 @@ describe('DashboardPage', () => {
     it('loads the month again on request, and every block that needed it recovers', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       flushError(
         http.expectOne('/api/months/2026-10'),
         500,
@@ -818,6 +835,7 @@ describe('DashboardPage', () => {
     it('shows what the API said where the trend could not be loaded, and keeps everything else', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       http.expectOne('/api/months/2026-10').flush(OCTOBER);
       flushError(
         http.expectOne(monthsUrl('from=2026-06&to=2026-10')),
@@ -837,6 +855,7 @@ describe('DashboardPage', () => {
     it('loads the trend again on request, without asking for the month again', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       http.expectOne('/api/months/2026-10').flush(OCTOBER);
       flushError(
         http.expectOne(monthsUrl('from=2026-06&to=2026-10')),
@@ -858,6 +877,7 @@ describe('DashboardPage', () => {
     it('still shows the page, with each failure in its own place, when both requests fail', async () => {
       const fixture = await create();
       http.expectOne('/api/savings').flush(savingsDto());
+      http.expectOne(UPCOMING_URL).flush([]);
       flushError(http.expectOne('/api/months/2026-10'), 500, 'internal_error', 'Boom');
       http.expectOne(monthsUrl('from=2026-06&to=2026-10')).error(new ProgressEvent('error'), {
         status: 0,
@@ -871,6 +891,7 @@ describe('DashboardPage', () => {
       expect(textOf(p.trend())).toContain("Can't reach the server");
       expect(Array.from(p.element.querySelectorAll('h2')).map((h) => textOf(h))).toEqual([
         'Savings to move',
+        'Upcoming renewals',
         'Budget progress',
         'Spending per budget',
         'Income, spent and saved',

@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { SUBSCRIPTION_FREQUENCIES, type SubscriptionFrequency } from './limits';
+import {
+  SUBSCRIPTION_FREQUENCIES,
+  type SubscriptionFrequency,
+  UPCOMING_DEFAULT_DAYS,
+  UPCOMING_MAX_DAYS,
+  UPCOMING_MIN_DAYS,
+} from './limits';
 import type { Cents } from './money';
 import type { IsoDate, MonthKey } from './month';
 import {
@@ -14,7 +20,13 @@ import {
 } from './schemas';
 
 // Defined in './limits' (no zod); re-exported so existing imports keep working.
-export { SUBSCRIPTION_FREQUENCIES, type SubscriptionFrequency } from './limits';
+export {
+  SUBSCRIPTION_FREQUENCIES,
+  type SubscriptionFrequency,
+  UPCOMING_DEFAULT_DAYS,
+  UPCOMING_MAX_DAYS,
+  UPCOMING_MIN_DAYS,
+} from './limits';
 
 /**
  * POST /api/subscriptions body → 201 SubscriptionDto. Creates the subscription and its first price
@@ -136,4 +148,65 @@ export interface SubscriptionDto {
    */
   monthlyEquivalent: Cents | null;
   status: SubscriptionStatus;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Upcoming renewals (docs/DOMAIN.md, "Upcoming renewals")
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * GET /api/subscriptions/upcoming query → 200 UpcomingRenewalDto[]. `days` is a whole number of
+ * days, written with digits only, from UPCOMING_MIN_DAYS (1) to UPCOMING_MAX_DAYS (366), default
+ * UPCOMING_DEFAULT_DAYS (30). Anything else (0, 367, 1.5, "1e1", blank, repeated) is a 400
+ * validation_error at `days`. No 404, 409 or 422 rule applies.
+ */
+export const upcomingRenewalsQuerySchema = z.strictObject({
+  days: z
+    .preprocess(
+      (value) => (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value),
+      z.number().int().min(UPCOMING_MIN_DAYS).max(UPCOMING_MAX_DAYS),
+    )
+    .default(UPCOMING_DEFAULT_DAYS),
+});
+/** What a client may send (`days` optional); the backend's parsed value always has it. */
+export type UpcomingRenewalsQuery = Partial<z.infer<typeof upcomingRenewalsQuerySchema>>;
+
+/**
+ * Element of GET /api/subscriptions/upcoming → 200 UpcomingRenewalDto[], ascending by `date`, then
+ * `id`. It lists, for each subscription, its NEXT billing date when that date is from today to
+ * today + `days` (both inclusive, in the server's time zone), so a subscription appears at most
+ * once. The route is registered before `/:id`.
+ *
+ * - The billing date is the day of `anchorDate` clamped to the length of the month (31 becomes 30
+ *   in April); a yearly subscription bills only in the month-of-year of its `anchorDate`.
+ * - The subscription must be active in the month of that date (`startMonth <= month <= endMonth`).
+ *   So a cancelled one never appears, one that ends before its next renewal does not, and one that
+ *   starts later does appear once its first billing date is in the window (its `reserved` is 0).
+ * - `amount` is the price in effect in the month of `date`, read from the price rows. It is NOT
+ *   `MonthSubscriptionLine.nextRenewalPrice`, which can differ when a price change is dated in the
+ *   renewal month itself.
+ * - `reserved` (yearly only) is what is already set aside towards this renewal, as of today:
+ *   the reserve after the current month's top-up and before the renewal's payment, never more than
+ *   `amount`. For a renewal in the current month the whole price counts as reserved (this month's
+ *   top-up is part of this month's fixed costs); for a later one it is the `reserveBalance` of the
+ *   current month's line (0 when the subscription has no line this month).
+ */
+export interface UpcomingRenewalDto {
+  /** The subscription's id. */
+  id: number;
+  name: string;
+  color: string | null;
+  frequency: SubscriptionFrequency;
+  /** `frequency === 'yearly'`: a yearly renewal, shown highlighted with its reserve. */
+  yearly: boolean;
+  /** The billing date. */
+  date: IsoDate;
+  /** Days from today to `date`: 0 when it is today. */
+  daysUntil: number;
+  /** The price charged on `date`: per month for monthly, per year for yearly. */
+  amount: Cents;
+  /** Yearly only (null for monthly): the part of `amount` already reserved, 0 to `amount`. */
+  reserved: Cents | null;
+  /** Yearly only (null for monthly): `amount - reserved`, what the months left still have to add. */
+  unreserved: Cents | null;
 }

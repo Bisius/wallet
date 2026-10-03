@@ -67,6 +67,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/savings/savings-page').then((m) => m.SavingsPage),
       },
       {
+        path: 'report',
+        title: 'Yearly report · Wallet',
+        loadComponent: () =>
+          import('./features/reports/yearly-report-page').then((m) => m.YearlyReportPage),
+      },
+      {
         path: 'settings',
         title: 'Settings · Wallet',
         loadComponent: () =>

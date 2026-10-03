@@ -1,9 +1,11 @@
-import { describe } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   subscriptionCancelSchema,
   subscriptionCreateSchema,
   subscriptionPriceSchema,
   subscriptionUpdateSchema,
+  type UpcomingRenewalDto,
+  upcomingRenewalsQuerySchema,
 } from './subscriptions';
 import { parseCases, schemaCases } from './test-utils';
 
@@ -106,4 +108,66 @@ describe('subscription schemas', () => {
       ['an unknown key', { reason: 'too expensive' }, ''],
     ],
   );
+});
+
+describe('upcomingRenewalsQuerySchema (GET /api/subscriptions/upcoming)', () => {
+  schemaCases(
+    'query',
+    upcomingRenewalsQuerySchema,
+    [
+      ['no days (the default)', {}],
+      ['the smallest window', { days: '1' }],
+      ['a month', { days: '30' }],
+      ['the largest window', { days: '366' }],
+      ['a number', { days: 7 }],
+    ],
+    [
+      ['zero days', { days: '0' }, 'days'],
+      ['a window one day too long', { days: '367' }, 'days'],
+      ['a negative number', { days: '-5' }, 'days'],
+      ['a fraction', { days: '1.5' }, 'days'],
+      ['an exponent', { days: '1e1' }, 'days'],
+      ['a blank value', { days: '' }, 'days'],
+      ['a space', { days: ' 30' }, 'days'],
+      ['a plus sign', { days: '+30' }, 'days'],
+      ['text', { days: 'soon' }, 'days'],
+      ['a repeated value', { days: ['10', '20'] }, 'days'],
+      ['an unknown key', { weeks: '2' }, ''],
+    ],
+  );
+
+  parseCases('output', upcomingRenewalsQuerySchema, [
+    ['defaults to 30 days', {}, { days: 30 }],
+    ['reads digits as a number', { days: '45' }, { days: 45 }],
+    ['keeps leading zeros harmless', { days: '007' }, { days: 7 }],
+  ]);
+
+  it('is documented by a worked example that type-checks', () => {
+    const yearly: UpcomingRenewalDto = {
+      id: 3,
+      name: 'Domain',
+      color: null,
+      frequency: 'yearly',
+      yearly: true,
+      date: '2026-10-20',
+      daysUntil: 17,
+      amount: 12000,
+      reserved: 12000,
+      unreserved: 0,
+    };
+    const monthly: UpcomingRenewalDto = {
+      id: 1,
+      name: 'Netflix',
+      color: '#e50914',
+      frequency: 'monthly',
+      yearly: false,
+      date: '2026-10-15',
+      daysUntil: 12,
+      amount: 1299,
+      reserved: null,
+      unreserved: null,
+    };
+    expect(yearly.amount - (yearly.reserved ?? 0)).toBe(yearly.unreserved);
+    expect(monthly.reserved).toBeNull();
+  });
 });

@@ -6,6 +6,7 @@ import { GlanceSection } from './glance-section';
 import { SavingsToMoveSection } from './savings-to-move-section';
 import { SpendingChartSection } from './spending-chart-section';
 import { TrendChartSection } from './trend-chart-section';
+import { UpcomingRenewalsSection } from './upcoming-renewals-section';
 
 /**
  * The Dashboard: how the selected month is going. Every number comes from the month view
@@ -25,6 +26,7 @@ import { TrendChartSection } from './trend-chart-section';
     BudgetProgressSection,
     SpendingChartSection,
     TrendChartSection,
+    UpcomingRenewalsSection,
   ],
   providers: [DashboardData],
   template: `
@@ -34,6 +36,7 @@ import { TrendChartSection } from './trend-chart-section';
       <div class="space-y-6">
         <app-glance-section />
         <app-savings-to-move-section />
+        <app-upcoming-renewals-section />
         <app-budget-progress-section />
         <div class="grid items-start gap-6 2xl:grid-cols-2">
           <app-spending-chart-section />

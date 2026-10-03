@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { addMonths, isMonthKey, monthDiff, monthRange } from './month';
+import {
+  addDays,
+  addMonths,
+  billingDateIn,
+  daysBetween,
+  daysInMonth,
+  isMonthKey,
+  monthDiff,
+  monthRange,
+} from './month';
 
 describe('month helpers', () => {
   it('validates month keys', () => {
@@ -35,5 +44,50 @@ describe('month helpers', () => {
     for (const delta of [-25, -1, 0, 1, 11, 12, 13, 120]) {
       expect(monthDiff('2026-10', addMonths('2026-10', delta))).toBe(delta);
     }
+  });
+});
+
+describe('day helpers', () => {
+  it.each([
+    ['2026-01', 31],
+    ['2026-02', 28],
+    ['2028-02', 29],
+    ['2100-02', 28], // not a leap year
+    ['2000-02', 29],
+    ['2026-04', 30],
+    ['2026-12', 31],
+  ])('daysInMonth(%s) is %i', (month, expected) => {
+    expect(daysInMonth(month)).toBe(expected);
+  });
+
+  it.each([
+    ['2026-04', '2026-01-31', '2026-04-30'],
+    ['2026-02', '2026-01-31', '2026-02-28'],
+    ['2028-02', '2026-01-31', '2028-02-29'],
+    ['2026-03', '2024-02-29', '2026-03-29'],
+    ['2026-02', '2024-02-29', '2026-02-28'],
+    ['2026-05', '2026-01-05', '2026-05-05'],
+  ])('billingDateIn(%s, %s) is %s', (month, anchor, expected) => {
+    expect(billingDateIn(month, anchor)).toBe(expected);
+  });
+
+  it.each([
+    ['2026-10-03', 0, '2026-10-03'],
+    ['2026-10-03', 28, '2026-10-31'],
+    ['2026-10-03', 29, '2026-11-01'],
+    ['2026-12-31', 1, '2027-01-01'],
+    ['2028-02-28', 1, '2028-02-29'],
+    ['2027-02-28', 1, '2027-03-01'],
+    ['2026-03-01', -1, '2026-02-28'],
+    ['2027-03-15', 366, '2028-03-15'],
+  ])('addDays(%s, %i) is %s', (date, days, expected) => {
+    expect(addDays(date, days)).toBe(expected);
+  });
+
+  it('daysBetween is the inverse of addDays', () => {
+    for (const delta of [-400, -1, 0, 1, 30, 59, 365, 366, 1000]) {
+      expect(daysBetween('2027-02-27', addDays('2027-02-27', delta))).toBe(delta);
+    }
+    expect(daysBetween('2026-10-03', '2026-10-02')).toBe(-1);
   });
 });

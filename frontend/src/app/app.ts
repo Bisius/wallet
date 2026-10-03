@@ -68,6 +68,7 @@ export class App {
     { path: '/subscriptions', label: 'Subscriptions' },
     { path: '/income', label: 'Income' },
     { path: '/savings', label: 'Savings', savingsBadge: true },
+    { path: '/report', label: 'Report' },
     { path: '/settings', label: 'Settings' },
   ];
 

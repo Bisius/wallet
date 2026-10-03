@@ -5,6 +5,7 @@ import {
   subscriptionCreateSchema,
   subscriptionPriceSchema,
   subscriptionUpdateSchema,
+  upcomingRenewalsQuerySchema,
 } from '@wallet/shared';
 import { Router } from 'express';
 import type { AppDeps } from '../../app';
@@ -16,12 +17,20 @@ import {
   updateSubscription,
   upsertSubscriptionPrice,
 } from './subscriptions.service';
+import { listUpcomingRenewals } from './subscriptions.upcoming.service';
 
 export function subscriptionRoutes(deps: AppDeps): Router {
   const router = Router();
 
   router.get('/', (_req, res) => {
     res.json(listSubscriptions(deps));
+  });
+
+  // Registered before `/:id` routes so that "upcoming" is never read as an id.
+  router.get('/upcoming', (req, res) => {
+    // Express 5: `req.query` is a read-only getter, so parse it into a local.
+    const query = upcomingRenewalsQuerySchema.parse(req.query);
+    res.json(listUpcomingRenewals(deps, query));
   });
 
   router.post('/', (req, res) => {

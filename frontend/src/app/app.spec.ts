@@ -43,7 +43,16 @@ const routes: Routes = [
 const apiStatus = (element: HTMLElement) =>
   getByRole(element.querySelector('aside') as Element, 'status');
 
-const NAV = ['Dashboard', 'Budgets', 'Spendings', 'Subscriptions', 'Income', 'Savings', 'Settings'];
+const NAV = [
+  'Dashboard',
+  'Budgets',
+  'Spendings',
+  'Subscriptions',
+  'Income',
+  'Savings',
+  'Report',
+  'Settings',
+];
 
 describe('App shell', () => {
   let http: HttpTestingController;
@@ -89,7 +98,7 @@ describe('App shell', () => {
     return { fixture, element: fixture.nativeElement as HTMLElement };
   }
 
-  it('keeps the seven main navigation items', async () => {
+  it('keeps the eight main navigation items', async () => {
     const { element } = await start('/dashboard');
 
     const nav = getByRole(element, 'navigation', 'Main');
@@ -154,6 +163,7 @@ describe('App shell', () => {
           '/subscriptions',
           '/income',
           '/savings',
+          '/report',
           '/settings',
         ].map((path) => `${path}?month=2026-08`),
       );

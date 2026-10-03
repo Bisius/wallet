@@ -6,6 +6,7 @@ export * from './money';
 export * from './month';
 export * from './months';
 export * from './onboarding';
+export * from './reports';
 export * from './salary';
 export * from './savings';
 export * from './schemas';

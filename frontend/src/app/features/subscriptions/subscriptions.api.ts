@@ -7,7 +7,9 @@ import type {
   SubscriptionDto,
   SubscriptionPriceInput,
   SubscriptionUpdateInput,
+  UpcomingRenewalDto,
 } from '@wallet/shared';
+import { UPCOMING_DEFAULT_DAYS } from '@wallet/shared/limits';
 import type { Observable } from 'rxjs';
 
 /**
@@ -24,6 +26,20 @@ export class SubscriptionsApi {
    */
   list(): HttpResourceRef<SubscriptionDto[] | undefined> {
     return httpResource<SubscriptionDto[]>(() => '/api/subscriptions');
+  }
+
+  /**
+   * `GET /api/subscriptions/upcoming?days=`: each subscription's next billing date within `days`
+   * days of today, ascending by date. It asks for nothing while `today()` is undefined (the server's
+   * date is not known yet) and asks again when it changes. Create it where a resource may be created.
+   */
+  upcoming(
+    today: () => string | undefined,
+    days: number = UPCOMING_DEFAULT_DAYS,
+  ): HttpResourceRef<UpcomingRenewalDto[] | undefined> {
+    return httpResource<UpcomingRenewalDto[]>(() =>
+      today() === undefined ? undefined : { url: '/api/subscriptions/upcoming', params: { days } },
+    );
   }
 
   /** `POST /api/subscriptions` */

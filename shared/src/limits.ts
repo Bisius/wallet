@@ -57,6 +57,16 @@ export const DEFAULT_ALERT_WARN_PERCENT = 80;
 export const SUBSCRIPTION_FREQUENCIES = ['monthly', 'yearly'] as const;
 export type SubscriptionFrequency = (typeof SUBSCRIPTION_FREQUENCIES)[number];
 
+/**
+ * GET /api/subscriptions/upcoming looks `days` days ahead: 30 when omitted, 1 to 366 otherwise. No
+ * started subscription's next billing date is more than 366 days away (that is the longest gap
+ * between two renewals of a yearly one), so the widest window lists the next renewal of every
+ * subscription that has started or starts within it.
+ */
+export const UPCOMING_DEFAULT_DAYS = 30;
+export const UPCOMING_MIN_DAYS = 1;
+export const UPCOMING_MAX_DAYS = 366;
+
 // --- Spendings --------------------------------------------------------------------------------
 
 /** Page size of GET /api/spendings when `limit` is omitted, and the largest `limit` allowed. */
