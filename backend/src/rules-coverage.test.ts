@@ -7,6 +7,7 @@
  * before the endpoints that raise them. It is empty now: every rule of the PLAN.md table has its
  * service and its route test.
  */
+import { IMPORT_REJECTION_CODES } from '@wallet/shared';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -169,6 +170,69 @@ describe('rules a module raises itself', () => {
     const planned = rulesInPlan();
     for (const rules of Object.values(RULES_OF_MODULE)) {
       for (const rule of rules) expect(planned).toContain(rule);
+    }
+  });
+});
+
+/**
+ * The row codes of the CSV importer (`ImportRejectionCode`, shared/src/limits.ts) are not rules of
+ * the PLAN.md table: a row of `POST /api/import/commit` that cannot be imported is listed with its
+ * codes in the details of one 422 `import_rows_rejected`, and `POST /api/import/preview` lists the
+ * same codes (those of `ImportRowErrorCode`) per row. docs/DOMAIN.md ("CSV import") says what each
+ * means. Each must be raised by the importer (`src/modules/import`, a source file that names the
+ * code) and asserted by a test of that module (a test file that names it), so a code in the
+ * contract cannot be left out of the service.
+ *
+ * `NOT_YET_IMPLEMENTED_IMPORT_CODES` parks the codes whose contract and docs are written before
+ * the importer. It is empty now: the importer of Phase 7 raises and asserts every code (the three
+ * that are rules of `POST /api/spendings` come from the same check as that endpoint,
+ * `spendingRuleBreaks`). The last test below fails for an entry that is raised and asserted
+ * already, so the list cannot go stale.
+ */
+const NOT_YET_IMPLEMENTED_IMPORT_CODES: readonly string[] = [];
+
+describe('import row codes', () => {
+  const inImportModule = (selected: (file: string) => boolean): string[] =>
+    files
+      .filter((file) => file.startsWith(join(MODULES_DIR, 'import') + sep) && selected(file))
+      .map((file) => readFileSync(file, 'utf8'));
+  const importSources = inImportModule((file) => !file.endsWith('.test.ts'));
+  const importTests = inImportModule((file) => file.endsWith('.test.ts'));
+
+  const names = (code: string, among: readonly string[]): boolean =>
+    among.some((source) => source.includes(`'${code}'`));
+  const covered = (code: string): boolean => names(code, importSources) && names(code, importTests);
+
+  it('has no code twice', () => {
+    expect(new Set(IMPORT_REJECTION_CODES).size).toBe(IMPORT_REJECTION_CODES.length);
+  });
+
+  const implemented = IMPORT_REJECTION_CODES.filter(
+    (code) => !NOT_YET_IMPLEMENTED_IMPORT_CODES.includes(code),
+  );
+
+  it.each(implemented)('%s is raised by the importer', (code) => {
+    expect(names(code, importSources), `no '${code}' under src/modules/import`).toBe(true);
+  });
+
+  it.each(implemented)('%s is asserted by a test of the importer', (code) => {
+    expect(names(code, importTests), `no '${code}' in a test under src/modules/import`).toBe(true);
+  });
+
+  for (const code of NOT_YET_IMPLEMENTED_IMPORT_CODES) {
+    it.todo(`${code} is raised by the importer and asserted by a test`);
+  }
+
+  it('lists as not yet implemented only codes of the contract that are not fully covered yet', () => {
+    for (const code of NOT_YET_IMPLEMENTED_IMPORT_CODES) {
+      expect(
+        IMPORT_REJECTION_CODES as readonly string[],
+        `'${code}' is not a code of the contract`,
+      ).toContain(code);
+      expect(
+        covered(code),
+        `'${code}' is raised and asserted now: remove it from NOT_YET_IMPLEMENTED_IMPORT_CODES`,
+      ).toBe(false);
     }
   });
 });

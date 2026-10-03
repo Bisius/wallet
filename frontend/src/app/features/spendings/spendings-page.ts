@@ -29,6 +29,7 @@ import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
+import { LinkButton } from '../../shared/ui/link-button';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { TagChip } from '../../shared/ui/tag-chip';
@@ -105,6 +106,7 @@ const STALE_LOOK = 'opacity-90 saturate-50 delay-200';
     PageHeader,
     Button,
     Icon,
+    LinkButton,
     Amount,
     MoneyPipe,
     MonthStatusBadge,
@@ -128,6 +130,8 @@ export class SpendingsPage {
   private readonly today = inject(TodayStore);
   private readonly query = inject(SpendingQuery);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  /** The form that adds a spending (not the one in the edit dialog, which is in the dialog's view). */
+  private readonly addForm = viewChild(SpendingForm);
 
   protected readonly selected = inject(SelectedMonth);
   protected readonly month = this.selected.month;
@@ -388,6 +392,17 @@ export class SpendingsPage {
       untracked(() => {
         this.moreError.set(null);
         this.extras.set(NO_EXTRAS);
+      });
+    });
+    // The "Add spending" shortcut of the installed app (`?add=1`): put the cursor on the form once it
+    // is there (it waits for the month's budgets), then take the parameter out of the address, so
+    // a reload or a bookmark does not do it again.
+    effect(() => {
+      const form = this.addForm();
+      if (!form || !this.query.addRequested()) return;
+      untracked(() => {
+        form.focusAmount();
+        void this.query.consumeAdd();
       });
     });
   }

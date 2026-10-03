@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import type { AppRouteData } from './core/route-data';
-import { onboardedGuard, onboardingGuard, unavailableGuard } from './core/guards';
+import { canLeaveGuard, onboardedGuard, onboardingGuard, unavailableGuard } from './core/guards';
 
 /** Pages that show one month at a time get the month switcher in the shell. */
 const monthScoped: AppRouteData = { monthScoped: true };
@@ -71,6 +71,12 @@ export const routes: Routes = [
         title: 'Yearly report · Wallet',
         loadComponent: () =>
           import('./features/reports/yearly-report-page').then((m) => m.YearlyReportPage),
+      },
+      {
+        path: 'import',
+        title: 'Import CSV · Wallet',
+        loadComponent: () => import('./features/import/import-page').then((m) => m.ImportPage),
+        canDeactivate: [canLeaveGuard],
       },
       {
         path: 'settings',

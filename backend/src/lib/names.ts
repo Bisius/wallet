@@ -9,3 +9,13 @@ export const nameCollator = new Intl.Collator('en', { sensitivity: 'accent' });
 
 /** True when the two names are the same under `nameCollator`. */
 export const isSameName = (a: string, b: string): boolean => nameCollator.compare(a, b) === 0;
+
+/**
+ * A name made only of characters that `nameCollator` ignores (a zero-width space, a variation
+ * selector, a bidi control, NUL, ...) is the empty name for the comparison, so it would show as an
+ * empty chip and clash with every other such name. Services refuse it like an empty name (a 400
+ * `validation_error` at "name"). Whitespace counts as invisible too: `trim()` only strips it at the
+ * ends, and an invisible character at an end shields it. A name that merely contains such a
+ * character next to real ones is fine.
+ */
+export const isInvisibleName = (name: string): boolean => isSameName(name.replace(/\s+/gu, ''), '');

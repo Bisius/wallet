@@ -174,3 +174,22 @@
     padding-inline: calc(var(--spacing) * 5);
   }
 }
+
+/*
+ * A small labelled pill for the state of a row (a duplicate, a credit, an error). It always has words
+ * and an icon next to it: the color is never the only signal. Its colors come from utilities next to
+ * it (`border-negative bg-negative-soft`), so the two never compete.
+ */
+@utility badge {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: calc(var(--spacing) * 1);
+  border-radius: calc(infinity * 1px);
+  border-width: 1px;
+  border-style: solid;
+  padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 2);
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 500;
+  color: var(--color-ink);
+}

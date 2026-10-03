@@ -13,6 +13,10 @@ describe('API_ERROR_STATUS', () => {
     nothing_to_settle: 409,
     not_deletable: 409,
     tag_name_taken: 409,
+    import_profile_name_taken: 409,
+    backups_unavailable: 409,
+    payload_too_large: 413,
+    import_rows_rejected: 422,
     rule_violation: 422,
     internal_error: 500,
   };

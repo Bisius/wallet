@@ -1,5 +1,11 @@
 import { inject } from '@angular/core';
-import { type CanActivateChildFn, type CanActivateFn, Router, type UrlTree } from '@angular/router';
+import {
+  type CanActivateChildFn,
+  type CanActivateFn,
+  type CanDeactivateFn,
+  Router,
+  type UrlTree,
+} from '@angular/router';
 import { SettingsStore } from './settings.store';
 import { TodayStore } from './today.store';
 
@@ -48,3 +54,11 @@ export const unavailableGuard: CanActivateFn = async (route) => {
   const safe = next?.startsWith('/') && !next.startsWith('/unavailable') ? next : '/';
   return router.parseUrl(safe);
 };
+
+/** A page that knows whether it may be left: one with work in progress that leaving would lose. */
+export interface CanLeave {
+  canLeave(): boolean | Promise<boolean>;
+}
+
+/** Guards leaving a page that implements `CanLeave` (the page asks the user when it has to). */
+export const canLeaveGuard: CanDeactivateFn<CanLeave> = (page) => page.canLeave();

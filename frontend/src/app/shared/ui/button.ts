@@ -26,6 +26,11 @@ const SIZES: Record<ButtonSize, string> = {
   sm: 'min-h-9 px-3 py-1.5 text-sm',
 };
 
+/** The classes of a button, for the elements that look like one: `a[appLinkButton]` uses them too. */
+export function buttonClasses(variant: ButtonVariant, size: ButtonSize): string {
+  return `${BASE} ${VARIANTS[variant]} ${SIZES[size]}`;
+}
+
 /**
  * A native `<button>` with the app's look: `<button appButton variant="danger" [loading]="saving()">`.
  * It is `type="button"` unless you say otherwise (so it never submits a form by accident). While
@@ -56,7 +61,5 @@ export class Button {
   readonly disabled = input(false, { transform: booleanAttribute });
 
   protected readonly type = inject(new HostAttributeToken('type'), { optional: true }) ?? 'button';
-  protected readonly classes = computed(
-    () => `${BASE} ${VARIANTS[this.variant()]} ${SIZES[this.size()]}`,
-  );
+  protected readonly classes = computed(() => buttonClasses(this.variant(), this.size()));
 }

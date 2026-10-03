@@ -28,6 +28,7 @@ import { ConfirmDialog } from './shared/ui/confirm-dialog';
 import { MonthSwitcher } from './shared/ui/month-switcher';
 import { LoadingState } from './shared/ui/states';
 import { ToastContainer } from './shared/ui/toast-container';
+import { UpdateNotice } from './shared/ui/update-notice';
 
 interface NavItem {
   path: string;
@@ -47,6 +48,7 @@ interface NavItem {
     ToastContainer,
     ConfirmDialog,
     LoadingState,
+    UpdateNotice,
   ],
   templateUrl: './app.html',
 })

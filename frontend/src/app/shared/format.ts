@@ -109,3 +109,51 @@ export function clampMonth(
   if (max && month > max) return max;
   return month;
 }
+
+const dateTimeFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * An instant (an ISO-8601 timestamp such as a backup's `createdAt`) as a date and a time in the
+ * given locale: "Oct 3, 2026, 2:25 PM". It is shown in the viewer's time zone, unless `timeZone` says
+ * otherwise (the specs name one so the text does not depend on the machine). An unreadable
+ * timestamp comes back as it is.
+ */
+export function formatDateTime(iso: string, locale: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const key = `${locale}|${timeZone ?? ''}`;
+  let format = dateTimeFormats.get(key);
+  if (!format) {
+    const options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short', timeZone };
+    try {
+      format = new Intl.DateTimeFormat(locale, options);
+    } catch {
+      format = new Intl.DateTimeFormat(FALLBACK_LOCALE, options);
+    }
+    dateTimeFormats.set(key, format);
+  }
+  return format.format(date);
+}
+
+const SIZE_UNITS = ['B', 'KB', 'MB', 'GB'] as const;
+
+/**
+ * A file size in bytes for people: "512 B", "1.4 KB", "12.3 MB" (1 KB is 1024 bytes, as a file
+ * browser shows it). One decimal at most, written the way the locale writes numbers. Not for money.
+ */
+export function formatBytes(bytes: number, locale: string): string {
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  // Rounded first, so 1,048,000 bytes is "1 MB" and never "1,023.6 KB".
+  while (unit < SIZE_UNITS.length - 1 && Math.round(value * 10) / 10 >= 1024) {
+    value /= 1024;
+    unit++;
+  }
+  let number: Intl.NumberFormat;
+  try {
+    number = new Intl.NumberFormat(locale, { maximumFractionDigits: unit === 0 ? 0 : 1 });
+  } catch {
+    number = new Intl.NumberFormat(FALLBACK_LOCALE, { maximumFractionDigits: unit === 0 ? 0 : 1 });
+  }
+  return `${number.format(value)} ${SIZE_UNITS[unit]}`;
+}

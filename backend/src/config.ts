@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { BACKEND_ROOT } from './lib/paths';
 
@@ -9,6 +9,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3400),
   DATABASE_PATH: z.string().default('./data/wallet.db'),
   STATIC_DIR: z.string().optional(),
+  BACKUP_DIR: z.string().optional(),
 });
 
 export interface Config {
@@ -18,6 +19,12 @@ export interface Config {
   databasePath: string;
   /** Built Angular app to serve, if any. */
   staticDir: string | undefined;
+  /**
+   * Where backups are kept (`BACKUP_DIR`; by default `backups` next to the database file). undefined
+   * with the in-memory database and no `BACKUP_DIR`: there is then no backup at all
+   * (docs/DOMAIN.md, "Backups").
+   */
+  backupDir: string | undefined;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -29,11 +36,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       ? defaultStaticDir
       : undefined;
 
+  const databasePath =
+    parsed.DATABASE_PATH === ':memory:' ? ':memory:' : resolve(parsed.DATABASE_PATH);
+  // An empty value (`BACKUP_DIR=` in an env file) means "not set": resolving it would give the
+  // working directory, which must never be filled with backup files.
+  const explicitBackupDir = parsed.BACKUP_DIR?.trim();
+  const backupDir = explicitBackupDir
+    ? resolve(explicitBackupDir)
+    : databasePath === ':memory:'
+      ? undefined
+      : join(dirname(databasePath), 'backups');
+
   return {
     env: parsed.NODE_ENV,
     host: parsed.HOST,
     port: parsed.PORT,
-    databasePath: parsed.DATABASE_PATH === ':memory:' ? ':memory:' : resolve(parsed.DATABASE_PATH),
+    databasePath,
     staticDir,
+    backupDir,
   };
 }

@@ -3,7 +3,9 @@ import {
   clampMonth,
   daysInMonth,
   firstDayOf,
+  formatBytes,
   formatDate,
+  formatDateTime,
   formatMonth,
   lastDayOf,
 } from './format';
@@ -91,5 +93,44 @@ describe('clampMonth', () => {
     expect(clampMonth('2030-01', '2026-06', null)).toBe('2030-01');
     expect(clampMonth('2020-01', '2026-06', undefined)).toBe('2026-06');
     expect(clampMonth('2026-10')).toBe('2026-10');
+  });
+});
+
+describe('formatDateTime', () => {
+  it('writes the date and the time in the locale, in the zone it is given', () => {
+    expect(formatDateTime('2026-10-03T14:25:30.000Z', 'en-US', 'UTC')).toBe('Oct 3, 2026, 2:25 PM');
+    expect(formatDateTime('2026-10-03T14:25:30.000Z', 'en-US', 'Asia/Tokyo')).toBe(
+      'Oct 3, 2026, 11:25 PM',
+    );
+  });
+
+  it('follows the locale', () => {
+    expect(formatDateTime('2026-10-03T14:25:30.000Z', 'de-DE', 'UTC')).toBe('03.10.2026, 14:25');
+  });
+
+  it('falls back to a readable format for an ill-formed locale, and returns text it cannot read as it is', () => {
+    expect(formatDateTime('2026-10-03T14:25:30.000Z', 'not a locale', 'UTC')).toContain('2026');
+    expect(formatDateTime('yesterday', 'en-US')).toBe('yesterday');
+  });
+});
+
+describe('formatBytes', () => {
+  it('writes small sizes in bytes and larger ones with one decimal at most', () => {
+    expect(formatBytes(0, 'en-US')).toBe('0 B');
+    expect(formatBytes(512, 'en-US')).toBe('512 B');
+    expect(formatBytes(1024, 'en-US')).toBe('1 KB');
+    expect(formatBytes(1536, 'en-US')).toBe('1.5 KB');
+    expect(formatBytes(1048576, 'en-US')).toBe('1 MB');
+    expect(formatBytes(12.3 * 1048576, 'en-US')).toBe('12.3 MB');
+    expect(formatBytes(3 * 1024 ** 3, 'en-US')).toBe('3 GB');
+  });
+
+  it('never writes 1,024 of a unit that has a bigger one', () => {
+    expect(formatBytes(1048575, 'en-US')).toBe('1 MB');
+    expect(formatBytes(1023, 'en-US')).toBe('1,023 B');
+  });
+
+  it('writes the number the way the locale does', () => {
+    expect(formatBytes(1536, 'de-DE')).toBe('1,5 KB');
   });
 });

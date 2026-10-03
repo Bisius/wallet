@@ -1,0 +1,56 @@
+# Docker semantics, not gitignore: patterns are relative to the repo root and a bare name matches
+# only at the root. Hence the `**/` prefixes for names that can appear in any workspace.
+
+# Version control and local tooling
+.git
+.gitignore
+**/.claude
+**/.vscode
+**/.idea
+
+# Dependencies and build output: the image runs `npm ci` and `npm run build` itself
+**/node_modules
+**/dist
+**/.angular
+*/out-tsc
+*/coverage
+coverage
+
+# Local data. The SQLite database, its WAL files and backups must never end up in an image.
+# The folders are anchored on purpose: a source folder such as backend/src/modules/backups must stay.
+data
+backend/data
+backups
+backend/backups
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite-*
+**/*.sqlite3
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+
+# Tests and test artifacts (nothing here is part of the build)
+**/*.test.ts
+**/*.spec.ts
+**/e2e
+**/playwright-report
+**/test-results
+**/blob-report
+
+# Docs, Docker files and editor/OS files: they only bust the build cache
+docs
+**/*.md
+Dockerfile*
+docker-compose*.yml
+compose*.yml
+.dockerignore
+.editorconfig
+.nvmrc
+.prettierrc
+.prettierignore
+**/*.log
+**/.DS_Store
+**/Thumbs.db

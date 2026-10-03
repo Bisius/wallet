@@ -4,7 +4,7 @@ import type { DbOrTx } from '../../db/client';
 import { spendingTags, tags } from '../../db/schema';
 import type { Deps } from '../../lib/deps';
 import { apiError, notFound } from '../../lib/errors';
-import { isSameName, nameCollator } from '../../lib/names';
+import { isInvisibleName, isSameName, nameCollator } from '../../lib/names';
 
 type TagRow = typeof tags.$inferSelect;
 
@@ -56,17 +56,14 @@ function loadTagDto(db: DbOrTx, id: number): TagDto {
 }
 
 /**
- * A name made only of characters that `nameCollator` ignores (a zero-width space, a variation
- * selector, a bidi control, NUL, ...) is the empty name for the comparison. It still passes the
- * schema (`trim()` leaves it and the minimum length is met) and would show as an empty chip, so it
- * is refused like an empty name: the same 400 `validation_error` at "name" as the schema's. It
- * is a shape error, so it comes before every other check (the 404 of a PATCH, the 409). It lives
- * here and not in the shared schema, which cannot see the collator. Whitespace counts as invisible
- * too: `trim()` only strips it at the ends, and an invisible character at an end shields it.
- * A name that merely contains such a character next to real ones is fine.
+ * A name made only of invisible characters (`isInvisibleName`) still passes the schema (`trim()`
+ * leaves it and the minimum length is met) and would show as an empty chip, so it is refused like
+ * an empty name: the same 400 `validation_error` at "name" as the schema's. It is a shape error, so
+ * it comes before every other check (the 404 of a PATCH, the 409). It lives here and not in the
+ * shared schema, which cannot see the collator.
  */
 function assertNameVisible(name: string): void {
-  if (isSameName(name.replace(/\s+/gu, ''), '')) {
+  if (isInvisibleName(name)) {
     throw apiError('validation_error', 'Invalid request', [
       { path: 'name', message: 'Name is required' },
     ]);

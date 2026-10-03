@@ -2,6 +2,8 @@ import {
   API_ERROR_STATUS,
   type ApiError,
   type ApiErrorCode,
+  DEFAULT_BODY_LIMIT_BYTES,
+  type PayloadTooLargeDetails,
   type RuleViolationDetails,
   type RuleViolationRule,
 } from '@wallet/shared';
@@ -67,6 +69,20 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   } else if (err?.type === 'entity.parse.failed') {
     status = 400;
     body = { error: { code: 'invalid_json', message: 'Request body is not valid JSON' } };
+  } else if (err?.type === 'entity.too.large') {
+    // body-parser's own error: `limit` is the limit (in bytes) of the parser that refused the body,
+    // 100 kB for the app and 10 MiB under /api/import.
+    status = API_ERROR_STATUS.payload_too_large;
+    const details: PayloadTooLargeDetails = {
+      limitBytes: typeof err.limit === 'number' ? err.limit : DEFAULT_BODY_LIMIT_BYTES,
+    };
+    body = {
+      error: {
+        code: 'payload_too_large',
+        message: `Request body is larger than the limit of ${details.limitBytes} bytes`,
+        details,
+      },
+    };
   } else {
     console.error(err);
     status = 500;

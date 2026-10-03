@@ -10,6 +10,13 @@ import {
 } from './spending-filters';
 
 /**
+ * The query parameter of the "Add spending" shortcut of the installed app: `/spendings?add=1` opens
+ * the page with the cursor on the form. It is not a filter, and it is taken out of the address once
+ * the form has the cursor.
+ */
+export const ADD_PARAM = 'add';
+
+/**
  * The filters of the spendings list, kept in the URL next to `?month=`: `?q=coffee&tagId=3&scope=all`.
  * The URL is the one source of truth. The page reads `filters()`, and a change is a navigation, so the
  * browser's back and forward buttons walk through the filters, a reload keeps them, and a link to a
@@ -31,6 +38,9 @@ export class SpendingQuery {
     { equal: sameFilters },
   );
 
+  /** The address asks for the form (`?add=1`): the link of the home-screen shortcut. */
+  readonly addRequested = computed(() => this.params().get(ADD_PARAM) === '1');
+
   /** Ticks each time the filters are cleared, for a box that holds text of its own to empty itself. */
   readonly cleared = signal(0);
 
@@ -44,6 +54,15 @@ export class SpendingQuery {
       queryParams: paramsFromFilters(patch),
       queryParamsHandling: 'merge',
       replaceUrl: options.replace === true,
+    });
+  }
+
+  /** Takes `?add=1` out of the address, in place of its history entry, keeping the month and the filters. */
+  consumeAdd(): Promise<boolean> {
+    return this.router.navigate([], {
+      queryParams: { [ADD_PARAM]: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
     });
   }
 

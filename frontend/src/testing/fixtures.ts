@@ -1,8 +1,15 @@
 import { ceilDiv } from '@wallet/shared/money';
 import { monthDiff, monthRange } from '@wallet/shared/month';
 import type {
+  BackupDto,
+  BackupsDto,
   BudgetDto,
   GoalDto,
+  ImportMapping,
+  ImportParseResponse,
+  ImportPreviewResponse,
+  ImportPreviewRow,
+  ImportProfileDto,
   MonthBudgetLine,
   MonthStatus,
   MonthSubscriptionLine,
@@ -426,5 +433,100 @@ export function yearlyReport(overrides: Partial<YearlyReportDto> = {}): YearlyRe
       reservesReleased: sum((m) => m.savedBreakdown.reservesReleased),
     },
     ...overrides,
+  };
+}
+
+/** A backup file. Defaults: one made on 3 October 2026 at 14:25:30 UTC, 1 MiB. */
+export function backupDto(overrides: Partial<BackupDto> = {}): BackupDto {
+  return {
+    name: 'wallet-20261003-142530.db',
+    createdAt: '2026-10-03T14:25:30.000Z',
+    sizeBytes: 1048576,
+    ...overrides,
+  };
+}
+
+/** The backups answer. Defaults: automatic backups on and no backup yet. */
+export function backupsDto(overrides: Partial<BackupsDto> = {}): BackupsDto {
+  return {
+    automatic: true,
+    backups: [],
+    lastBackupAt: null,
+    nextDueAt: null,
+    ...overrides,
+  };
+}
+
+/** A mapping for a file `Date;Amount;Description` with ISO dates and "." decimals. */
+export function importMapping(overrides: Partial<ImportMapping> = {}): ImportMapping {
+  return {
+    delimiter: ';',
+    hasHeader: true,
+    dateColumn: 0,
+    amountColumn: 1,
+    descriptionColumn: 2,
+    dateFormat: 'YYYY-MM-DD',
+    decimalSeparator: '.',
+    signConvention: 'expenses_negative',
+    ...overrides,
+  };
+}
+
+/** A saved import profile. Defaults: the mapping of `importMapping()`, saved with a header. */
+export function importProfileDto(overrides: Partial<ImportProfileDto> = {}): ImportProfileDto {
+  return {
+    id: 1,
+    name: 'My bank',
+    mapping: importMapping(),
+    header: ['date', 'amount', 'description'],
+    ...overrides,
+  };
+}
+
+/** What `parse` says about a three-column file with a header and two data rows. */
+export function parseResponse(overrides: Partial<ImportParseResponse> = {}): ImportParseResponse {
+  return {
+    delimiter: ';',
+    header: ['Date', 'Amount', 'Description'],
+    sample: [
+      { line: 2, cells: ['2026-10-01', '-3.50', 'Coffee'] },
+      { line: 3, cells: ['2026-10-02', '-12.30', 'Lunch'] },
+    ],
+    recordCount: 3,
+    columnCount: 3,
+    suggestedProfileId: null,
+    ...overrides,
+  };
+}
+
+/** One row of the preview. Defaults: a clean October expense of 3.50 with no suggestion. */
+export function previewRow(overrides: Partial<ImportPreviewRow> = {}): ImportPreviewRow {
+  const line = overrides.line ?? 2;
+  return {
+    line,
+    date: '2026-10-01',
+    amount: 350,
+    raw: { date: '2026-10-01', amount: '-3.50' },
+    description: `Row ${line}`,
+    suggestedBudgetId: null,
+    duplicate: false,
+    credit: false,
+    errors: [],
+    ...overrides,
+  };
+}
+
+/** A preview of these rows, with the summary counted from them as the server counts it. */
+export function previewResponse(rows: ImportPreviewRow[]): ImportPreviewResponse {
+  return {
+    rows,
+    summary: {
+      total: rows.length,
+      invalid: rows.filter((row) => row.errors.length > 0).length,
+      duplicates: rows.filter((row) => row.duplicate).length,
+      credits: rows.filter((row) => row.credit).length,
+      importable: rows.filter((row) => row.errors.length === 0 && !row.duplicate && !row.credit)
+        .length,
+    },
   };
 }

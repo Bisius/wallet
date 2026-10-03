@@ -1,3 +1,4 @@
+import { DEFAULT_BODY_LIMIT_BYTES, IMPORT_MAX_BODY_BYTES } from '@wallet/shared';
 import express, { Router } from 'express';
 import helmet from 'helmet';
 import { join } from 'node:path';
@@ -6,9 +7,12 @@ import type { Db } from './db/client';
 import { type Clock, systemClock } from './lib/clock';
 import { errorHandler, notFound } from './lib/errors';
 import { requestLogger } from './lib/request-logger';
+import { backupRoutes } from './modules/backups/backups.routes';
 import { budgetRoutes } from './modules/budgets/budgets.routes';
+import { exportRoutes } from './modules/export/export.routes';
 import { goalRoutes } from './modules/goals/goals.routes';
 import { healthRoutes } from './modules/health/health.routes';
+import { importRoutes } from './modules/import/import.routes';
 import { incomeRoutes } from './modules/incomes/incomes.routes';
 import { monthRoutes } from './modules/months/months.routes';
 import { onboardingRoutes } from './modules/onboarding/onboarding.routes';
@@ -31,7 +35,8 @@ export interface AppDeps {
 export interface CreateAppOptions {
   db: Db;
   clock?: Clock;
-  config: Pick<Config, 'env' | 'staticDir'>;
+  /** `backupDir` is optional here: without it there is no backup directory (tests, in-memory database). */
+  config: Pick<Config, 'env' | 'staticDir'> & Partial<Pick<Config, 'backupDir'>>;
 }
 
 export function createApp({ db, clock = systemClock, config }: CreateAppOptions) {
@@ -45,7 +50,11 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
       contentSecurityPolicy: { directives: { upgradeInsecureRequests: null } },
     }),
   );
-  app.use(express.json());
+  // The import endpoints carry a whole CSV file in a string, so they get the larger limit. That
+  // parser MUST come first: it reads the body, and the global one (which would refuse anything above
+  // its limit) then finds it already parsed.
+  app.use('/api/import', express.json({ limit: IMPORT_MAX_BODY_BYTES }));
+  app.use(express.json({ limit: DEFAULT_BODY_LIMIT_BYTES }));
   if (config.env === 'development') app.use(requestLogger);
 
   const api = Router();
@@ -53,6 +62,7 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   api.use('/health', healthRoutes(deps));
   api.use('/today', todayRoutes(deps));
   api.use('/settings', settingsRoutes(deps));
+  api.use('/backups', backupRoutes({ ...deps, backupDir: config.backupDir }));
   api.use('/onboarding', onboardingRoutes(deps));
   // Everything else answers 409 `not_onboarded` until the settings exist.
   const onboarded = requireOnboarded(deps);
@@ -67,6 +77,8 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   api.use('/transfers', onboarded, transferRoutes(deps));
   api.use('/tags', onboarded, tagRoutes(deps));
   api.use('/reports', onboarded, reportRoutes(deps));
+  api.use('/export', onboarded, exportRoutes(deps));
+  api.use('/import', onboarded, importRoutes(deps));
   api.use((_req, _res, next) => next(notFound('Route')));
   app.use('/api', api);
 

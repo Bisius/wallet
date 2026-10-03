@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import {
   currencySchema,
   localeSchema,
@@ -42,9 +42,12 @@ import { MoneyPipe } from '../../shared/money.pipe';
 import { PageHeader } from '../../shared/page-header';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
+import { LinkButton } from '../../shared/ui/link-button';
 import { ToastService } from '../../shared/ui/toast.service';
 import { OpeningBalanceDialog } from '../savings/opening-balance-dialog';
 import { SavingsApi } from '../savings/savings.api';
+import { BackupsSection } from './backups-section';
+import { ExportSection } from './export-section';
 import { TagsSection } from './tags-section';
 
 const THEME_LABELS: Record<Theme, string> = {
@@ -56,7 +59,8 @@ const THEME_LABELS: Record<Theme, string> = {
 /**
  * Currency, locale, theme, budget warning threshold and start month (`PUT /api/settings`). After the
  * start month changed, it asks for the savings balance on the new first day: the opening balance
- * follows the start month's date but never its amount. Below the form, the tags (`TagsSection`).
+ * follows the start month's date but never its amount. Below the form, the tags (`TagsSection`) and
+ * the data: CSV export, the way into the CSV import, and the backups.
  */
 @Component({
   selector: 'app-settings-page',
@@ -71,6 +75,10 @@ const THEME_LABELS: Record<Theme, string> = {
     MoneyPipe,
     OpeningBalanceDialog,
     TagsSection,
+    ExportSection,
+    BackupsSection,
+    RouterLink,
+    LinkButton,
   ],
   templateUrl: './settings-page.html',
 })

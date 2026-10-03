@@ -14,9 +14,9 @@ import { budgets, spendingTags, spendings, tags } from '../../db/schema';
 import { type Deps, inTransaction } from '../../lib/deps';
 import { notFound, ruleViolation } from '../../lib/errors';
 import { FOLD_SQL_FUNCTION, foldText } from '../../lib/fold';
-import { monthBounds, monthOfDate, timestampOf } from '../../lib/today';
-import { isWithinActiveMonths } from '../../lib/versioned';
+import { monthBounds, timestampOf } from '../../lib/today';
 import { requireSettings } from '../settings/settings.service';
+import { spendingRuleBreaks } from './spendings.rules';
 
 type SpendingRow = typeof spendings.$inferSelect;
 
@@ -105,35 +105,16 @@ function insertTags(db: DbOrTx, spendingId: number, tagIds: readonly number[]): 
 
 /**
  * The rules a spending must satisfy, checked in the documented order and against the resulting
- * date and budget (so a PATCH is checked as a whole):
- *  1. `unknown_budget`: the budget exists.
- *  2. `before_start_month`: the date is not before `settings.startMonth`.
- *  3. `outside_active_months`: the date's month is within the budget's active months.
- * The fourth rule, `unknown_tag`, comes after these (`assertTagsExist`).
+ * date and budget (so a PATCH is checked as a whole): `unknown_budget`, `before_start_month`, then
+ * `outside_active_months`, the first one that applies is thrown. The check itself is
+ * `spendingRuleBreaks`, which the CSV import shares. The fourth rule, `unknown_tag`, comes after
+ * these (`assertTagsExist`).
  */
 function assertSpendingAllowed(db: DbOrTx, target: { date: IsoDate; budgetId: number }): void {
   const budget = db.select().from(budgets).where(eq(budgets.id, target.budgetId)).get();
-  if (!budget) {
-    throw ruleViolation('unknown_budget', `Budget ${target.budgetId} does not exist`, 'budgetId');
-  }
-
   const floor = requireSettings(db).startMonth;
-  const month = monthOfDate(target.date);
-  if (month < floor) {
-    throw ruleViolation(
-      'before_start_month',
-      `A spending cannot be dated ${target.date}, before the start month ${floor}`,
-      'date',
-    );
-  }
-  if (!isWithinActiveMonths(budget.startMonth, budget.endMonth, month)) {
-    throw ruleViolation(
-      'outside_active_months',
-      `${target.date} is outside the active months of "${budget.name}" ` +
-        `(${budget.startMonth} to ${budget.endMonth ?? 'no end'})`,
-      'date',
-    );
-  }
+  const [first] = spendingRuleBreaks(target, budget, floor);
+  if (first) throw ruleViolation(first.rule, first.message, first.field);
 }
 
 // -------------------------------------------------------------------------------------------------

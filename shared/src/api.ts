@@ -53,6 +53,28 @@ export type ApiErrorCode =
    */
   | 'tag_name_taken'
   /**
+   * 409. `POST /api/import/profiles` and `PUT /api/import/profiles/:id` with a name that another
+   * import profile already has, under the same comparison as `tag_name_taken` (case is ignored,
+   * accents are not).
+   */
+  | 'import_profile_name_taken'
+  /**
+   * 409. `POST /api/backups` when the server has no backup directory (the in-memory database and
+   * no `BACKUP_DIR`, see shared/src/backups.ts), so there is nowhere to put a backup.
+   */
+  | 'backups_unavailable'
+  /**
+   * 413. The request body is larger than the limit of its route: 100 kB (`DEFAULT_BODY_LIMIT_BYTES`)
+   * everywhere, 10 MiB (`IMPORT_MAX_BODY_BYTES`) for the `/api/import` endpoints, which carry a CSV
+   * file. `details` is a `PayloadTooLargeDetails`.
+   */
+  | 'payload_too_large'
+  /**
+   * 422. `POST /api/import/commit` listed rows that can't be imported: nothing was imported.
+   * `details` is an `ImportRowsRejectedDetails` naming every rejected row and its codes.
+   */
+  | 'import_rows_rejected'
+  /**
    * 422. Well-formed input that breaks a rule of docs/DOMAIN.md. `details` is a
    * `RuleViolationDetails` naming the rule.
    */
@@ -72,9 +94,19 @@ export const API_ERROR_STATUS = {
   nothing_to_settle: 409,
   not_deletable: 409,
   tag_name_taken: 409,
+  import_profile_name_taken: 409,
+  backups_unavailable: 409,
+  payload_too_large: 413,
+  import_rows_rejected: 422,
   rule_violation: 422,
   internal_error: 500,
 } as const satisfies Record<ApiErrorCode, number>;
+
+/** `error.details` of a 413 `payload_too_large`. */
+export interface PayloadTooLargeDetails {
+  /** The limit of the route that refused the body, in bytes. */
+  limitBytes: number;
+}
 
 /** One entry of `details` for a `validation_error`. */
 export interface ValidationIssue {
@@ -169,8 +201,9 @@ export interface ApiError {
     code: ApiErrorCode;
     message: string;
     /**
-     * `ValidationIssue[]` for `validation_error`, `RuleViolationDetails` for `rule_violation` and
-     * `OutstandingChangedDetails` for `outstanding_changed`.
+     * `ValidationIssue[]` for `validation_error`, `RuleViolationDetails` for `rule_violation`,
+     * `OutstandingChangedDetails` for `outstanding_changed`, `ImportRowsRejectedDetails` for
+     * `import_rows_rejected` and `PayloadTooLargeDetails` for `payload_too_large`.
      */
     details?: unknown;
   };

@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { SettingsDto, SettingsInput, TagDto } from '@wallet/shared';
+import type { BackupsDto, SettingsDto, SettingsInput, TagDto } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { ThemeService } from '../../core/theme.service';
 import { ToastService } from '../../shared/ui/toast.service';
@@ -25,6 +25,8 @@ import {
   StubPage,
 } from '../../../testing/harness';
 import { SettingsPage } from './settings-page';
+
+const NO_BACKUPS: BackupsDto = { automatic: true, backups: [], lastBackupAt: null, nextDueAt: null };
 
 describe('SettingsPage', () => {
   let http: HttpTestingController;
@@ -57,8 +59,10 @@ describe('SettingsPage', () => {
     TestBed.inject(ThemeService);
     await primeStores(http, { settings });
     const fixture = await render(SettingsPage);
-    // The page lists the tags below the form (see tags-section.spec.ts for what it does with them).
+    // The page lists the tags below the form (see tags-section.spec.ts for what it does with them) and
+    // the backups under it (see backups-section.spec.ts).
     http.expectOne('/api/tags').flush(tags);
+    http.expectOne('/api/backups').flush(NO_BACKUPS);
     await settle(fixture);
     const element = fixture.nativeElement as HTMLElement;
     const field = <T extends HTMLElement = HTMLInputElement>(label: string | RegExp) =>
@@ -94,6 +98,26 @@ describe('SettingsPage', () => {
     expect(textOf(tags)).toContain('On 3 spendings');
     // Saving the settings is a different thing from editing a tag.
     expect(element.querySelector('form')?.contains(tags)).toBe(false);
+  });
+
+  it('has the data below the tags, outside the settings form: export, import and backups', async () => {
+    const { element } = await setup();
+
+    const form = element.querySelector('form') as HTMLElement;
+    for (const name of ['Export', 'Import', 'Backups']) {
+      const section = getByRole(element, 'region', name);
+      expect(getByRole(section, 'heading', name)).toBeTruthy();
+      expect(form.contains(section)).toBe(false);
+    }
+    expect(getByRole(getByRole(element, 'region', 'Export'), 'link', 'Download spendings CSV')).toBeTruthy();
+    expect(getByRole(getByRole(element, 'region', 'Backups'), 'button', 'Back up now')).toBeTruthy();
+  });
+
+  it('links to the import wizard', async () => {
+    const { element } = await setup();
+
+    const link = getByRole(getByRole(element, 'region', 'Import'), 'link', 'Import a CSV file');
+    expect(link.getAttribute('href')).toBe('/import');
   });
 
   it('labels every control and says what the numbers will look like', async () => {

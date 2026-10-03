@@ -3,11 +3,41 @@
  * runtime they are no-ops. If one fails to compile, a contract type changed shape.
  */
 import { describe, expectTypeOf, it } from 'vitest';
-import type { ApiError, ApiErrorCode, Page, RuleViolationRule, TodayResponse } from './api';
+import type {
+  ApiError,
+  ApiErrorCode,
+  Page,
+  PayloadTooLargeDetails,
+  RuleViolationRule,
+  TodayResponse,
+} from './api';
+import type { BackupDto, BackupsDto } from './backups';
 import type { BudgetCreateInput, BudgetDto, BudgetUpdateInput } from './budgets';
+import type { ExportQuery } from './export';
 import type { GoalCreateInput, GoalDto, GoalUpdateInput } from './goals';
+import type {
+  ImportCommitInput,
+  ImportCommitResponse,
+  ImportMapping,
+  ImportParseInput,
+  ImportParseResponse,
+  ImportPreviewInput,
+  ImportPreviewResponse,
+  ImportPreviewRow,
+  ImportProfileDto,
+  ImportProfileInput,
+  ImportRowsRejectedDetails,
+} from './import';
 import type { IncomeCreateInput } from './incomes';
-import type { SavingsTransactionKind } from './limits';
+import type {
+  CsvDelimiter,
+  ImportDateFormat,
+  ImportDecimalSeparator,
+  ImportRejectionCode,
+  ImportRowErrorCode,
+  ImportSignConvention,
+  SavingsTransactionKind,
+} from './limits';
 import type { Cents } from './money';
 import type { IsoDate, MonthKey } from './month';
 import type { MonthSavingsDue, MonthSummary, MonthView } from './months';
@@ -331,6 +361,109 @@ describe('contract types', () => {
     expectTypeOf<YearlyReportDto['months']>().toEqualTypeOf<YearlyReportMonth[]>();
     expectTypeOf<YearlyReportDto['year']>().toEqualTypeOf<number>();
     expectTypeOf<YearlyReportDto['saved']>().toEqualTypeOf<Cents>();
+  });
+
+  it('the Phase 7 error codes exist', () => {
+    expectTypeOf<
+      | 'import_profile_name_taken'
+      | 'backups_unavailable'
+      | 'payload_too_large'
+      | 'import_rows_rejected'
+    >().toExtend<ApiErrorCode>();
+    expectTypeOf<PayloadTooLargeDetails>().toEqualTypeOf<{ limitBytes: number }>();
+  });
+
+  it('export query', () => {
+    expectTypeOf<ExportQuery>().toEqualTypeOf<{
+      from?: string | undefined;
+      to?: string | undefined;
+    }>();
+  });
+
+  it('import mapping and requests', () => {
+    expectTypeOf<ImportMapping>().toEqualTypeOf<{
+      delimiter: CsvDelimiter;
+      hasHeader: boolean;
+      dateColumn: number;
+      amountColumn: number;
+      descriptionColumn: number;
+      dateFormat: ImportDateFormat;
+      decimalSeparator: ImportDecimalSeparator;
+      signConvention: ImportSignConvention;
+    }>();
+    expectTypeOf<CsvDelimiter>().toEqualTypeOf<',' | ';' | '\t' | '|'>();
+    expectTypeOf<ImportParseInput>().toEqualTypeOf<{
+      csv: string;
+      delimiter?: CsvDelimiter | undefined;
+    }>();
+    expectTypeOf<ImportPreviewInput>().toEqualTypeOf<{ csv: string; mapping: ImportMapping }>();
+    expectTypeOf<ImportCommitInput>().toEqualTypeOf<{
+      csv: string;
+      mapping: ImportMapping;
+      rows: { line: number; budgetId: number }[];
+    }>();
+    expectTypeOf<ImportProfileInput>().toEqualTypeOf<{
+      name: string;
+      mapping: ImportMapping;
+      header?: string[] | null | undefined;
+    }>();
+  });
+
+  it('import responses', () => {
+    expectTypeOf<ImportParseResponse>().toEqualTypeOf<{
+      delimiter: CsvDelimiter;
+      header: string[];
+      sample: { line: number; cells: string[] }[];
+      recordCount: number;
+      columnCount: number;
+      suggestedProfileId: number | null;
+    }>();
+    expectTypeOf<ImportPreviewRow>().toEqualTypeOf<{
+      line: number;
+      date: IsoDate | null;
+      amount: Cents | null;
+      raw: { date: string; amount: string };
+      description: string;
+      suggestedBudgetId: number | null;
+      duplicate: boolean;
+      credit: boolean;
+      errors: ImportRowErrorCode[];
+    }>();
+    expectTypeOf<ImportPreviewResponse['summary']>().toEqualTypeOf<{
+      total: number;
+      invalid: number;
+      duplicates: number;
+      credits: number;
+      importable: number;
+    }>();
+    expectTypeOf<ImportCommitResponse>().toEqualTypeOf<{
+      created: number;
+      items: { line: number; id: number }[];
+    }>();
+    expectTypeOf<ImportRowsRejectedDetails>().toEqualTypeOf<{
+      rows: { line: number; errors: ImportRejectionCode[] }[];
+    }>();
+    expectTypeOf<ImportRowErrorCode>().toExtend<ImportRejectionCode>();
+    expectTypeOf<ImportProfileDto>().toEqualTypeOf<{
+      id: number;
+      name: string;
+      mapping: ImportMapping;
+      header: string[] | null;
+    }>();
+  });
+
+  it('backups', () => {
+    expectTypeOf<BackupDto>().toEqualTypeOf<{
+      name: string;
+      createdAt: string;
+      sizeBytes: number;
+    }>();
+    expectTypeOf<BackupsDto>().toEqualTypeOf<{
+      automatic: boolean;
+      backups: BackupDto[];
+      lastBackupAt: string | null;
+      nextDueAt: string | null;
+    }>();
   });
 
   it('MonthSummary repeats the MonthView totals', () => {

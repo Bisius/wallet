@@ -1,7 +1,13 @@
 <app-page-header title="Spendings" [subtitle]="subtitle()">
-  @if (monthView(); as snapshot) {
-    <app-month-status [status]="snapshot.status" />
-  }
+  <div class="flex flex-wrap items-center gap-3">
+    @if (monthView(); as snapshot) {
+      <app-month-status [status]="snapshot.status" />
+    }
+    <a appLinkButton size="sm" routerLink="/import">
+      <app-icon name="upload" />
+      Import CSV
+    </a>
+  </div>
 </app-page-header>
 
 @if (month(); as month) {

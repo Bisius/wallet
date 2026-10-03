@@ -8,6 +8,7 @@
  * - Values that change over time (salary, budget amount, subscription price) are stored as
  *   "effective from month" history rows, so editing them never rewrites closed months.
  */
+import type { ImportMapping } from '@wallet/shared';
 import { sql } from 'drizzle-orm';
 import {
   check,
@@ -273,3 +274,27 @@ export const savingsTransactions = sqliteTable(
     ),
   ],
 );
+
+/**
+ * A saved CSV import mapping, one per bank, so that the next file of that bank needs no
+ * remapping (docs/DOMAIN.md, "CSV import"). It holds no money and no spending refers to it.
+ */
+export const importProfiles = sqliteTable('import_profiles', {
+  id: id(),
+  /**
+   * Unique ignoring case under the shared name collator (`lib/names.ts`), like a tag name. SQLite's
+   * unique index is case-sensitive, so the service checks the rule itself and the index is only a
+   * backstop.
+   */
+  name: text().notNull().unique(),
+  /** An `ImportMapping` as JSON text, validated with `importMappingSchema` on every write. */
+  mapping: text({ mode: 'json' }).$type<ImportMapping>().notNull(),
+  /**
+   * The normalized header cells of the file the mapping was made from, as a JSON array of text, or
+   * null. `POST /api/import/parse` suggests a profile whose cells at the three mapped columns equal
+   * the file's. Always null when `mapping.hasHeader` is false.
+   */
+  headerSignature: text({ mode: 'json' }).$type<string[]>(),
+  createdAt: timestamp(),
+  updatedAt: timestamp(),
+});

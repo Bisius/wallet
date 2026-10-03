@@ -15,6 +15,13 @@
       "when": 1790973564780,
       "tag": "0001_savings_group_id",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791035565278,
+      "tag": "0002_import_profiles",
+      "breakpoints": true
     }
   ]
 }

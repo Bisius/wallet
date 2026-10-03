@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Wallet</title>
+  <!--
+    Source of the PWA icons. `node pwa/build-icons.mjs` (npm run icons) renders it to public/icons/*.png.
+    The script reads only <rect> and <circle> elements (x, y, width, height, rx, cx, cy, r, fill with a
+    #rrggbb color), painted in document order. The first rect is the tile: the script rounds its
+    corners for the "any" icons and squares them for the maskable and Apple icons, which the system
+    masks itself. Keep the glyph inside the central circle of radius 205 (the maskable safe zone).
+    Colors are the app's tokens: accent #1d4ed8 and accent-soft #dbeafe (src/styles.css).
+  -->
+  <rect id="tile" width="512" height="512" rx="112" fill="#1d4ed8" />
+  <!-- a card sticking out of the wallet -->
+  <rect x="140" y="124" width="236" height="110" rx="22" fill="#dbeafe" />
+  <!-- the wallet -->
+  <rect x="92" y="176" width="328" height="212" rx="40" fill="#ffffff" />
+  <!-- the clasp, a tab cut out of the right edge, with its button -->
+  <rect x="300" y="250" width="150" height="76" rx="38" fill="#1d4ed8" />
+  <circle cx="340" cy="288" r="14" fill="#ffffff" />
+</svg>

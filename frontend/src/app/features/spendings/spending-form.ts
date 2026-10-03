@@ -289,6 +289,14 @@ export class SpendingForm implements OnInit {
     }
   }
 
+  /** Puts the cursor on the amount, where an entry starts. */
+  focusAmount(): void {
+    afterNextRender(
+      () => this.amountField()?.nativeElement.querySelector<HTMLElement>('input')?.focus(),
+      { injector: this.injector },
+    );
+  }
+
   /** Brings up the tag field and puts the cursor in it. */
   protected revealTags(): void {
     this.tagsOpen.set(true);
@@ -312,10 +320,7 @@ export class SpendingForm implements OnInit {
     tagIds.reset([]);
     this.form.controls.date.markAsUntouched();
     this.form.controls.budgetId.markAsUntouched();
-    afterNextRender(
-      () => this.amountField()?.nativeElement.querySelector<HTMLElement>('input')?.focus(),
-      { injector: this.injector },
-    );
+    this.focusAmount();
   }
 
   private focusInvalidAfterRender(): void {

@@ -1,0 +1,88 @@
+# Wallet: personal finance manager, API and UI in one container.
+#
+#   cp .env.example .env        # then set TZ (and PORT / BIND_ADDRESS if you need them)
+#   docker compose up -d --build
+#   open http://<host>:3400
+#
+# Compose reads PORT, TZ and BIND_ADDRESS from the shell or from `.env`. The other settings are fixed
+# below because they have to agree with the /data volume.
+
+# A fixed project name keeps the volume name stable: without it Compose names the project after the
+# folder, and cloning this repo into a differently named folder would start with an empty database.
+name: wallet
+
+services:
+  wallet:
+    build: .
+    restart: unless-stopped
+    # tini as PID 1: forwards SIGTERM to node and reaps zombies.
+    init: true
+    # The SIGTERM handler closes the HTTP server and the database before exiting.
+    stop_grace_period: 30s
+
+    ports:
+      # THERE IS NO LOGIN. Anyone who can reach this port can read and change every number.
+      # Keep it on a private network (home LAN, Tailscale, WireGuard) and never forward it from
+      # the router. Docker publishes ports straight into iptables, so ufw/firewalld rules on the
+      # host do NOT protect it. To narrow it down, set BIND_ADDRESS in .env:
+      #   BIND_ADDRESS=127.0.0.1        only this machine (put `tailscale serve` or a reverse proxy in front)
+      #   BIND_ADDRESS=100.64.0.1       only the Tailscale address of this machine (use your own)
+      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-3400}:${PORT:-3400}"
+
+    environment:
+      PORT: ${PORT:-3400}
+      HOST: 0.0.0.0
+      DATABASE_PATH: /data/wallet.db
+      BACKUP_DIR: /data/backups
+      # TZ decides what "today" is: the server takes the calendar date in this zone from its clock
+      # (there is no time zone in the app settings), and so it decides when the current month ends
+      # and which month a new spending lands in. Set the zone you live in, as an IANA name such as
+      # Europe/Rome. Compose takes TZ from the shell or from `.env`, and most shells do not export
+      # it, so without a line in `.env` you get UTC even on a host that is not in UTC. A mistyped
+      # name also silently means UTC. The app's own log lines carry no timestamps, so TZ does not
+      # change them (`docker logs -t` stamps lines in UTC regardless).
+      TZ: ${TZ:-UTC}
+
+    volumes:
+      # A named volume inherits the ownership of /data in the image (user `node`, uid 1000), so it
+      # works as is. With a bind mount instead (`- ./data:/data`) the host folder must be writable
+      # for uid 1000: create it yourself first (if it is missing, Docker creates it owned by root),
+      # then `sudo chown 1000:1000 ./data`. If the folder has to keep another owner, add
+      # `user: "<uid>:<gid>"` under this service (`stat -c %u:%g ./data` prints them; the app only
+      # writes under /data). Otherwise the app exits at startup with a message that names the
+      # folder, the uid it runs as and the likely cause and, with `restart: unless-stopped`,
+      # restarts in a loop.
+      # Always mount the folder, never the single wallet.db file: SQLite keeps wallet.db-wal and
+      # wallet.db-shm next to it. Avoid network file systems (NFS, SMB) for the database, since WAL
+      # needs working shared memory and file locks.
+      - wallet-data:/data
+
+    # node:24-slim has no curl or wget, so the probe is node itself: exit 0 on a 2xx answer from
+    # /api/health, 1 on any other status, error or timeout. Same check as the Dockerfile's
+    # HEALTHCHECK, which this one overrides. start_period covers migrations and the startup backup.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:' + (process.env.PORT || 3400) + '/api/health', { signal: AbortSignal.timeout(4000) }).then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+    # Nothing here needs privileges: no capabilities, and no way to gain any.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # json-file has no size limit by default, so cap it.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  wallet-data:

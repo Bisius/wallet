@@ -110,3 +110,112 @@ export const SAVINGS_TRANSACTIONS_MAX_LIMIT = 200;
 
 /** The most allocations one settlement may be split into. */
 export const MAX_SETTLEMENT_ALLOCATIONS = 50;
+
+// --- CSV export and import --------------------------------------------------------------------
+
+/**
+ * The delimiters the importer reads: comma, semicolon, tab and pipe. The exports always write a
+ * comma.
+ */
+export const CSV_DELIMITERS = [',', ';', '\t', '|'] as const;
+export type CsvDelimiter = (typeof CSV_DELIMITERS)[number];
+
+/**
+ * The closed set of date formats of the importer (docs/DOMAIN.md, "CSV import"). `DD` and `MM`
+ * accept one or two digits (so `5/3/2026` reads as 5 March under `DD/MM/YYYY`), `YYYY` is exactly
+ * four digits (a two-digit year is never accepted), and `YYYYMMDD` is exactly eight digits.
+ */
+export const IMPORT_DATE_FORMATS = [
+  'YYYY-MM-DD',
+  'YYYY/MM/DD',
+  'YYYYMMDD',
+  'DD/MM/YYYY',
+  'MM/DD/YYYY',
+  'DD.MM.YYYY',
+  'DD-MM-YYYY',
+  'MM-DD-YYYY',
+] as const;
+export type ImportDateFormat = (typeof IMPORT_DATE_FORMATS)[number];
+
+/** The decimal separator of a bank's amounts. The other one of the two counts as thousands. */
+export const IMPORT_DECIMAL_SEPARATORS = ['.', ','] as const;
+export type ImportDecimalSeparator = (typeof IMPORT_DECIMAL_SEPARATORS)[number];
+
+/**
+ * Which sign a bank puts on money that LEAVES the account. `expenses_negative` (most banks): an
+ * expense is -12.30. `expenses_positive` (credit cards, and Wallet's own export): an expense is
+ * +12.30.
+ */
+export const IMPORT_SIGN_CONVENTIONS = ['expenses_negative', 'expenses_positive'] as const;
+export type ImportSignConvention = (typeof IMPORT_SIGN_CONVENTIONS)[number];
+
+/**
+ * Why a file row cannot be imported, as `ImportPreviewRow.errors`, in this order (a row lists every
+ * code that applies, in the order of this list). The first five come from the text of the row
+ * alone, `before_start_month` from its date and `settings.startMonth`.
+ */
+export const IMPORT_ROW_ERROR_CODES = [
+  'invalid_date',
+  'invalid_amount',
+  'zero_amount',
+  'amount_too_large',
+  'empty_description',
+  'before_start_month',
+] as const;
+export type ImportRowErrorCode = (typeof IMPORT_ROW_ERROR_CODES)[number];
+
+/**
+ * Why a listed row of `POST /api/import/commit` is rejected: every `ImportRowErrorCode` plus four
+ * more, in the canonical order in which a row lists its codes. `unknown_budget`,
+ * `before_start_month` and `outside_active_months` are the rules of `POST /api/spendings` under the
+ * same names; `duplicate` is the preview's `duplicate` flag.
+ */
+export const IMPORT_REJECTION_CODES = [
+  'unknown_line',
+  'invalid_date',
+  'invalid_amount',
+  'zero_amount',
+  'amount_too_large',
+  'empty_description',
+  'unknown_budget',
+  'before_start_month',
+  'outside_active_months',
+  'duplicate',
+] as const;
+export type ImportRejectionCode = (typeof IMPORT_REJECTION_CODES)[number];
+
+/** `POST /api/import/parse` returns this many records after the first one as the sample. */
+export const IMPORT_SAMPLE_ROWS = 5;
+
+/** The most data rows `preview` and `commit` accept in one file (and rows one commit lists). */
+export const IMPORT_MAX_ROWS = 10_000;
+
+/** The highest column index a mapping may name (a mapping addresses at most 100 columns). */
+export const IMPORT_MAX_COLUMN_INDEX = 99;
+
+/** The most header cells, and the longest cell, a saved profile keeps (`ImportProfileInput.header`). */
+export const IMPORT_PROFILE_MAX_HEADER_CELLS = IMPORT_MAX_COLUMN_INDEX + 1;
+export const IMPORT_PROFILE_HEADER_CELL_MAX_LENGTH = 200;
+
+/**
+ * Body limits in bytes. Every JSON body is limited to `DEFAULT_BODY_LIMIT_BYTES` (express's own
+ * default of 100 kB) except the `/api/import` ones, which carry a whole CSV file in a string and may
+ * be `IMPORT_MAX_BODY_BYTES` (10 MiB). A larger body is a 413 `payload_too_large`.
+ */
+export const DEFAULT_BODY_LIMIT_BYTES = 100 * 1024;
+export const IMPORT_MAX_BODY_BYTES = 10 * 1024 * 1024;
+
+/** The files `GET /api/export/<kind>.csv` serves. */
+export const EXPORT_KINDS = ['spendings', 'incomes', 'savings'] as const;
+export type ExportKind = (typeof EXPORT_KINDS)[number];
+
+// --- Backups ----------------------------------------------------------------------------------
+
+/**
+ * An automatic backup is due once the newest one is this old (and at startup when it already is).
+ * Rotation keeps `BACKUP_KEEP_DAILY` daily and `BACKUP_KEEP_MONTHLY` monthly backups (docs/PLAN.md,
+ * Phase 7); the contract exposes no "kind" of backup, because one file can be kept for both reasons.
+ */
+export const BACKUP_INTERVAL_HOURS = 24;
+export const BACKUP_KEEP_DAILY = 14;
+export const BACKUP_KEEP_MONTHLY = 12;

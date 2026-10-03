@@ -8,6 +8,7 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test --watch=false",
     "test:watch": "ng test",
+    "icons": "node pwa/build-icons.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit"
   },
   "private": true,
@@ -18,6 +19,7 @@
     "@angular/forms": "^22.0.0",
     "@angular/platform-browser": "^22.0.0",
     "@angular/router": "^22.0.0",
+    "@angular/service-worker": "^22.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "@wallet/shared": "*"

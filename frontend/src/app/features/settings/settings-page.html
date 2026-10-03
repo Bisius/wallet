@@ -91,6 +91,23 @@
 
 <app-tags-section class="mt-6 max-w-2xl" />
 
+<div class="mt-6 max-w-2xl space-y-6">
+  <app-export-section />
+
+  <section aria-labelledby="import-heading" class="card space-y-3">
+    <h2 id="import-heading" class="text-lg font-semibold">Import</h2>
+    <p class="text-sm text-muted">
+      Bring in spendings from your bank's CSV file. You check every row before anything is stored.
+    </p>
+    <a appLinkButton routerLink="/import">
+      <app-icon name="upload" />
+      Import a CSV file
+    </a>
+  </section>
+
+  <app-backups-section />
+</div>
+
 @if (askingForOpening()) {
   <app-opening-balance-dialog
     heading="Check your opening balance"
