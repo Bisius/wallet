@@ -22,6 +22,12 @@ import {
  * money: a source that holds less than `amount` just goes negative (a budget) or over-allocated
  * (the pool).
  *
+ * Like a spending, a transfer may be dated any day from `settings.startMonth` on, even beyond the
+ * 120-month projection horizon (`MAX_MONTHS_AHEAD`), where no month view exists. Such a transfer
+ * is in no month view but still counts for the budget guards (`end_before_activity`,
+ * `has_history`), and it is found with `GET /api/transfers` (without a filter, with `?budgetId=`,
+ * or with the `month` or `from`/`to` of its date), so the UI bounds its date picker.
+ *
  * Errors, checked in this order: 400 validation_error, at "toBudgetId", when both sides are null
  * (no budget at all) or both are the same budget; then 422 rule_violation: `unknown_budget` (field
  * "fromBudgetId", then "toBudgetId"), `before_start_month` (date before settings.startMonth,
@@ -66,8 +72,11 @@ export type TransferCreateInput = z.infer<typeof transferCreateSchema>;
  * paged: a personal ledger has few transfers, and `month` or `from`/`to` keeps the list short. No
  * 409 or 422 rule applies: a bad query is a 400 validation_error. Filters combine with AND. `month`
  * and `from`/`to` (inclusive dates) are mutually exclusive, and `from` must not be after `to`.
- * `budgetId` keeps the transfers that move money out of OR into that budget. A month outside the
- * tracked range and an unknown budgetId just match nothing. Without a filter, every transfer.
+ * `budgetId` keeps the transfers that move money out of OR into that budget. `month`, `from` and
+ * `to` are plain date filters, not checks against the tracked range: a month with no transfers
+ * gives `[]` whether or not it lies inside that range, and a transfer dated far ahead (see
+ * `transferCreateSchema`) is returned for its own month. An unknown `budgetId` matches nothing.
+ * Without a filter, every transfer.
  */
 export const transferListQuerySchema = z
   .strictObject({

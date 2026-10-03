@@ -1,6 +1,6 @@
 /**
- * Helpers for the HTTP scenario tests of the month endpoints. The facts are rebuilt from the
- * Phase 1 read endpoints (not from the database and not through `loadFacts`), so checking the month
+ * Helpers for the HTTP scenario tests of the month endpoints. The facts are rebuilt from the public
+ * read endpoints (not from the database and not through `loadFacts`), so checking the month
  * endpoints against an oracle built from them tests the whole path: storage, `loadFacts`, the
  * ledger and the routes.
  */
@@ -14,6 +14,7 @@ import type {
   SpendingDto,
   SpendingsPage,
   SubscriptionDto,
+  TransferDto,
 } from '@wallet/shared';
 import type { Express } from 'express';
 import request from 'supertest';
@@ -32,13 +33,17 @@ import {
   expectSummaryMatchesView,
   paymentsOf,
 } from './month-identities';
+import { transferFactOf } from './prop-api';
 
 async function get<T>(app: Express, path: string): Promise<T> {
   return (await request(app).get(path).expect(200)).body as T;
 }
 
-/** The facts the API currently holds, read back through the Phase 1 endpoints. */
-export async function factsFromApi(app: Express, transfers: TransferFact[] = []): Promise<Facts> {
+/**
+ * The facts the API currently holds, read back through the public endpoints. The transfers are
+ * read with `GET /api/transfers` too, unless a test passes the ones it expects there to be.
+ */
+export async function factsFromApi(app: Express, transfers?: TransferFact[]): Promise<Facts> {
   const settings = await get<SettingsDto>(app, '/api/settings');
 
   const spendingRows: SpendingDto[] = [];
@@ -91,7 +96,7 @@ export async function factsFromApi(app: Express, transfers: TransferFact[] = [])
     subscriptions,
     budgets,
     spendings: [...perBudgetMonth.values()],
-    transfers,
+    transfers: transfers ?? (await get<TransferDto[]>(app, '/api/transfers')).map(transferFactOf),
   };
 }
 
@@ -111,7 +116,7 @@ export interface CheckedScenario {
 export async function expectApiMatchesOracle(
   app: Express,
   range: { from: string; to: string },
-  transfers: TransferFact[] = [],
+  transfers?: TransferFact[],
 ): Promise<CheckedScenario> {
   const facts = await factsFromApi(app, transfers);
   const oracle = createOracle(facts);

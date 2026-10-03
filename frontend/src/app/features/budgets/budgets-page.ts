@@ -2,6 +2,7 @@ import {
   afterNextRender,
   Component,
   computed,
+  DOCUMENT,
   ElementRef,
   inject,
   Injector,
@@ -12,6 +13,7 @@ import type { BudgetDto, MonthBudgetLine } from '@wallet/shared';
 import { firstValueFrom } from 'rxjs';
 import { parseApiError } from '../../core/api-error';
 import { reloaded, resourceState } from '../../core/resource-state';
+import { SavingsStore } from '../../core/savings.store';
 import { SelectedMonth } from '../../core/selected-month';
 import { SettingsStore } from '../../core/settings.store';
 import { TodayStore } from '../../core/today.store';
@@ -24,6 +26,9 @@ import { Icon } from '../../shared/ui/icon';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { MonthsApi } from '../months/months.api';
+import { TransferDialog } from '../transfers/transfer-dialog';
+import { TransfersApi } from '../transfers/transfers.api';
+import { TransfersSection } from '../transfers/transfers-section';
 import { BudgetCard } from './budget-card';
 import { BudgetForm } from './budget-form';
 import { planSwap } from './budget-order';
@@ -41,6 +46,11 @@ interface Card {
  * (`GET /api/months/:month`) exactly as the API computed it. The budget list
  * (`GET /api/budgets`) adds what the cards need to be acted on, and holds the budgets that are not
  * active in this month (upcoming or ended), so they can still be edited or deleted.
+ *
+ * Money can be moved between budgets, or to and from the unallocated amount, from the page header
+ * or from a card (that budget is then the source). The month's transfers are listed below the cards
+ * (`GET /api/transfers?month=`) and can be deleted. After a transfer is made or deleted every number
+ * on the page is loaded again, and so is the savings overview behind the badge on the navigation.
  */
 @Component({
   selector: 'app-budgets-page',
@@ -55,6 +65,8 @@ interface Card {
     BudgetSummary,
     BudgetCard,
     BudgetForm,
+    TransferDialog,
+    TransfersSection,
   ],
   templateUrl: './budgets-page.html',
 })
@@ -66,23 +78,32 @@ export class BudgetsPage {
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly doc = inject(DOCUMENT);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly transfersSection = viewChild(TransfersSection);
 
   protected readonly month = inject(SelectedMonth).month;
 
   // Resources belong to the page: each visit loads fresh data.
   protected readonly view = inject(MonthsApi).view(this.month);
   protected readonly budgets = this.api.list();
+  protected readonly transfers = inject(TransfersApi).forMonth(this.month);
 
   protected readonly viewState = resourceState(this.view);
   protected readonly budgetsState = resourceState(this.budgets);
+  protected readonly transfersState = resourceState(this.transfers);
 
   protected readonly monthView = computed(() =>
     this.view.hasValue() ? this.view.value() : undefined,
   );
-  private readonly budgetList = computed(() =>
+  protected readonly budgetList = computed(() =>
     this.budgets.hasValue() ? this.budgets.value() : undefined,
   );
+  protected readonly transferList = computed(() =>
+    this.transfers.hasValue() ? this.transfers.value() : undefined,
+  );
+  /** Money can be moved when there is a budget to move it to or from. */
+  protected readonly canMove = computed(() => (this.budgetList()?.length ?? 0) > 0);
 
   protected readonly monthLabel = computed(() => {
     const month = this.month();
@@ -108,8 +129,10 @@ export class BudgetsPage {
 
   /** The form dialog: creating (`budget` unset) or editing. `null` while it is closed. */
   protected readonly form = signal<{ budget: BudgetDto | undefined } | null>(null);
+  /** The "Move money" dialog, and the budget to take the money from (null: none chosen). `null` while it is closed. */
+  protected readonly moving = signal<{ fromBudgetId: number | null } | null>(null);
   /** A reorder is being saved. */
-  protected readonly moving = signal(false);
+  protected readonly reordering = signal(false);
   /** Said to screen readers after a budget moves, because the card's place is its only signal. */
   protected readonly announcement = signal('');
 
@@ -125,9 +148,42 @@ export class BudgetsPage {
     this.form.set(null);
   }
 
+  protected openMove(fromBudgetId: number | null): void {
+    this.moving.set({ fromBudgetId });
+  }
+
+  protected closeMove(): void {
+    this.moving.set(null);
+  }
+
   /** Something changed on the server: load what this page shows again. */
   protected async reload(): Promise<void> {
     await Promise.all([reloaded(this.view, this.injector), reloaded(this.budgets, this.injector)]);
+  }
+
+  /**
+   * Money was moved, or a move was undone: every number on the page may have changed. So may what a
+   * closed month owes savings (a transfer dated in one rewrites it), and the badge on the navigation
+   * counts the months to settle: the shell only looks again when the person moves to another page, so
+   * the savings overview is loaded again here, at once. (The page takes the store only now, so opening
+   * it does not ask for the overview a second time.)
+   */
+  protected async reloadAll(): Promise<void> {
+    this.injector.get(SavingsStore).refresh();
+    await Promise.all([
+      reloaded(this.view, this.injector),
+      reloaded(this.budgets, this.injector),
+      reloaded(this.transfers, this.injector),
+    ]);
+    // The dialog gave focus back to the button that opened it. When that was the "Move money" of the
+    // empty list, the first transfer has replaced it, and the keyboard would be left on the page.
+    afterNextRender(
+      () => {
+        const focused = this.doc.activeElement;
+        if (focused === null || focused === this.doc.body) this.transfersSection()?.focusHeading();
+      },
+      { injector: this.injector },
+    );
   }
 
   /** Why a budget has no card in the shown month, in a line: it starts later or ended earlier. */
@@ -206,12 +262,12 @@ export class BudgetsPage {
     const cards = this.cards();
     const index = cards.findIndex((other) => other.line.id === card.line.id);
     const neighbour = cards[index + (direction === 'up' ? -1 : 1)];
-    if (!list || !neighbour || this.moving()) return;
+    if (!list || !neighbour || this.reordering()) return;
 
     const changes = planSwap(list, card.line.id, neighbour.line.id);
     if (changes.length === 0) return;
 
-    this.moving.set(true);
+    this.reordering.set(true);
     let saved = false;
     try {
       await Promise.all(
@@ -226,7 +282,7 @@ export class BudgetsPage {
     try {
       await this.reload();
     } finally {
-      this.moving.set(false);
+      this.reordering.set(false);
     }
     if (!saved) return;
 

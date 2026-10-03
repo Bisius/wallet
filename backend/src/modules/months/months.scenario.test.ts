@@ -23,7 +23,7 @@ import {
   addIncome,
   addSpending,
   addSubscription,
-  insertTransfer,
+  addTransfer,
   mutableClock,
   onboard,
 } from '../../testing/helpers';
@@ -1136,13 +1136,13 @@ describe('scenario: a yearly subscription whose price changes or which is cancel
 });
 
 // -------------------------------------------------------------------------------------------------
-// Scenario 4: transfers (no endpoint before Phase 5, so they are inserted into the database)
+// Scenario 4: transfers, made through POST /api/transfers
 // -------------------------------------------------------------------------------------------------
 
 describe('scenario: transfers between budgets and the pool', () => {
   it('moves money in the month of the transfer without changing what the month owes in total', async () => {
     const clock = mutableClock('2026-03-20T10:00:00Z');
-    const { app, db } = createTestApp(clock);
+    const { app } = createTestApp(clock);
     const get = async <T>(path: string): Promise<T> =>
       (await request(app).get(path).expect(200)).body;
     const done = await onboard(app, {
@@ -1158,15 +1158,37 @@ describe('scenario: transfers between budgets and the pool', () => {
     await addSpending(app, { budgetId: fun.id, date: '2026-02-10', amount: 14000 });
 
     // February: Fun overspends by 40.00, so 50.00 moves in from Rent; 20.00 more goes from the pool to Rent.
-    insertTransfer(db, {
+    await addTransfer(app, {
       date: '2026-02-12',
       amount: 5000,
       fromBudgetId: rent.id,
       toBudgetId: fun.id,
     });
-    insertTransfer(db, { date: '2026-02-12', amount: 2000, toBudgetId: rent.id });
+    await addTransfer(app, {
+      date: '2026-02-12',
+      amount: 2000,
+      fromBudgetId: null,
+      toBudgetId: rent.id,
+    });
     // March: 100.00 of Rent is given back to the pool.
-    insertTransfer(db, { date: '2026-03-02', amount: 10000, fromBudgetId: rent.id });
+    await addTransfer(app, {
+      date: '2026-03-02',
+      amount: 10000,
+      fromBudgetId: rent.id,
+      toBudgetId: null,
+    });
+    // The API lists them newest first (date, then id, descending).
+    expect(
+      (await get<{ id: number; date: string; amount: number }[]>('/api/transfers')).map((t) => [
+        t.id,
+        t.date,
+        t.amount,
+      ]),
+    ).toEqual([
+      [3, '2026-03-02', 10000],
+      [2, '2026-02-12', 2000],
+      [1, '2026-02-12', 5000],
+    ]);
 
     const february = await get<MonthView>('/api/months/2026-02');
     // Fun: 100.00 carried from January + 100.00 + 50.00 in = 250.00 available, 140.00 spent: 110.00 carried.

@@ -22,6 +22,38 @@ class MoneyHost {
   readonly locale = signal<string | undefined>('en-US');
 }
 
+@Component({
+  selector: 'app-money-keyboard-host',
+  imports: [ReactiveFormsModule, Field, MoneyInput],
+  template: `
+    <app-field label="Price"><app-money-input [formControl]="price" /></app-field>
+    <app-field label="Difference">
+      <app-money-input [formControl]="difference" keyboard="text" />
+    </app-field>
+  `,
+})
+class KeyboardHost {
+  readonly price = new FormControl<number | null>(null);
+  readonly difference = new FormControl<number | null>(null);
+}
+
+describe('MoneyInput keyboard', () => {
+  it('asks a phone for the digits keypad, which is what an amount usually needs', async () => {
+    const fixture = await render(KeyboardHost);
+    expect(getByLabel(fixture.nativeElement, 'Price').getAttribute('inputmode')).toBe('decimal');
+  });
+
+  it('asks for the full keyboard when the amount can be negative, because the keypad has no minus sign', async () => {
+    const fixture = await render(KeyboardHost);
+    const input = getByLabel(fixture.nativeElement, 'Difference');
+    expect(input.getAttribute('inputmode')).toBe('text');
+
+    typeInto(input, '-5,50');
+    await settle(fixture);
+    expect(fixture.componentInstance.difference.value).toBe(-550);
+  });
+});
+
 describe('MoneyInput', () => {
   async function setup() {
     const fixture = await render(MoneyHost);

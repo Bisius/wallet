@@ -63,3 +63,13 @@ export function focusFirstInvalid(root: HTMLElement): boolean {
   control?.focus();
   return control !== null;
 }
+
+/**
+ * Moves focus to the first control showing an error or, when there is none (the API's answer belongs
+ * to no field and is shown in an alert at the top of the form), back to the button that sent the
+ * form: it was disabled while the request was out, and a control that is disabled loses focus to the
+ * page, so a person in a dialog would be left on nothing. Call it after the error has rendered.
+ */
+export function focusFirstInvalidOrSubmit(root: HTMLElement): void {
+  if (!focusFirstInvalid(root)) root.querySelector<HTMLElement>('button[type="submit"]')?.focus();
+}

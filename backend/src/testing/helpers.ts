@@ -16,6 +16,10 @@ import {
   type SpendingDto,
   type SubscriptionCreateInput,
   type SubscriptionDto,
+  type TagCreateInput,
+  type TagDto,
+  type TransferCreateInput,
+  type TransferDto,
 } from '@wallet/shared';
 import type { Express } from 'express';
 import request, { type Response } from 'supertest';
@@ -133,9 +137,32 @@ export async function addIncome(
   return res.body as IncomeDto;
 }
 
+/** POST /api/transfers, which must answer 201. Both sides are required: `null` is the pool. */
+export async function addTransfer(
+  app: Express,
+  body: Pick<TransferCreateInput, 'fromBudgetId' | 'toBudgetId'> & Partial<TransferCreateInput>,
+): Promise<TransferDto> {
+  const res = await request(app)
+    .post('/api/transfers')
+    .send({ date: '2026-03-10', amount: 2500, ...body })
+    .expect(201);
+  return res.body as TransferDto;
+}
+
+/** POST /api/tags, which must answer 201. */
+export async function addTag(app: Express, body: Partial<TagCreateInput> = {}): Promise<TagDto> {
+  const res = await request(app)
+    .post('/api/tags')
+    .send({ name: 'Groceries', ...body })
+    .expect(201);
+  return res.body as TagDto;
+}
+
 /**
- * Inserts a budget transfer straight into the database: there is no transfers endpoint before
- * Phase 5, but budgets must already treat transfers as history and as activity.
+ * Inserts a budget transfer straight into the database, skipping the rules of
+ * `POST /api/transfers`. Use the endpoint for a transfer the API accepts; use this one for data
+ * the API never stores (a transfer dated outside the active months of a budget, say), to test what
+ * the ledger and the other rules do with it, and for bulk setup.
  */
 export function insertTransfer(
   db: Db,
@@ -180,6 +207,19 @@ export function expectValidationError(res: Response, ...paths: string[]): void {
     expect(typeof issue.message).toBe('string');
   }
   for (const path of paths) expect(issues.map((issue) => issue.path)).toContain(path);
+}
+
+/**
+ * 400 `validation_error` whose issues are at exactly these `paths` ('' = the whole body), once
+ * each and in any order. The stricter form of `expectValidationError`, for a request with a known
+ * set of mistakes: it also fails when an issue is reported somewhere unexpected.
+ */
+export function expectValidationPaths(res: Response, ...paths: string[]): void {
+  expectValidationError(res, ...paths);
+  const issues = res.body.error.details as { path: string }[];
+  expect([...new Set(issues.map((issue) => issue.path))].sort()).toEqual(
+    [...new Set(paths)].sort(),
+  );
 }
 
 export function expectNotFound(res: Response): void {

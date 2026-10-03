@@ -44,6 +44,14 @@
     </div>
   </dl>
 
+  @if (line().transfersNet !== 0) {
+    <p class="text-sm text-muted">
+      {{ line().transfersNet > 0 ? 'Net moved in this month:' : 'Net moved out this month:' }}
+      <app-amount [cents]="line().transfersNet" [signed]="true" [plain]="true" />
+      (already part of Available)
+    </p>
+  }
+
   <app-budget-usage [line]="line()" />
 
   @if (line().incremental) {
@@ -99,6 +107,17 @@
       >
         <app-icon name="pencil" />
         Edit
+      </button>
+      <button
+        appButton
+        variant="ghost"
+        size="sm"
+        [attr.aria-label]="'Move money from ' + line().name"
+        [attr.data-action]="'move-money-' + line().id"
+        (click)="moveMoney.emit()"
+      >
+        <app-icon name="arrows-left-right" />
+        Move money
       </button>
       @if (canArchive()) {
         <button

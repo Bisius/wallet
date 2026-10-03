@@ -9,12 +9,21 @@ export { TAG_NAME_MAX_LENGTH } from './limits';
  * A tag name: trimmed, 1 to TAG_NAME_MAX_LENGTH (30) characters. That it is not taken is not
  * checked here but by the server: names are unique ignoring case (docs/DOMAIN.md, "Tags and
  * search"), else 409 `tag_name_taken`.
+ *
+ * The server also refuses a name made only of characters that its name comparison ignores (a
+ * zero-width space, a variation selector, a bidi control, NUL, ...): it passes `trim()` and the
+ * minimum length but would show as an empty chip. The answer is the same 400 `validation_error`
+ * at "name" ("Name is required") as for an empty name, on POST and on PATCH alike, and it is a
+ * shape error: on PATCH it comes before the 404 for an unknown id. A name that merely contains
+ * such a character next to real ones is accepted. The schema cannot say this (the comparison is
+ * the server's), so the check is not a refinement here.
  */
 export const tagNameSchema = z.string().trim().min(1, 'Name is required').max(TAG_NAME_MAX_LENGTH);
 
 /**
- * POST /api/tags body → 201 TagDto (its `usageCount` is 0). Defaults: `color` = null. 409
- * `tag_name_taken` when another tag already has this name ignoring case ("Groceries" and
+ * POST /api/tags body → 201 TagDto (its `usageCount` is 0). Defaults: `color` = null. 400
+ * `validation_error`, also for a name made only of invisible characters (see `tagNameSchema`).
+ * 409 `tag_name_taken` when another tag already has this name ignoring case ("Groceries" and
  * "groceries" clash, "Cafe" and "Café" do not). No 422 rule applies.
  */
 export const tagCreateSchema = z.strictObject({
@@ -26,7 +35,8 @@ export type TagCreateInput = z.infer<typeof tagCreateSchema>;
 
 /**
  * PATCH /api/tags/:id body → 200 TagDto. Any subset, at least one; `color: null` clears the
- * color, and the name can't be cleared. Errors, in this order: 404 not_found (unknown id), then
+ * color, and the name can't be cleared. Errors, in this order: 400 validation_error (also for a
+ * name made only of invisible characters, see `tagNameSchema`), 404 not_found (unknown id), then
  * 409 `tag_name_taken` (another tag has this name ignoring case: changing only the capitalization
  * of the tag's own name is fine). A rename shows on every spending that carries the tag at once,
  * because spendings refer to tags by id. No 422 rule applies.

@@ -1,7 +1,9 @@
 /**
- * Transfers in the ledger (docs/DOMAIN.md, "Transfers" and "Unallocated"). No endpoint creates
- * them before Phase 5, so these tests put them straight into the facts: the engine must already be
- * right when the endpoint arrives.
+ * Transfers in the ledger (docs/DOMAIN.md, "Transfers" and "Unallocated"). These are unit tests of
+ * the pure engine, so they put the transfers straight into the facts, with no database and no
+ * endpoint; that also lets them feed the engine transfers that `POST /api/transfers` never stores
+ * (a budget that is not active in the month, a budget to itself, the pool to the pool). What the
+ * endpoints do with transfers is tested through HTTP in `modules/transfers`.
  *
  * Base case, used by most tests: salary 1000.00, budget A (100.00) and budget B (50.00), both
  * non-incremental and unspent. Without transfers every month has unallocated 850.00, 150.00 of

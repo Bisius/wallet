@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   afterNextRender,
   Component,
@@ -6,20 +7,22 @@ import {
   ElementRef,
   inject,
   Injector,
+  linkedSignal,
   signal,
   untracked,
   viewChild,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import type { MonthBudgetLine, MonthKey, SpendingDto } from '@wallet/shared';
+import type { Cents, MonthBudgetLine, MonthKey, SpendingDto } from '@wallet/shared';
 import { firstValueFrom } from 'rxjs';
 import { parseApiError } from '../../core/api-error';
 import { reloaded, resourceState } from '../../core/resource-state';
+import { SavingsStore } from '../../core/savings.store';
 import { SelectedMonth } from '../../core/selected-month';
 import { SettingsStore } from '../../core/settings.store';
+import { TagsStore } from '../../core/tags.store';
+import { TodayStore } from '../../core/today.store';
 import { formatDate, formatMonth } from '../../shared/format';
-import { AppInput } from '../../shared/forms/app-input';
-import { Field } from '../../shared/forms/field';
 import { formatMoney, MoneyPipe } from '../../shared/money.pipe';
 import { PageHeader } from '../../shared/page-header';
 import { Amount } from '../../shared/ui/amount';
@@ -28,12 +31,17 @@ import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
+import { TagChip } from '../../shared/ui/tag-chip';
 import { ToastService } from '../../shared/ui/toast.service';
+import { BudgetsApi } from '../budgets/budgets.api';
 import { ALERT_LABELS } from '../budgets/budget-utils';
 import { MonthsApi } from '../months/months.api';
 import { groupByDay } from './group-by-day';
 import { SpendingEditDialog } from './spending-edit-dialog';
+import { type BudgetOption, SpendingFilterBar } from './spending-filter-bar';
+import { filtersProblem, narrowingCount } from './spending-filters';
 import { SpendingForm } from './spending-form';
+import { SpendingQuery } from './spending-query';
 import { SpendingsApi, type SpendingsFilter } from './spendings.api';
 
 /** What was just added, for the confirmation under the form. */
@@ -50,22 +58,51 @@ interface Extras {
 
 const NO_EXTRAS: Extras = { key: '', items: [] };
 
+/** A list as the page shows it: its rows, and how many match and their net total (the API's own). */
+interface Shown {
+  /** The month it is for, null for every month. */
+  scope: MonthKey | null;
+  items: readonly SpendingDto[];
+  total: number;
+  totalAmount: Cents;
+}
+
 const keyOf = (filter: SpendingsFilter | undefined) =>
-  filter ? `${filter.month}|${filter.budgetId ?? ''}` : '';
+  filter
+    ? JSON.stringify([
+        filter.month,
+        filter.budgetId,
+        filter.tagId,
+        filter.q,
+        filter.minAmount,
+        filter.maxAmount,
+      ])
+    : '';
+
+/** What the list says when it has no rows. */
+type EmptyKind = 'budget' | 'filtered' | 'nowhere' | 'month';
 
 /**
- * The spendings of the selected month: a quick form to add one, and the month's list grouped by
- * day, newest first, with a budget filter and "Load more". The budgets in the form and the figures
- * in the confirmation come from the month view (`GET /api/months/:month`); nothing is calculated
- * here.
+ * How rows look while they are the previous search's. Dimmed and washed out, but only a little: text
+ * that fades much further than this falls below the 4.5:1 contrast the page has everywhere else (the
+ * green of a refund is the first to go, at about 85%). The delay keeps a quick answer from making the
+ * rows flicker: the dimming only starts if the answer takes longer than that.
+ */
+const STALE_LOOK = 'opacity-90 saturate-50 delay-200';
+
+/**
+ * The spendings: a quick form to add one, and a list, newest first and grouped by day, that can be
+ * searched and filtered (text, budget, tag, a range of amounts) in the selected month or in every
+ * month, with "Load more". The filters are in the URL (`SpendingQuery`), so they survive a reload and
+ * the Back button. The budgets in the form and the figures in the confirmation come from the month
+ * view (`GET /api/months/:month`); the count and the net total of the list are the API's, over every
+ * row that matches. Nothing is calculated here.
  */
 @Component({
   selector: 'app-spendings-page',
   imports: [
     RouterLink,
     PageHeader,
-    Field,
-    AppInput,
     Button,
     Icon,
     Amount,
@@ -74,9 +111,12 @@ const keyOf = (filter: SpendingsFilter | undefined) =>
     EmptyState,
     ErrorState,
     LoadingState,
+    TagChip,
     SpendingForm,
     SpendingEditDialog,
+    SpendingFilterBar,
   ],
+  providers: [SpendingQuery],
   templateUrl: './spendings-page.html',
 })
 export class SpendingsPage {
@@ -85,25 +125,34 @@ export class SpendingsPage {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
+  private readonly today = inject(TodayStore);
+  private readonly query = inject(SpendingQuery);
   private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
 
   protected readonly selected = inject(SelectedMonth);
   protected readonly month = this.selected.month;
+  protected readonly tags = inject(TagsStore);
 
   // Resources belong to the page: each visit loads fresh data.
-  protected readonly view = inject(MonthsApi).view(this.month);
+  private readonly monthsApi = inject(MonthsApi);
+  protected readonly view = this.monthsApi.view(this.month);
 
-  /** The budget the person chose to limit the list to, and the month it was chosen in. */
-  private readonly choice = signal<{ month: MonthKey; budgetId: number } | null>(null);
-  /** The budget the list is limited to, or `null` for all of them: another month starts over. */
-  protected readonly budgetFilter = computed(() => {
-    const choice = this.choice();
-    return choice && choice.month === this.month() ? choice.budgetId : null;
-  });
-  private readonly filter = computed<SpendingsFilter | undefined>(() => {
-    const month = this.month();
-    return month ? { month, budgetId: this.budgetFilter() } : undefined;
-  });
+  protected readonly filters = this.query.filters;
+  /** Why the filters are not sent (the API would refuse them), or null. */
+  protected readonly problem = computed(() => filtersProblem(this.filters()));
+
+  private readonly filter = computed<SpendingsFilter | undefined>(
+    () => {
+      const filters = this.filters();
+      if (filtersProblem(filters) !== null) return undefined;
+      // Searching every month sends no date at all, and does not follow the month switcher.
+      const month = filters.allMonths ? null : this.month();
+      if (month === undefined) return undefined;
+      const { q, budgetId, tagId, minAmount, maxAmount } = filters;
+      return { month, q, budgetId, tagId, minAmount, maxAmount };
+    },
+    { equal: (a, b) => keyOf(a) === keyOf(b) },
+  );
   protected readonly first = this.api.firstPage(this.filter);
   protected readonly firstState = resourceState(this.first);
   protected readonly viewState = resourceState(this.view);
@@ -114,38 +163,176 @@ export class SpendingsPage {
 
   /** The spending being edited in the dialog. */
   protected readonly editing = signal<SpendingDto | null>(null);
+  /** The month it is dated in. Searching every month lists spendings of any month. */
+  protected readonly editMonth = computed(() => this.editing()?.date.slice(0, 7));
+  /** The view of that month, when it is not the one on show (the form offers that month's budgets). */
+  private readonly otherView = this.monthsApi.view(() => {
+    const month = this.editMonth();
+    return month !== undefined && month !== this.month() ? month : undefined;
+  });
+  /**
+   * The budgets the edit form offers: those of the month the spending is dated in, so its date and
+   * its budget are what they were unless the person changes them. undefined while that month loads.
+   */
+  protected readonly editLines = computed<readonly MonthBudgetLine[] | undefined>(() => {
+    const month = this.editMonth();
+    if (month === undefined) return undefined;
+    if (month === this.month()) return this.lines();
+    return this.otherView.hasValue() ? this.otherView.value().budgets : undefined;
+  });
   protected readonly added = signal<Added | null>(null);
 
   protected readonly monthView = computed(() =>
     this.view.hasValue() ? this.view.value() : undefined,
   );
-  /** The budgets that exist in the shown month: the choices of the form and the filter. */
+  /** The budgets that exist in the shown month: the choices of the form. */
   protected readonly lines = computed<readonly MonthBudgetLine[]>(
     () => this.monthView()?.budgets ?? [],
   );
+
+  /**
+   * Every budget, once it is needed: when searching every month (a spending can belong to a budget
+   * that has ended), or when the URL names a budget the shown month does not have.
+   */
+  private readonly budgetList = inject(BudgetsApi).list(() => {
+    const { allMonths, budgetId } = this.filters();
+    if (allMonths) return true;
+    return (
+      budgetId !== null &&
+      this.monthView() !== undefined &&
+      !this.lines().some((line) => line.id === budgetId)
+    );
+  });
+
+  /** What a row calls its budget: the month's lines, then the full list. */
+  private readonly budgetNames = computed(() => {
+    const names = new Map<number, { name: string; color: string | null }>();
+    if (this.budgetList.hasValue()) {
+      for (const budget of this.budgetList.value()) {
+        names.set(budget.id, { name: budget.name, color: budget.color });
+      }
+    }
+    for (const line of this.lines()) names.set(line.id, { name: line.name, color: line.color });
+    return names;
+  });
+
+  /** The choices of the budget filter: this month's budgets, or all of them when searching every month. */
+  protected readonly budgetOptions = computed<readonly BudgetOption[]>(() => {
+    const { allMonths, budgetId } = this.filters();
+    const options: BudgetOption[] = allMonths
+      ? (this.budgetList.hasValue() ? this.budgetList.value() : []).map((budget) => ({
+          id: budget.id,
+          name: budget.name,
+        }))
+      : this.lines().map((line) => ({ id: line.id, name: line.name }));
+    // The budget the URL names stays on offer, so the filter can be seen and removed.
+    if (budgetId !== null && !options.some((option) => option.id === budgetId)) {
+      options.push({
+        id: budgetId,
+        name: this.budgetNames().get(budgetId)?.name ?? `Budget ${budgetId}`,
+      });
+    }
+    return options;
+  });
 
   protected readonly monthLabel = computed(() => {
     const month = this.month();
     return month ? formatMonth(month, this.settings.locale()) : '';
   });
-
-  /** Every row loaded so far: the first page, then what "Load more" added. */
-  protected readonly items = computed<readonly SpendingDto[]>(() => {
-    const head = this.first.hasValue() ? this.first.value().items : [];
-    const extras = this.extras();
-    return extras.key === keyOf(this.filter()) ? [...head, ...extras.items] : head;
+  /** The page's subtitle: what the page is for, and which month it shows. */
+  protected readonly subtitle = computed(() => {
+    const month = this.monthLabel();
+    if (!month) return '';
+    return this.filters().allMonths
+      ? 'Every expense, linked to a budget, in every month. The form adds to ' + month + '.'
+      : 'Every expense, linked to a budget, for ' + month + '.';
   });
-  protected readonly groups = computed(() => groupByDay(this.items()));
-  /** How many rows match the filter, and their net total: the API counts all of them. */
-  protected readonly total = computed(() => (this.first.hasValue() ? this.first.value().total : 0));
-  protected readonly totalAmount = computed(() =>
-    this.first.hasValue() ? this.first.value().totalAmount : 0,
+  /** What the list covers, for its heading: "October 2026", or "all months". */
+  protected readonly scopeLabel = computed(() =>
+    this.filters().allMonths ? 'all months' : this.monthLabel(),
   );
-  protected readonly hasMore = computed(() => this.items().length < this.total());
 
-  protected readonly filterName = computed(
-    () => this.lines().find((line) => line.id === this.budgetFilter())?.name,
+  /**
+   * The list of the filter on show, once its first page is in: every row loaded so far (the first page,
+   * then what "Load more" added), how many rows match and their net total, as the API counts them.
+   */
+  private readonly current = computed<Shown | undefined>(() => {
+    const filter = this.filter();
+    if (filter === undefined || !this.first.hasValue()) return undefined;
+    const page = this.first.value();
+    const extras = this.extras();
+    return {
+      scope: filter.month,
+      items: extras.key === keyOf(filter) ? [...page.items, ...extras.items] : page.items,
+      total: page.total,
+      totalAmount: page.totalAmount,
+    };
+  });
+  /** The last list that was complete: what stays on screen while the next one loads. */
+  private readonly settled = linkedSignal<Shown | undefined, Shown | undefined>({
+    source: this.current,
+    computation: (current, previous) => current ?? previous?.value,
+  });
+  /**
+   * The list on screen. A new search or filter does not blank the page with "Loading…" on every
+   * keystroke: the previous rows stay (dimmed, and marked busy) until the new first page arrives. That
+   * is only for the same month or scope and for a list that has rows; another month, an empty list or
+   * a failure shows what it always did.
+   */
+  protected readonly shown = computed<Shown | undefined>(() => {
+    // Read first, always: a linked signal only has a previous value once it has computed one, and it
+    // computes when it is read, so this is what keeps the last complete list while the next one loads.
+    const kept = this.settled();
+    const current = this.current();
+    if (current !== undefined) return current;
+    const filter = this.filter();
+    if (kept === undefined || filter === undefined || this.first.status() === 'error') {
+      return undefined;
+    }
+    return kept.scope === filter.month && kept.items.length > 0 ? kept : undefined;
+  });
+  /** What the list is: loading, failed, or there (a list that is only the previous one counts as there). */
+  protected readonly listState = computed(() =>
+    this.shown() === undefined ? this.firstState() : 'ready',
   );
+  protected readonly staleLook = STALE_LOOK;
+  /** The rows on screen are the previous search's: the new first page is on its way. */
+  protected readonly refreshing = computed(
+    () => this.current() === undefined && this.shown() !== undefined,
+  );
+  protected readonly items = computed<readonly SpendingDto[]>(() => this.shown()?.items ?? []);
+  protected readonly groups = computed(() => groupByDay(this.items()));
+  /** How many rows match the filters, and their net total: the API counts all of them. */
+  protected readonly total = computed(() => this.shown()?.total ?? 0);
+  protected readonly totalAmount = computed(() => this.shown()?.totalAmount ?? 0);
+  /** There are more rows to load. Not while the rows are the previous search's: they are not this list's. */
+  protected readonly hasMore = computed(
+    () => !this.refreshing() && this.items().length < this.total(),
+  );
+
+  /** The budget the list is limited to, by name. */
+  protected readonly filterName = computed(() => {
+    const { budgetId } = this.filters();
+    return budgetId === null ? undefined : this.budgetNames().get(budgetId)?.name;
+  });
+
+  /** Which empty state fits: one budget, other filters, or no filter at all. */
+  protected readonly emptyKind = computed<EmptyKind>(() => {
+    const filters = this.filters();
+    const narrowing = narrowingCount(filters);
+    if (narrowing === 1 && filters.budgetId !== null && !filters.allMonths) return 'budget';
+    if (narrowing > 0) return 'filtered';
+    return filters.allMonths ? 'nowhere' : 'month';
+  });
+
+  /** The server refused the filters (a 400): what it said, instead of a bare error. */
+  protected readonly refusal = computed(() => {
+    const error = this.first.error();
+    if (!(error instanceof HttpErrorResponse) || error.status !== 400) return null;
+    const parsed = parseApiError(error);
+    const reasons = Object.values(parsed.fieldErrors);
+    return reasons.length > 0 ? reasons.join(' ') : parsed.message;
+  });
 
   /**
    * What was just added, in a sentence or two, with the budget's figures as the month view reports
@@ -177,13 +364,30 @@ export class SpendingsPage {
   });
 
   constructor() {
-    // Another month is another list: forget the failure of "Load more" and the confirmation. (The
-    // filter and the extra rows are tied to their month, so they need no reset.)
+    // Another month is another list: forget the confirmation of the last spending added.
     effect(() => {
       this.month();
+      untracked(() => this.added.set(null));
+    });
+    // The month of a spending to edit could not be loaded: say so instead of doing nothing.
+    effect(() => {
+      if (this.otherView.status() !== 'error') return;
+      untracked(() => {
+        const month = this.editMonth();
+        const label = month ? formatMonth(month, this.settings.locale()) : 'that month';
+        this.toast.error(
+          `Couldn't load ${label} to edit this spending. ${parseApiError(this.otherView.error()).message}`,
+        );
+        this.editing.set(null);
+      });
+    });
+    // So is another filter, or month: forget the failure of "Load more" and the rows it added, which
+    // belong to the list they were loaded for.
+    effect(() => {
+      this.filter();
       untracked(() => {
         this.moreError.set(null);
-        this.added.set(null);
+        this.extras.set(NO_EXTRAS);
       });
     });
   }
@@ -192,25 +396,43 @@ export class SpendingsPage {
     return formatDate(date, this.settings.locale(), 'full');
   }
 
-  protected budgetOf(id: number): MonthBudgetLine | undefined {
-    return this.lines().find((line) => line.id === id);
+  /** The name and color of a budget, as the shown month (or the full budget list) knows it. */
+  protected budgetOf(id: number): { name: string; color: string | null } | undefined {
+    return this.budgetNames().get(id);
   }
 
-  /** What a row is called to a screen reader: "Coffee, €3.50". */
-  protected rowLabel(spending: SpendingDto): string {
+  /** The tags of a row that the list knows. A tag it does not know (yet) is left out. */
+  protected tagsOf(spending: SpendingDto) {
+    const known = this.tags.byId();
+    return spending.tagIds.flatMap((id) => {
+      const tag = known.get(id);
+      return tag ? [tag] : [];
+    });
+  }
+
+  /** What a row is called: "Coffee, €3.50". */
+  private rowText(spending: SpendingDto): string {
     const money = formatMoney(spending.amount, this.settings.locale(), this.settings.currency());
     return `${spending.description || 'Spending'}, ${money}`;
   }
 
-  protected onFilterChange(event: Event): void {
-    this.setFilter((event.target as HTMLSelectElement).value);
+  /**
+   * What a row is called to a screen reader, for its buttons: "Coffee, €3.50". Searching every month
+   * lists the same coffee many times over, so then the date tells them apart: "Coffee, €3.50, Oct 2, 2026".
+   */
+  protected rowLabel(spending: SpendingDto): string {
+    const date = formatDate(spending.date, this.settings.locale(), 'medium');
+    return this.filters().allMonths ? `${this.rowText(spending)}, ${date}` : this.rowText(spending);
   }
 
-  protected setFilter(value: string): void {
-    const month = this.month();
-    this.choice.set(value === '' || !month ? null : { month, budgetId: Number(value) });
-    this.extras.set(NO_EXTRAS);
-    this.moreError.set(null);
+  protected showAllBudgets(): void {
+    void this.query.update({ budgetId: null });
+  }
+
+  /** Every filter off, and focus on the list heading: the button that was pressed is gone. */
+  protected async clearFilters(): Promise<void> {
+    await this.query.clear();
+    this.focus(() => this.heading()?.nativeElement ?? null);
   }
 
   /** Something changed on the server: load the list from its first page again, and the month view. */
@@ -222,20 +444,38 @@ export class SpendingsPage {
 
   protected async onAdded(spending: SpendingDto): Promise<void> {
     this.added.set(null);
+    this.refreshSavingsFor(spending.date);
     await this.reload();
     // Said after the month view has reloaded, so the budget's figures are the fresh ones.
     this.added.set({ budgetId: spending.budgetId, amount: spending.amount });
   }
 
-  protected async onEdited(): Promise<void> {
+  protected async onEdited(spending: SpendingDto): Promise<void> {
+    const before = this.editing();
     this.editing.set(null);
+    this.refreshSavingsFor(spending.date, before?.date);
     this.toast.success('Spending updated.');
     await this.reload();
   }
 
+  /**
+   * A spending in a closed month moves what that month owes savings, and the badge on the navigation
+   * counts the months to settle. The navigation only looks again when the person moves to another
+   * page, so a change made here asks for the overview at once. A spending in the current or a later
+   * month cannot change it, and the most common action of the page, adding one today, must not make
+   * the server work out the savings for nothing. The overview is looked up only when it is needed.
+   */
+  private refreshSavingsFor(...dates: readonly (string | undefined)[]): void {
+    const current = this.today.month();
+    const affected =
+      current === undefined ||
+      dates.some((date) => date !== undefined && date.slice(0, 7) < current);
+    if (affected) this.injector.get(SavingsStore).refresh();
+  }
+
   protected async remove(spending: SpendingDto): Promise<void> {
     const budget = this.budgetOf(spending.budgetId);
-    const label = this.rowLabel(spending);
+    const label = this.rowText(spending);
     const confirmed = await this.confirm.confirm({
       title: 'Delete this spending?',
       message:
@@ -251,6 +491,7 @@ export class SpendingsPage {
       await firstValueFrom(this.api.remove(spending.id));
       this.toast.success('Spending deleted.');
       this.added.set(null);
+      this.refreshSavingsFor(spending.date);
       await this.reload();
       // The row that had focus is gone.
       this.focus(() => this.heading()?.nativeElement ?? null);
@@ -261,7 +502,7 @@ export class SpendingsPage {
 
   protected async loadMore(): Promise<void> {
     const filter = this.filter();
-    if (!filter || this.loadingMore()) return;
+    if (!filter || this.loadingMore() || this.refreshing()) return;
     const key = keyOf(filter);
 
     this.loadingMore.set(true);

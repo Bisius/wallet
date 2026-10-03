@@ -45,6 +45,7 @@ import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { OpeningBalanceDialog } from '../savings/opening-balance-dialog';
 import { SavingsApi } from '../savings/savings.api';
+import { TagsSection } from './tags-section';
 
 const THEME_LABELS: Record<Theme, string> = {
   system: 'Same as my device',
@@ -55,7 +56,7 @@ const THEME_LABELS: Record<Theme, string> = {
 /**
  * Currency, locale, theme, budget warning threshold and start month (`PUT /api/settings`). After the
  * start month changed, it asks for the savings balance on the new first day: the opening balance
- * follows the start month's date but never its amount.
+ * follows the start month's date but never its amount. Below the form, the tags (`TagsSection`).
  */
 @Component({
   selector: 'app-settings-page',
@@ -69,6 +70,7 @@ const THEME_LABELS: Record<Theme, string> = {
     Icon,
     MoneyPipe,
     OpeningBalanceDialog,
+    TagsSection,
   ],
   templateUrl: './settings-page.html',
 })

@@ -2,7 +2,7 @@
  * Helpers for the property tests that go through HTTP: a request that must answer a given status,
  * entering generated facts through the public endpoints, reading the stored state back through the
  * public endpoints, and comparing what the month endpoints answer with the independent model.
- * Nothing here reads the database except `insertTransfer`, because transfers have no endpoint yet.
+ * Nothing here reads or writes the database: every fact goes in and comes back out through the API.
  */
 import type {
   BudgetDto,
@@ -12,13 +12,13 @@ import type {
   SpendingDto,
   SpendingsPage,
   SubscriptionDto,
+  TransferDto,
 } from '@wallet/shared';
 import type { Express } from 'express';
 import { type Server, createServer } from 'node:http';
 import request from 'supertest';
 import type { Facts, TransferFact } from '../domain/facts';
-import { insertTransfer } from './helpers';
-import { diff } from './prop';
+import { canonical, diff } from './prop';
 import { modelLedger, monthIndex } from './prop-model';
 
 export type Method = 'get' | 'post' | 'put' | 'patch' | 'delete';
@@ -80,11 +80,20 @@ export async function send(
 export const byMonth = (a: { effectiveMonth: string }, b: { effectiveMonth: string }) =>
   a.effectiveMonth < b.effectiveMonth ? -1 : a.effectiveMonth > b.effectiveMonth ? 1 : 0;
 
-/** Enters the generated facts through the public endpoints, in an order the API's rules accept. */
+/**
+ * Enters the generated facts through the public endpoints, in an order the API's rules accept. The
+ * facts must be what the API can store: a transfer names only budgets that are active in its month
+ * (`junk` transfers, which the ledger ignores, cannot be entered, and are not meant to be).
+ */
 export async function enterFacts(
   app: Target,
-  db: Parameters<typeof insertTransfer>[0],
   facts: Facts,
+  /**
+   * Tags to create after onboarding, and which of them each spending carries (`tagsOf` gets the
+   * position of the spending among the facts and returns indexes into `tags`). The numbers must be
+   * the same with or without them (docs/DOMAIN.md, "Tags and search").
+   */
+  options: { tags?: readonly string[]; tagsOf?: (spendingIndex: number) => readonly number[] } = {},
 ): Promise<void> {
   // Onboarding stores the first salary at the start month; a scenario without one deletes it again.
   const startSalary = facts.salary.find((row) => row.effectiveMonth === facts.startMonth);
@@ -183,22 +192,40 @@ export async function enterFacts(
   }
 
   // Spendings and transfers, then the archives and cancellations (which may not precede them).
-  for (const spending of facts.spendings) {
+  const tagIds: number[] = [];
+  for (const name of options.tags ?? []) {
+    tagIds.push((await send(app, 'post', '/api/tags', { name }, 201)).id);
+  }
+  for (const [index, spending] of facts.spendings.entries()) {
+    const carried = [
+      ...new Set((options.tagsOf?.(index) ?? []).map((i) => tagIds[i % tagIds.length]!)),
+    ];
     await send(
       app,
       'post',
       '/api/spendings',
-      { date: `${spending.month}-10`, amount: spending.amount, budgetId: spending.budgetId },
+      {
+        date: `${spending.month}-10`,
+        amount: spending.amount,
+        budgetId: spending.budgetId,
+        ...(carried.length > 0 ? { tagIds: carried } : {}),
+      },
       201,
     );
   }
   for (const transfer of facts.transfers) {
-    insertTransfer(db, {
-      date: `${transfer.month}-10`,
-      amount: transfer.amount,
-      ...(transfer.fromBudgetId === null ? {} : { fromBudgetId: transfer.fromBudgetId }),
-      ...(transfer.toBudgetId === null ? {} : { toBudgetId: transfer.toBudgetId }),
-    });
+    await send(
+      app,
+      'post',
+      '/api/transfers',
+      {
+        date: `${transfer.month}-10`,
+        fromBudgetId: transfer.fromBudgetId,
+        toBudgetId: transfer.toBudgetId,
+        amount: transfer.amount,
+      },
+      201,
+    );
   }
   for (const budget of facts.budgets) {
     if (budget.endMonth !== null) {
@@ -226,12 +253,20 @@ export interface StoredState {
   budgets: BudgetDto[];
   subscriptions: SubscriptionDto[];
   spendings: SpendingDto[];
-  /** The transfers have no endpoint: the ones the test inserted, unchanged. */
+  /** `GET /api/transfers` (newest first), as the facts the ledger works from. */
   transfers: TransferFact[];
   facts: Facts;
 }
 
-export async function readState(app: Target, transfers: TransferFact[]): Promise<StoredState> {
+/** A transfer as the facts have it: the month of its date, whatever the day. */
+export const transferFactOf = (t: TransferDto): TransferFact => ({
+  month: t.date.slice(0, 7),
+  fromBudgetId: t.fromBudgetId,
+  toBudgetId: t.toBudgetId,
+  amount: t.amount,
+});
+
+export async function readState(app: Target): Promise<StoredState> {
   const settings = (await send(app, 'get', '/api/settings')) as SettingsDto;
   const salary = (await send(app, 'get', '/api/salary')) as SalaryEntryDto[];
   const incomes = (await send(app, 'get', '/api/incomes')) as IncomeDto[];
@@ -247,6 +282,9 @@ export async function readState(app: Target, transfers: TransferFact[]): Promise
     spendings.push(...page.items);
     if (offset + 200 >= page.total) break;
   }
+  const transfers = ((await send(app, 'get', '/api/transfers')) as TransferDto[]).map(
+    transferFactOf,
+  );
   const facts: Facts = {
     startMonth: settings.startMonth,
     alertWarnPercent: settings.alertWarnPercent,
@@ -345,6 +383,9 @@ export function storedProblems(state: StoredState, facts: Facts): string[] {
     return Object.fromEntries([...total].sort());
   };
   problems.push(...diff(sums(state.facts.spendings), sums(facts.spendings), 'spendings'));
+  // Transfers: the same ones, whatever order they come back in.
+  const inAnyOrder = (rows: readonly TransferFact[]) => rows.map(canonical).sort();
+  problems.push(...diff(inAnyOrder(state.transfers), inAnyOrder(facts.transfers), 'transfers'));
   return problems;
 }
 

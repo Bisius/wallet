@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { DOCUMENT } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { SettingsDto, SettingsInput } from '@wallet/shared';
+import type { SettingsDto, SettingsInput, TagDto } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { ThemeService } from '../../core/theme.service';
 import { ToastService } from '../../shared/ui/toast.service';
@@ -15,6 +15,7 @@ import {
   textOf,
   typeInto,
 } from '../../../testing/dom';
+import { tagDto } from '../../../testing/fixtures';
 import {
   flushError,
   primeStores,
@@ -52,10 +53,13 @@ describe('SettingsPage', () => {
     alertWarnPercent: 70,
   };
 
-  async function setup(settings: SettingsDto = SETTINGS) {
+  async function setup(settings: SettingsDto = SETTINGS, tags: TagDto[] = []) {
     TestBed.inject(ThemeService);
     await primeStores(http, { settings });
     const fixture = await render(SettingsPage);
+    // The page lists the tags below the form (see tags-section.spec.ts for what it does with them).
+    http.expectOne('/api/tags').flush(tags);
+    await settle(fixture);
     const element = fixture.nativeElement as HTMLElement;
     const field = <T extends HTMLElement = HTMLInputElement>(label: string | RegExp) =>
       getByLabel<T>(element, label);
@@ -78,6 +82,18 @@ describe('SettingsPage', () => {
     expect(field<HTMLSelectElement>('Theme').value).toBe('light');
     expect(field('Budget warning threshold (%)').value).toBe('70');
     expect(field('Start month').value).toBe('2026-03');
+  });
+
+  it('lists the tags below the settings, outside the form', async () => {
+    const { element } = await setup(SETTINGS, [
+      tagDto({ id: 1, name: 'Groceries', usageCount: 3 }),
+    ]);
+
+    const tags = getByRole(element, 'region', 'Tags');
+    expect(textOf(tags)).toContain('Groceries');
+    expect(textOf(tags)).toContain('On 3 spendings');
+    // Saving the settings is a different thing from editing a tag.
+    expect(element.querySelector('form')?.contains(tags)).toBe(false);
   });
 
   it('labels every control and says what the numbers will look like', async () => {

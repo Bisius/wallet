@@ -57,6 +57,21 @@
     </app-field>
   }
 
+  @if (spending() || tagsOpen()) {
+    <app-field
+      label="Tags"
+      [optional]="true"
+      hint="Labels to find this spending by later. They change no budget or balance."
+    >
+      <app-tag-input formControlName="tagIds" />
+    </app-field>
+  } @else {
+    <button type="button" appButton variant="ghost" size="sm" (click)="revealTags()">
+      <app-icon name="tag" />
+      Add tags
+    </button>
+  }
+
   @if (formError(); as error) {
     <p
       role="alert"

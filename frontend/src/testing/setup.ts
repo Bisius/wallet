@@ -49,18 +49,24 @@ Object.defineProperties(HTMLDialogElement.prototype, {
       this.removeAttribute('open');
       this.removeAttribute('data-modal');
       if (returnValue !== undefined) (this as { returnValue: string }).returnValue = returnValue;
-      // The browser gives focus back to what had it before the dialog opened.
+      // The browser gives focus back to what had it before the dialog opened, but only while the
+      // dialog is still in the document. One that left it first (which is how a framework removes
+      // the component of an open dialog, before its destroy hooks run) closes without giving
+      // anything back, and focus stays on the page body. Chromium does exactly this.
       const opener = openers.get(this);
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+      if (this.isConnected && opener instanceof HTMLElement && opener.isConnected) opener.focus();
       this.dispatchEvent(new Event('close'));
     },
   },
 });
 
-// Escape on an open modal dialog: `cancel` (which can be prevented), then close.
+// Escape on an open modal dialog: `cancel` (which can be prevented), then close. As in a browser, the
+// key is the dialog's only when nothing inside it took it (a handler that prevents the default of the
+// keydown keeps the dialog open), and it is the topmost modal, the last one opened, that gets it.
 document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  const dialog = document.querySelector<HTMLDialogElement>('dialog[data-modal][open]');
+  if (event.key !== 'Escape' || event.defaultPrevented) return;
+  const modals = document.querySelectorAll<HTMLDialogElement>('dialog[data-modal][open]');
+  const dialog = modals[modals.length - 1];
   if (!dialog) return;
   const cancel = new Event('cancel', { cancelable: true });
   dialog.dispatchEvent(cancel);

@@ -108,6 +108,13 @@
   html {
     font-family: ui-sans-serif, system-ui, sans-serif;
     color-scheme: light;
+    /*
+     * The month bar sticks to the top of the page (about 4rem tall) and is drawn over what scrolls
+     * under it. A control that takes focus is scrolled into view up to the very edge of the window,
+     * which is under the bar: going up a list with Shift+Tab hid the focused button completely. The
+     * window leaves room for the bar when it scrolls to a focused control.
+     */
+    scroll-padding-top: 5rem;
   }
 
   /* Native controls (date pickers, scrollbars, select menus) follow the theme. */

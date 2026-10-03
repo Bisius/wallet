@@ -74,11 +74,11 @@ export function formatAmountInput(cents: Cents, separator: '.' | ','): string {
       <input
         appInput
         type="text"
-        inputmode="decimal"
         autocomplete="off"
         spellcheck="false"
         class="min-w-0 rounded-r-none text-right tabular-nums focus-visible:outline-none"
         [extraDescribedBy]="unitId"
+        [attr.inputmode]="keyboard()"
         [attr.aria-label]="ariaLabel() ?? null"
         [attr.placeholder]="placeholder()"
         [value]="text()"
@@ -104,6 +104,11 @@ export class MoneyInput implements ControlValueAccessor, Validator {
   readonly locale = input<string>();
   /** Accessible name, for a money input that has no `app-field` around it. */
   readonly ariaLabel = input<string>();
+  /**
+   * The on-screen keyboard a phone shows. The digits keypad (`decimal`) has no minus sign, so an
+   * amount that may be negative (a refund bound in a filter) asks for the full keyboard (`text`).
+   */
+  readonly keyboard = input<'decimal' | 'text'>('decimal');
 
   protected readonly unitId = `money-unit-${nextUnitId++}`;
   protected readonly unit = computed(() => this.currency() ?? this.settings.currency());

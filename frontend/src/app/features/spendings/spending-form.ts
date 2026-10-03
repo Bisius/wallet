@@ -30,14 +30,16 @@ import type {
 // Zod-free deep import: keeps zod out of this page's chunk.
 import { DESCRIPTION_MAX_LENGTH, NOTES_MAX_LENGTH } from '@wallet/shared/limits';
 import { firstValueFrom, type Observable } from 'rxjs';
-import { parseApiError } from '../../core/api-error';
+import { type ParsedApiError, parseApiError } from '../../core/api-error';
 import { SettingsStore } from '../../core/settings.store';
+import { TagsStore } from '../../core/tags.store';
 import { TodayStore } from '../../core/today.store';
 import { clampDateToMonth, firstDayOf, lastDayOf } from '../../shared/format';
-import { applyApiErrors, focusFirstInvalid } from '../../shared/forms/api-errors';
+import { applyApiErrors, focusFirstInvalidOrSubmit } from '../../shared/forms/api-errors';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
+import { TagInput } from '../../shared/forms/tag-input';
 import { Toggle } from '../../shared/forms/toggle';
 import { dateInMonth } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
@@ -64,19 +66,52 @@ const spendingAmount: ValidatorFn = (control) => {
 };
 
 /**
+ * The API names a tag that is not one by its place (`tagIds.2`), while the form has one control for
+ * all the tags: the message goes on that control.
+ */
+function onTagsControl(error: ParsedApiError): ParsedApiError {
+  const fieldErrors: Record<string, string> = {};
+  for (const [path, message] of Object.entries(error.fieldErrors)) {
+    fieldErrors[path.startsWith('tagIds.') ? 'tagIds' : path] ??= message;
+  }
+  return { ...error, fieldErrors };
+}
+
+/** Whether two lists hold the same ids, whatever their order. */
+function sameIds(a: readonly number[], b: readonly number[]): boolean {
+  const sorted = (ids: readonly number[]) => [...ids].sort((x, y) => x - y);
+  const left = sorted(a);
+  const right = sorted(b);
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+/**
  * Adds a spending, or edits one when `spending` is given.
  *
  * Built for a phone: the date starts as today (the server's, inside the shown month) and the budget
  * as the one used last, so a typical entry is an amount and a tap. The API wants a negative amount
  * for a refund; the person types it as a plain number and turns on Refund. After an add the form
- * clears the amount, description and Refund switch and keeps the budget and date, ready for the next
- * entry, with focus back on the amount.
+ * clears the amount, description, tags and Refund switch and keeps the budget and date, ready for the
+ * next entry, with focus back on the amount.
+ *
+ * Tags are optional and out of the way: a new spending shows an "Add tags" button that brings up the
+ * tag field (and it stays up for the next entry), while the edit dialog always has the field.
  *
  * `saved` carries what the API stored. The page reloads what it shows and confirms.
  */
 @Component({
   selector: 'app-spending-form',
-  imports: [ReactiveFormsModule, Field, AppInput, MoneyInput, Toggle, Button, Icon, MoneyPipe],
+  imports: [
+    ReactiveFormsModule,
+    Field,
+    AppInput,
+    MoneyInput,
+    TagInput,
+    Toggle,
+    Button,
+    Icon,
+    MoneyPipe,
+  ],
   templateUrl: './spending-form.html',
   host: { class: 'block' },
 })
@@ -85,11 +120,13 @@ export class SpendingForm implements OnInit {
   private readonly settings = inject(SettingsStore);
   private readonly today = inject(TodayStore);
   private readonly lastBudget = inject(LastBudgetStore);
+  private readonly tags = inject(TagsStore);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly amountField = viewChild<unknown, ElementRef<HTMLElement>>('amountField', {
     read: ElementRef,
   });
+  private readonly tagInput = viewChild(TagInput);
 
   /** The month the page shows: the date has to stay inside it. */
   readonly month = input.required<MonthKey>();
@@ -106,6 +143,8 @@ export class SpendingForm implements OnInit {
   /** True while a request is out. A dialog around the form keeps Escape from closing it then. */
   readonly saving = signal(false);
   protected readonly formError = signal<string | null>(null);
+  /** The tag field is up. A new spending starts without it; the edit dialog always has it. */
+  protected readonly tagsOpen = signal(false);
 
   protected firstDay = () => firstDayOf(this.month());
   protected lastDay = () => lastDayOf(this.month());
@@ -132,6 +171,8 @@ export class SpendingForm implements OnInit {
       nonNullable: true,
       validators: [Validators.maxLength(NOTES_MAX_LENGTH)],
     }),
+    /** The ids of the tags. At most `MAX_TAGS_PER_SPENDING`, which the tag field enforces. */
+    tagIds: new FormControl<number[]>([], { nonNullable: true }),
   });
 
   protected readonly isRefund = toSignal(this.form.controls.refund.valueChanges, {
@@ -173,6 +214,7 @@ export class SpendingForm implements OnInit {
         date: spending.date,
         description: spending.description,
         notes: spending.notes ?? '',
+        tagIds: [...spending.tagIds],
       });
     } else {
       // The default is today according to the server, never the browser clock.
@@ -205,6 +247,8 @@ export class SpendingForm implements OnInit {
       if (description !== editing.description) changes.description = description;
       const notes = value.notes.trim() || null;
       if (notes !== editing.notes) changes.notes = notes;
+      // The tags replace the whole set, so they are only sent when the set is not the stored one.
+      if (!sameIds(value.tagIds, editing.tagIds)) changes.tagIds = [...value.tagIds];
       if (Object.keys(changes).length === 0) {
         this.cancelled.emit();
         return;
@@ -216,6 +260,7 @@ export class SpendingForm implements OnInit {
         amount,
         budgetId,
         ...(description ? { description } : {}),
+        ...(value.tagIds.length > 0 ? { tagIds: [...value.tagIds] } : {}),
       });
     }
 
@@ -229,19 +274,42 @@ export class SpendingForm implements OnInit {
       }
       this.saved.emit(saved);
     } catch (error) {
-      this.formError.set(applyApiErrors(this.form, parseApiError(error)));
+      const parsed = parseApiError(error);
+      if (parsed.rule === 'unknown_tag') {
+        await this.dropUnknownTags();
+        this.formError.set(
+          'A tag you chose no longer exists, so it was taken off. Check the tags, then save again.',
+        );
+      } else {
+        this.formError.set(applyApiErrors(this.form, onTagsControl(parsed)));
+      }
       this.focusInvalidAfterRender();
     } finally {
       this.saving.set(false);
     }
   }
 
+  /** Brings up the tag field and puts the cursor in it. */
+  protected revealTags(): void {
+    this.tagsOpen.set(true);
+    afterNextRender(() => this.tagInput()?.focus(), { injector: this.injector });
+  }
+
+  /** A tag was deleted meanwhile (the API said `unknown_tag`): take off the ones the list no longer has. */
+  private async dropUnknownTags(): Promise<void> {
+    await this.tags.reload();
+    const known = this.tags.byId();
+    const control = this.form.controls.tagIds;
+    control.setValue(control.value.filter((id) => known.has(id)));
+  }
+
   /** Keeps the budget and the date, clears the rest, and puts the cursor on the amount. */
   private resetForNextEntry(): void {
-    const { amount, refund, description } = this.form.controls;
+    const { amount, refund, description, tagIds } = this.form.controls;
     amount.reset(null);
     refund.reset(false);
     description.reset('');
+    tagIds.reset([]);
     this.form.controls.date.markAsUntouched();
     this.form.controls.budgetId.markAsUntouched();
     afterNextRender(
@@ -251,6 +319,8 @@ export class SpendingForm implements OnInit {
   }
 
   private focusInvalidAfterRender(): void {
-    afterNextRender(() => focusFirstInvalid(this.host.nativeElement), { injector: this.injector });
+    afterNextRender(() => focusFirstInvalidOrSubmit(this.host.nativeElement), {
+      injector: this.injector,
+    });
   }
 }

@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { MonthView, SpendingDto, SpendingsPage } from '@wallet/shared';
+import type { MonthView, SpendingDto, SpendingsPage, TagDto } from '@wallet/shared';
 import { spendingCreateSchema, spendingUpdateSchema } from '@wallet/shared';
 import { ConfirmDialog } from '../../shared/ui/confirm-dialog';
 import { ToastContainer } from '../../shared/ui/toast-container';
@@ -72,6 +72,13 @@ describe('SpendingsPage', () => {
   });
 
   afterEach(() => {
+    // A spec that is not about tags and answers the page's first requests one by one (to look at an
+    // error, say) leaves the tag list unanswered: answer it with no tags. It was asked for once.
+    const tags = http.match('/api/tags');
+    expect(tags.length).toBeLessThanOrEqual(1);
+    for (const request of tags) {
+      if (!request.cancelled) request.flush([]);
+    }
     http.verify();
     localStorage.clear();
   });
@@ -79,6 +86,7 @@ describe('SpendingsPage', () => {
   interface Data {
     view?: MonthView;
     page?: SpendingsPage;
+    tags?: TagDto[];
   }
 
   /** Opens the page for a month and answers its two requests. */
@@ -88,6 +96,8 @@ describe('SpendingsPage', () => {
     const fixture = TestBed.createComponent(SpendingsHost);
     fixture.detectChanges();
     await settle(fixture);
+    // The tag list is asked for once, when the page is first shown: not again after a change.
+    http.expectOne('/api/tags').flush(data.tags ?? []);
     await answer(fixture, month, data);
     return page(fixture);
   }
@@ -643,7 +653,21 @@ describe('SpendingsPage', () => {
         await settle(p.fixture);
 
         expect(textOf(getByRole(p.form(), 'alert'))).toBe('Something broke');
-        expect(p.value('Amount')).toBe('10');
+        // What was typed is kept (the box tidies it up when focus leaves it, for the button).
+        expect(p.value('Amount')).toBe('10.00');
+      });
+
+      it('puts focus back on the button that was pressed when the error belongs to no field', async () => {
+        const p = await open();
+        const button = getByRole(p.form(), 'button', 'Add spending');
+        button.focus();
+        await submit(p);
+        // A button that is disabled while the request is out loses focus to the page, as in a browser.
+        button.blur();
+        flushError(http.expectOne('/api/spendings'), 500, 'internal_error', 'Something broke');
+        await settle(p.fixture);
+
+        expect(document.activeElement).toBe(button);
       });
     });
 
@@ -689,15 +713,13 @@ describe('SpendingsPage', () => {
         page: { ...PAGE, total: 3, totalAmount: 99999 },
       });
 
-      expect(textOf(p.list())).toContain(
-        'Net total €999.99 · 3 spendings. Refunds are subtracted.',
-      );
+      expect(textOf(p.list())).toContain('3 spendings · €999.99 net. Refunds are subtracted.');
     });
 
     it('counts the whole month, not only the rows that are loaded', async () => {
       const p = await open('2026-10', { page: { ...PAGE, total: 120, totalAmount: 456700 } });
 
-      expect(textOf(p.list())).toContain('Net total €4,567.00 · 120 spendings');
+      expect(textOf(p.list())).toContain('120 spendings · €4,567.00 net');
       expect(textOf(p.list())).toContain('Showing 3 of 120');
     });
 
@@ -796,7 +818,7 @@ describe('SpendingsPage', () => {
 
       expect(textOf(p.list())).toContain('Shoes (returned)');
       expect(textOf(p.list())).not.toContain('Coffee');
-      expect(textOf(p.list())).toContain('Net total -€45.00 · 1 spending.');
+      expect(textOf(p.list())).toContain('1 spending · -€45.00 net');
     });
 
     it('says so when a budget has no spendings, and goes back to all of them', async () => {

@@ -1,0 +1,128 @@
+<section
+  role="search"
+  aria-label="Search and filter spendings"
+  class="space-y-3 rounded-card border border-line p-3 sm:p-4"
+>
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <p class="hidden text-sm font-semibold md:block">
+      Search and filters
+      @if (count() > 0) {
+        <span class="font-normal text-muted">· {{ count() }} in use</span>
+      }
+    </p>
+    <button
+      type="button"
+      appButton
+      variant="secondary"
+      size="sm"
+      class="md:hidden"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="panelId"
+      (click)="toggle()"
+    >
+      <app-icon [name]="open() ? 'chevron-down' : 'chevron-right'" />
+      {{ count() > 0 ? 'Filters (' + count() + ')' : 'Filters' }}
+    </button>
+    @if (count() > 0) {
+      <button type="button" appButton variant="ghost" size="sm" (click)="clear.emit()">
+        Clear filters
+      </button>
+    }
+  </div>
+
+  <div
+    [id]="panelId"
+    [formGroup]="form"
+    [class]="
+      open()
+        ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-3'
+        : 'hidden gap-4 sm:grid-cols-2 md:grid lg:grid-cols-3'
+    "
+  >
+    <fieldset class="min-w-0 sm:col-span-2 lg:col-span-3">
+      <legend class="mb-1.5 text-sm font-medium text-ink">Show spendings from</legend>
+      <div class="inline-flex overflow-hidden rounded-control border border-line-strong">
+        <label class="cursor-pointer">
+          <input
+            type="radio"
+            class="peer sr-only"
+            [name]="scopeName"
+            [checked]="!filters().allMonths"
+            (change)="setScope(false)"
+          />
+          <span
+            class="flex min-h-11 items-center gap-1.5 px-4 text-sm font-medium text-ink peer-checked:bg-accent peer-checked:text-on-accent peer-focus-visible:-outline-offset-2 peer-focus-visible:outline-2 peer-focus-visible:outline-focus peer-checked:peer-focus-visible:outline-on-accent"
+          >
+            @if (!filters().allMonths) {
+              <app-icon name="check" />
+            }
+            {{ monthLabel() || 'The selected month' }}
+          </span>
+        </label>
+        <label class="cursor-pointer border-l border-line-strong">
+          <input
+            type="radio"
+            class="peer sr-only"
+            [name]="scopeName"
+            [checked]="filters().allMonths"
+            (change)="setScope(true)"
+          />
+          <span
+            class="flex min-h-11 items-center gap-1.5 px-4 text-sm font-medium text-ink peer-checked:bg-accent peer-checked:text-on-accent peer-focus-visible:-outline-offset-2 peer-focus-visible:outline-2 peer-focus-visible:outline-focus peer-checked:peer-focus-visible:outline-on-accent"
+          >
+            @if (filters().allMonths) {
+              <app-icon name="check" />
+            }
+            All months
+          </span>
+        </label>
+      </div>
+    </fieldset>
+
+    <div class="sm:col-span-2 lg:col-span-1">
+      <app-field label="Search" hint="Looks in descriptions and notes.">
+        <input
+          appInput
+          type="search"
+          formControlName="q"
+          autocomplete="off"
+          enterkeyhint="search"
+          [attr.maxlength]="searchMaxLength"
+          (keydown.enter)="applyNow($event)"
+        />
+      </app-field>
+    </div>
+
+    <app-field label="Filter by budget">
+      <select appInput (change)="onBudget($event)">
+        <option value="" [selected]="filters().budgetId === null">All budgets</option>
+        @for (budget of budgets(); track budget.id) {
+          <option [value]="budget.id" [selected]="filters().budgetId === budget.id">
+            {{ budget.name }}
+          </option>
+        }
+      </select>
+    </app-field>
+
+    <app-field label="Filter by tag">
+      <select appInput (change)="onTag($event)">
+        <option value="" [selected]="filters().tagId === null">All tags</option>
+        @for (tag of tagOptions(); track tag.id) {
+          <option [value]="tag.id" [selected]="filters().tagId === tag.id">{{ tag.name }}</option>
+        }
+      </select>
+    </app-field>
+
+    <app-field label="Minimum amount" hint="Refunds are negative.">
+      <app-money-input formControlName="minAmount" keyboard="text" />
+    </app-field>
+
+    <app-field
+      label="Maximum amount"
+      hint="Refunds are negative."
+      [error]="rangeError() ?? undefined"
+    >
+      <app-money-input formControlName="maxAmount" keyboard="text" />
+    </app-field>
+  </div>
+</section>

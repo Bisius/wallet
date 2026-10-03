@@ -24,6 +24,19 @@ export const config = (runs: number) => ({
 /** Per-test timeout (ms): generous, because a loaded machine runs several packages at once (and a deeper sweep takes longer). */
 export const SLOW = 120_000 * Math.max(1, FACTOR);
 
+/**
+ * `config` for a property whose every run is a long sequence of requests. A failure is shrunk by
+ * running whole sequences again, which can take longer than the test's timeout, and a test that
+ * times out reports no counterexample at all. So the run is cut after half of the timeout: a
+ * failing run then reports the smallest counterexample found so far, with its seed and path. A
+ * passing run takes a few seconds and is never cut; one that was cut short (a machine so slow that
+ * half the timeout passed) is caught by the coverage minimums, which name what was not generated.
+ */
+export const boundedConfig = (runs: number) => ({
+  ...config(runs),
+  interruptAfterTimeLimit: SLOW / 2,
+});
+
 /** JSON with the keys of every object sorted, so equal values give equal strings. */
 export function canonical(value: unknown): string {
   return JSON.stringify(value, (_key, item: unknown) =>

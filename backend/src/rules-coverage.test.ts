@@ -3,8 +3,9 @@
  * `rule_violation` (422) in the PLAN.md table is a member of the shared type, is raised somewhere
  * in the modules, and is asserted in at least one route test.
  *
- * The one exception is `NOT_YET_IMPLEMENTED` below: rules whose contract and docs are written but
- * whose endpoints are still to come (`unknown_tag` until the Phase 5 services land).
+ * `NOT_YET_IMPLEMENTED` below is where a phase parks the rules whose contract and docs are written
+ * before the endpoints that raise them. It is empty now: every rule of the PLAN.md table has its
+ * service and its route test.
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
@@ -52,16 +53,16 @@ const tests = files.filter((file) => file.endsWith('.test.ts')).map((f) => readF
 /**
  * Rules that the shared contract and docs/PLAN.md already list but no service raises yet: a phase
  * writes its contracts first, and the services come in the next step. Their "raised" and "asserted"
- * checks are todos until then. Phase 4 emptied it (it raised and asserted every rule of its
- * contract: `start_month_too_old` in settings and onboarding, the rest in `modules/savings`).
- * Phase 5 adds `unknown_tag`, which the spendings service raises for a `tagIds` entry that is no
- * tag and a route test asserts, once the tags endpoints exist.
+ * checks are todos until then. The list is empty: Phase 4 raised and asserted every rule of its
+ * contract (`start_month_too_old` in settings and onboarding, the rest in `modules/savings`), and
+ * Phase 5 did the same for `unknown_tag` (the spendings service, for a `tagIds` entry that is no
+ * tag) and for the transfer rules (`modules/transfers`).
  *
  * Add a rule here when a phase's contract lists it before its service exists, and remove it when
  * its service and route test land. The last test below fails for an entry that is raised and
  * asserted already, so the list cannot go stale.
  */
-const NOT_YET_IMPLEMENTED: readonly string[] = ['unknown_tag'];
+const NOT_YET_IMPLEMENTED: readonly string[] = [];
 
 /**
  * Rules a module must raise and assert ITSELF, per module directory under `src/modules`. The
@@ -69,9 +70,8 @@ const NOT_YET_IMPLEMENTED: readonly string[] = ['unknown_tag'];
  * see it missing from a second endpoint the contract also gives it: the transfer endpoints reuse
  * three rules that the spendings already raise, and `outside_active_months` is the one that keeps
  * the ledger from ignoring a stored transfer (docs/DOMAIN.md, "Transfers"). A module with no
- * source file yet (only tests, or no directory at all) is a todo, and as soon as it has one its
- * rules are enforced, so the Phase 5 implementation cannot leave one out and nothing needs to be
- * removed here afterwards.
+ * source file (only tests, or no directory at all) is a todo, and as soon as it has one its rules
+ * are enforced, so a module cannot gain its endpoints and leave one of these rules out.
  */
 const RULES_OF_MODULE: Readonly<Record<string, readonly string[]>> = {
   transfers: ['unknown_budget', 'before_start_month', 'outside_active_months'],

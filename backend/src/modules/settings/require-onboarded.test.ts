@@ -46,6 +46,18 @@ const GUARDED: [string, string, string, object?][] = [
   ['POST', '/api/goals', 'ok', { name: 'Holiday', targetAmount: 100000 }],
   ['PATCH', '/api/goals/1', 'ok', { name: 'Trip' }],
   ['DELETE', '/api/goals/1', 'ok'],
+  ['GET', '/api/transfers', 'ok'],
+  [
+    'POST',
+    '/api/transfers',
+    'ok',
+    { date: '2026-03-01', fromBudgetId: 1, toBudgetId: null, amount: 100 },
+  ],
+  ['DELETE', '/api/transfers/1', 'ok'],
+  ['GET', '/api/tags', 'ok'],
+  ['POST', '/api/tags', 'ok', { name: 'Groceries' }],
+  ['PATCH', '/api/tags/1', 'ok', { name: 'Food' }],
+  ['DELETE', '/api/tags/1', 'ok'],
   // The guard runs before validation: an invalid request is still a 409, not a 400.
   ['POST', '/api/budgets', 'bad', {}],
   ['GET', '/api/spendings?limit=0', 'bad'],
@@ -57,6 +69,13 @@ const GUARDED: [string, string, string, object?][] = [
   ['PUT', '/api/savings/opening', 'bad', { amount: -1 }],
   ['POST', '/api/goals', 'bad', {}],
   ['PATCH', '/api/goals/abc', 'bad', {}],
+  ['POST', '/api/transfers', 'bad', {}],
+  ['GET', '/api/transfers?month=nope', 'bad'],
+  ['DELETE', '/api/transfers/abc', 'bad'],
+  ['GET', '/api/spendings?minAmount=2&maxAmount=1', 'bad'],
+  ['GET', '/api/spendings?q=%20', 'bad'],
+  ['POST', '/api/tags', 'bad', {}],
+  ['PATCH', '/api/tags/abc', 'bad', {}],
 ];
 
 function send(app: Parameters<typeof request>[0], method: string, path: string, body?: object) {

@@ -1,6 +1,7 @@
 import { HttpClient, type HttpResourceRef, httpResource } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import type {
+  Cents,
   MonthKey,
   SpendingCreateInput,
   SpendingDto,
@@ -10,18 +11,30 @@ import type {
 import { SPENDINGS_DEFAULT_LIMIT } from '@wallet/shared/limits';
 import type { Observable } from 'rxjs';
 
-/** Which spendings a list shows. */
+/** Which spendings a list shows. Every narrowing field that is empty (`null`, `''`) is not sent. */
 export interface SpendingsFilter {
-  month: MonthKey;
+  /** Only this month's spendings. `null`: every month, so no date filter is sent. */
+  month: MonthKey | null;
   /** Only this budget's spendings. `null`: every budget. */
   budgetId: number | null;
+  /** Only spendings that carry this tag. `null`: any. */
+  tagId: number | null;
+  /** Text to find in the description or the notes, trimmed. `''`: no search. */
+  q: string;
+  /** Signed cents, as stored (a refund is negative), both bounds inclusive. `null`: no bound. */
+  minAmount: Cents | null;
+  maxAmount: Cents | null;
 }
 
 /** The query of `GET /api/spendings` for a filter and the page that starts at `offset`. */
 function queryOf(filter: SpendingsFilter, offset: number): Record<string, string | number> {
   return {
-    month: filter.month,
+    ...(filter.month === null ? {} : { month: filter.month }),
     ...(filter.budgetId === null ? {} : { budgetId: filter.budgetId }),
+    ...(filter.tagId === null ? {} : { tagId: filter.tagId }),
+    ...(filter.q === '' ? {} : { q: filter.q }),
+    ...(filter.minAmount === null ? {} : { minAmount: filter.minAmount }),
+    ...(filter.maxAmount === null ? {} : { maxAmount: filter.maxAmount }),
     limit: SPENDINGS_DEFAULT_LIMIT,
     offset,
   };

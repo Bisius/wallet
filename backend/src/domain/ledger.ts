@@ -29,6 +29,7 @@ import {
   isMonthKey,
   monthDiff,
 } from '@wallet/shared';
+import { nameCollator } from '../lib/names';
 import { effectiveAt, isWithinActiveMonths } from '../lib/versioned';
 import type {
   BudgetFact,
@@ -41,9 +42,6 @@ import type {
 } from './facts';
 
 const MONTHS_PER_YEAR = 12;
-
-/** Names compare ignoring case but not accents; the id breaks ties (same rule as the subscription list). */
-const nameCollator = new Intl.Collator('en', { sensitivity: 'accent' });
 
 // -------------------------------------------------------------------------------------------------
 // Output
@@ -300,7 +298,8 @@ function compileBudgets(facts: Facts): BudgetState[] {
 /**
  * Adds each transfer to its budgets and returns the pool side per month. A transfer counts only
  * when every budget side is active in the transfer's month: otherwise its money would leave one
- * side and arrive nowhere, so the whole transfer is ignored. (Phase 5 rejects creating one.)
+ * side and arrive nowhere, so the whole transfer is ignored. (The API never stores one: see
+ * "Transfers" in docs/DOMAIN.md.)
  */
 function applyTransfers(transfers: readonly TransferFact[], budgets: readonly BudgetState[]) {
   const byId = new Map(budgets.map((state) => [state.fact.id, state]));

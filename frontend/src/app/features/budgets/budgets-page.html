@@ -4,10 +4,18 @@
     monthLabel() ? 'Monthly allocations, rollover and what is left, for ' + monthLabel() + '.' : ''
   "
 >
-  <button appButton (click)="openCreate()">
-    <app-icon name="plus" />
-    New budget
-  </button>
+  <div class="flex flex-wrap gap-2">
+    @if (canMove()) {
+      <button appButton variant="secondary" (click)="openMove(null)">
+        <app-icon name="arrows-left-right" />
+        Move money
+      </button>
+    }
+    <button appButton (click)="openCreate()">
+      <app-icon name="plus" />
+      New budget
+    </button>
+  </div>
 </app-page-header>
 
 <p class="sr-only" role="status">{{ announcement() }}</p>
@@ -71,10 +79,11 @@
                       [budget]="card.budget"
                       [canMoveUp]="!first"
                       [canMoveDown]="!last"
-                      [busy]="moving()"
+                      [busy]="reordering()"
                       (edit)="openEdit(card.budget)"
                       (archive)="archive(card.budget)"
                       (remove)="remove(card.budget)"
+                      (moveMoney)="openMove(card.line.id)"
                       (moveUp)="move(card, 'up')"
                       (moveDown)="move(card, 'down')"
                     />
@@ -83,6 +92,18 @@
               </ul>
             }
           </section>
+
+          <app-transfers-section
+            [month]="month"
+            [transfers]="transferList()"
+            [state]="transfersState()"
+            [error]="transfers.error()"
+            [budgets]="budgetList()"
+            [canMove]="canMove()"
+            (retry)="transfers.reload()"
+            (moveMoney)="openMove(null)"
+            (changed)="reloadAll()"
+          />
 
           @if (inactive().length > 0) {
             <details class="card">
@@ -140,6 +161,22 @@
       }
     }
   </div>
+}
+
+@if (moving(); as dialog) {
+  @if (month(); as month) {
+    @if (budgetList(); as list) {
+      <app-transfer-dialog
+        [budgets]="list"
+        [month]="month"
+        [monthView]="monthView()"
+        [fromBudgetId]="dialog.fromBudgetId"
+        (changed)="reloadAll()"
+        (finished)="closeMove()"
+        (cancelled)="closeMove()"
+      />
+    }
+  }
 }
 
 @if (form(); as dialog) {

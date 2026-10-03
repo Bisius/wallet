@@ -15,6 +15,8 @@ import type {
   SpendingDto,
   SpendingsPage,
   SubscriptionDto,
+  TagDto,
+  TransferDto,
 } from '@wallet/shared';
 
 /**
@@ -207,6 +209,24 @@ export function spendingDto(overrides: Partial<SpendingDto> = {}): SpendingDto {
     description: 'Coffee',
     notes: null,
     tagIds: [],
+    ...overrides,
+  };
+}
+
+/** A tag as the list returns it. Defaults: no color, on no spending. */
+export function tagDto(overrides: Partial<TagDto> = {}): TagDto {
+  return { id: 1, name: 'Groceries', color: null, usageCount: 0, ...overrides };
+}
+
+/** A transfer between two budgets: 50.00 from budget 1 to budget 2 on 2026-10-02. */
+export function transferDto(overrides: Partial<TransferDto> = {}): TransferDto {
+  return {
+    id: 1,
+    date: '2026-10-02',
+    fromBudgetId: 1,
+    toBudgetId: 2,
+    amount: 5000,
+    note: null,
     ...overrides,
   };
 }

@@ -4,6 +4,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { FOLD_SQL_FUNCTION, foldText } from '../lib/fold';
 import { MIGRATIONS_DIR } from '../lib/paths';
 import * as schema from './schema';
 
@@ -22,6 +23,11 @@ export function createDb(path: string) {
   const sqlite = new Database(path);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
+  // SQLite's own lower() and LIKE only fold ASCII: the spendings search folds text with this one.
+  // NULL (a spending without notes) stays NULL, so it never matches.
+  sqlite.function(FOLD_SQL_FUNCTION, { deterministic: true }, (value: unknown) =>
+    typeof value === 'string' ? foldText(value) : value,
+  );
 
   return drizzle({ client: sqlite, schema, casing: 'snake_case' });
 }

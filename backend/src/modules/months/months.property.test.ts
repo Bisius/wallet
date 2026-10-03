@@ -1,13 +1,14 @@
 /**
  * Property-based test of the whole path, through HTTP: generated facts are entered ONLY through the
  * public endpoints (onboarding, salary, incomes, budgets with versions, subscriptions with prices,
- * spendings, archive and cancel, a start month moved later), the clock is set to a generated
- * "today", and what `GET /api/months` and `GET /api/months/:month` answer must equal the independent
- * model of docs/DOMAIN.md computed from the same facts. The rows must also read back exactly as they
- * were entered: no version, price or salary row is lost or moved by archiving, cancelling or moving
- * a start month later ("Versioned values"), and SQL's month grouping and sums agree with plain
- * arithmetic. Transfers have no endpoint yet, so they are inserted into the database like the
- * other route tests do.
+ * spendings, transfers, archive and cancel, a start month moved later), the clock is set to a
+ * generated "today", and what `GET /api/months` and `GET /api/months/:month` answer must equal the
+ * independent model of docs/DOMAIN.md computed from the same facts. The rows must also read back
+ * exactly as they were entered: no version, price, salary or transfer row is lost or moved by
+ * archiving, cancelling or moving a start month later ("Versioned values"), and SQL's month
+ * grouping and sums agree with plain arithmetic. The generated transfers are the ones the API
+ * stores (both sides active in the month), so they go through `POST /api/transfers` and are read
+ * back with `GET /api/transfers`.
  *
  * Fixed seed (see testing/prop.ts), a few dozen runs because each one makes dozens of requests.
  */
@@ -41,12 +42,12 @@ describe('the API shows the months the independent model predicts, for facts ent
           async (scenario, pick) => {
             const { facts, through, today } = scenario;
             const clock = mutableClock(`${today}T12:00:00Z`);
-            const { app: express, db } = createTestApp(clock);
+            const { app: express } = createTestApp(clock);
             const app = await serve(express);
             try {
-              await enterFacts(app, db, facts);
+              await enterFacts(app, facts);
 
-              const state = await readState(app, facts.transfers);
+              const state = await readState(app);
               const problems = storedProblems(state, facts);
               problems.push(
                 ...(await monthsProblems(app, facts, through, today, [
@@ -94,10 +95,10 @@ describe('the API shows the months the independent model predicts, for facts ent
           async (scenario, queries) => {
             const { facts, today } = scenario;
             const clock = mutableClock(`${today}T12:00:00Z`);
-            const { app: express, db } = createTestApp(clock);
+            const { app: express } = createTestApp(clock);
             const app = await serve(express);
             try {
-              await enterFacts(app, db, facts);
+              await enterFacts(app, facts);
               const start = monthIndex(facts.startMonth);
               const current = monthIndex(today.slice(0, 7));
               const horizon = current + 120; // "Projections stop 120 months after the current month"

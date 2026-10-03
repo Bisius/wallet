@@ -2,6 +2,7 @@ import {
   afterNextRender,
   Component,
   DestroyRef,
+  DOCUMENT,
   ElementRef,
   inject,
   input,
@@ -16,8 +17,15 @@ let nextDialogId = 0;
  *
  * Render it with `@if` while it should be open. It opens as a native modal `<dialog>` as soon as it
  * is in the page, so the browser provides what a modal needs: a focus trap, an inert page behind it,
- * Escape to close it, and focus going back to the control that opened it. Focus starts on the first
- * field (or the element marked `autofocus`). The heading names the dialog for screen readers.
+ * and Escape to close it. Focus starts on the first field (or the element marked `autofocus`). The
+ * heading names the dialog for screen readers.
+ *
+ * Focus goes back to the control that opened it. The browser does that itself when it closes the
+ * dialog (Escape), but not when the owner removes the component: by the time its destroy hooks run
+ * the `<dialog>` has already left the document, and a dialog that is no longer in the document
+ * cannot give focus back. Focus would drop to the page and the keyboard would start over from the top
+ * (Cancel, and Save after a request, are this case). So the opener is remembered and focused again
+ * by hand, unless something else has taken focus meanwhile or the opener is gone.
  *
  * The content scrolls when it is taller than the screen. Put the buttons in an element with the
  * `dialog-footer` class (see styles.css) to keep them in view at the bottom: the content keeps
@@ -53,6 +61,7 @@ let nextDialogId = 0;
 })
 export class AppDialog {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly doc = inject(DOCUMENT);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
 
   /** The dialog's title: it is also its accessible name. */
@@ -64,21 +73,39 @@ export class AppDialog {
 
   protected readonly titleId = `dialog-title-${nextDialogId++}`;
   private destroyed = false;
+  /** What had focus when the dialog opened: where focus goes back to. */
+  private opener: HTMLElement | null = null;
 
   constructor() {
     afterNextRender(() => {
       const dialog = this.dialog().nativeElement;
       if (dialog.open) return;
+      const active = this.doc.activeElement;
+      this.opener = active instanceof HTMLElement && active !== this.doc.body ? active : null;
       this.markFirstFieldAutofocus(dialog);
       dialog.showModal();
     });
 
     inject(DestroyRef).onDestroy(() => {
       this.destroyed = true;
-      // Closing it before it leaves the page lets the browser give focus back to the opener.
       const dialog = this.host.nativeElement.querySelector('dialog');
       if (dialog?.open) dialog.close();
+      this.returnFocus();
     });
+  }
+
+  /**
+   * Puts focus back on the control that opened the dialog, when the browser did not (see the class
+   * comment) and nothing else has focus: a page that moved focus on purpose, or the browser having
+   * restored it already (Escape), is left alone.
+   */
+  private returnFocus(): void {
+    const opener = this.opener;
+    this.opener = null;
+    if (!opener?.isConnected) return;
+    const active = this.doc.activeElement;
+    if (active !== null && active !== this.doc.body) return;
+    opener.focus();
   }
 
   /**

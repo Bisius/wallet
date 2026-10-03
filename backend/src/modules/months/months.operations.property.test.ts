@@ -824,12 +824,12 @@ describe('the editing rules of docs/DOMAIN.md, through HTTP', () => {
           fc.array(rawOp, { minLength: 4, maxLength: 12 }),
           async (scenario, operations) => {
             const clock = mutableClock(`${scenario.today}T12:00:00Z`);
-            const { app: express, db } = createTestApp(clock);
+            const { app: express } = createTestApp(clock);
             const app = await serve(express);
             try {
-              await enterFacts(app, db, scenario.facts);
+              await enterFacts(app, scenario.facts);
               let today = scenario.today;
-              let state = await readState(app, scenario.facts.transfers);
+              let state = await readState(app);
               const done: string[] = [];
 
               // The month list is always compared; whole views only at the end and on every other step.
@@ -876,7 +876,7 @@ describe('the editing rules of docs/DOMAIN.md, through HTTP', () => {
                   `${KIND_NAMES[raw.kind % KIND_NAMES.length]}: ${got.rule ?? got.code ?? 'accepted'}`,
                 );
                 seen.hit(`outcome ${got.rule ?? got.code ?? 'accepted'}`);
-                const after = await readState(app, scenario.facts.transfers);
+                const after = await readState(app);
                 const actual = normalized(worldOf(after));
                 if (answer.status >= 400) {
                   // A refusal changes nothing.

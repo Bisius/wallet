@@ -1,0 +1,103 @@
+<app-dialog heading="Move money" [locked]="saving()" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+    <p class="text-sm text-muted">
+      Plan money differently inside one month: from one budget to another, or to or from what is
+      unallocated. The date decides the month. Nothing is refused for lack of money.
+    </p>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <app-field label="From" [error]="fromProblem()">
+        <select appInput formControlName="fromBudgetId">
+          <option value="">Choose…</option>
+          @for (choice of choices(); track choice.value) {
+            <option [value]="choice.value">{{ choice.label }}</option>
+          }
+        </select>
+      </app-field>
+      <app-field label="To" [error]="toProblem()">
+        <select
+          appInput
+          formControlName="toBudgetId"
+          [attr.autofocus]="fromBudgetId() === null ? null : ''"
+        >
+          <option value="">Choose…</option>
+          @for (choice of choices(); track choice.value) {
+            <option [value]="choice.value">{{ choice.label }}</option>
+          }
+        </select>
+      </app-field>
+    </div>
+
+    <div>
+      <app-field label="Amount">
+        <app-money-input formControlName="amount" />
+      </app-field>
+      <!--
+        The live region is always in the page, so a warning that appears while the amount is typed is
+        announced (a live region only speaks of what changes in it). It holds only what does not depend
+        on the amount: which source falls short and what it holds. That changes when the warning appears
+        or the source or the month changes, and not on every digit typed, which would be read out again
+        each time. What the amount would do follows it, outside the region: it is there to be seen, and
+        to be read where it stands.
+      -->
+      <div
+        [class]="
+          warningLead()
+            ? 'mt-2 flex items-start gap-2 rounded-control border border-warning bg-warning-soft p-3 text-sm text-ink'
+            : ''
+        "
+      >
+        @if (warningLead()) {
+          <app-icon name="alert" class="mt-0.5 text-warning" />
+        }
+        <p class="min-w-0">
+          <span aria-live="polite" aria-atomic="true">
+            @if (warningLead(); as lead) {
+              <span class="font-semibold">Not enough there.</span> {{ lead }}
+            }
+          </span>
+          @if (warning(); as current) {
+            {{ current.consequence }} You can still move it.
+          }
+        </p>
+      </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <app-field label="Date" [hint]="dateHint()">
+        <input
+          appInput
+          type="date"
+          formControlName="date"
+          [attr.min]="firstDay() ?? null"
+          [attr.max]="lastDay() ?? null"
+        />
+      </app-field>
+      <app-field label="Note" [optional]="true">
+        <input
+          appInput
+          formControlName="note"
+          autocomplete="off"
+          [attr.maxlength]="notesMaxLength"
+        />
+      </app-field>
+    </div>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">Move money</button>
+    </div>
+  </form>
+</app-dialog>

@@ -16,8 +16,10 @@ const BADGE = 'rounded-full border border-line-strong px-2 py-0.5 text-xs font-m
  * month end.
  *
  * It only shows the figures of the month view. The rollover, the alert state and the savings amount
- * are the API's; nothing here is calculated. The actions (edit, archive, delete, move) show when the
- * `budget` is known, and they are only requests: the page does the work.
+ * are the API's; nothing here is calculated. When money was moved in or out this month
+ * (`transfersNet`, already part of what is available) the card says so. The actions (edit, archive,
+ * delete, move money, reorder) show when the `budget` is known, and they are only requests: the page
+ * does the work.
  */
 @Component({
   selector: 'app-budget-card',
@@ -44,6 +46,8 @@ export class BudgetCard {
   readonly edit = output<void>();
   readonly archive = output<void>();
   readonly remove = output<void>();
+  /** The user wants to move money out of this budget (it is the source the dialog starts with). */
+  readonly moveMoney = output<void>();
   readonly moveUp = output<void>();
   readonly moveDown = output<void>();
 

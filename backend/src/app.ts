@@ -18,7 +18,9 @@ import { requireOnboarded } from './modules/settings/require-onboarded';
 import { settingsRoutes } from './modules/settings/settings.routes';
 import { spendingRoutes } from './modules/spendings/spendings.routes';
 import { subscriptionRoutes } from './modules/subscriptions/subscriptions.routes';
+import { tagRoutes } from './modules/tags/tags.routes';
 import { todayRoutes } from './modules/today/today.routes';
+import { transferRoutes } from './modules/transfers/transfers.routes';
 
 export interface AppDeps {
   db: Db;
@@ -61,6 +63,8 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   api.use('/months', onboarded, monthRoutes(deps));
   api.use('/savings', onboarded, savingsRoutes(deps));
   api.use('/goals', onboarded, goalRoutes(deps));
+  api.use('/transfers', onboarded, transferRoutes(deps));
+  api.use('/tags', onboarded, tagRoutes(deps));
   api.use((_req, _res, next) => next(notFound('Route')));
   app.use('/api', api);
 

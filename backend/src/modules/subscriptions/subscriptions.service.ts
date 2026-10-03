@@ -14,6 +14,7 @@ import type { DbOrTx } from '../../db/client';
 import { subscriptionPrices, subscriptions } from '../../db/schema';
 import { type Deps, inTransaction } from '../../lib/deps';
 import { notFound, ruleViolation } from '../../lib/errors';
+import { nameCollator } from '../../lib/names';
 import { currentMonthOf, timestampOf } from '../../lib/today';
 import {
   currentRow,
@@ -28,9 +29,6 @@ type PriceRow = typeof subscriptionPrices.$inferSelect;
 
 /** Months in a year, for the display-only monthly equivalent of a yearly price. */
 const MONTHS_PER_YEAR = 12;
-
-/** Names compare ignoring case (but not accents, so "é" sorts with "e"); the id breaks ties. */
-const nameCollator = new Intl.Collator('en', { sensitivity: 'accent' });
 
 // -------------------------------------------------------------------------------------------------
 // Reading

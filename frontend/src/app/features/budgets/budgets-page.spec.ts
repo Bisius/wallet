@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
-import type { BudgetDto, MonthBudgetLine, MonthView } from '@wallet/shared';
+import type { BudgetDto, MonthBudgetLine, MonthView, TransferDto } from '@wallet/shared';
 import {
   budgetArchiveSchema,
   budgetCreateSchema,
@@ -78,11 +78,22 @@ describe('BudgetsPage', () => {
     router = TestBed.inject(Router);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // A spec that is not about transfers and answers the page's requests one by one (to look at an
+    // error, or at a month switch) leaves the month's transfers unanswered: answer them with none.
+    // There is one such request at most.
+    const transfers = http.match((candidate) => candidate.url === '/api/transfers');
+    expect(transfers.length).toBeLessThanOrEqual(1);
+    for (const request of transfers) {
+      if (!request.cancelled) request.flush([]);
+    }
+    http.verify();
+  });
 
   interface Data {
     view?: MonthView;
     budgets?: BudgetDto[];
+    transfers?: TransferDto[];
   }
 
   /** Opens the page for a month and answers its two requests. */
@@ -92,6 +103,9 @@ describe('BudgetsPage', () => {
     const fixture = TestBed.createComponent(BudgetsHost);
     fixture.detectChanges();
     await settle(fixture);
+    // The month's transfers are loaded with the page (and after money was moved), not after a budget
+    // changed, so `answer` does not ask for them.
+    http.expectOne(`/api/transfers?month=${month}`).flush(data.transfers ?? []);
     await answer(fixture, month, data);
     return page(fixture);
   }

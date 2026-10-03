@@ -20,10 +20,11 @@ export class BudgetsApi {
 
   /**
    * `GET /api/budgets`: every budget of every status, ascending by `sortOrder`. Create it where a
-   * resource may be created.
+   * resource may be created. Pass `enabled` to ask only while it is true (a page that needs the list
+   * in some situations only).
    */
-  list(): HttpResourceRef<BudgetDto[] | undefined> {
-    return httpResource<BudgetDto[]>(() => '/api/budgets');
+  list(enabled: () => boolean = () => true): HttpResourceRef<BudgetDto[] | undefined> {
+    return httpResource<BudgetDto[]>(() => (enabled() ? '/api/budgets' : undefined));
   }
 
   /** `POST /api/budgets` */

@@ -7,7 +7,10 @@ import { AppDialog } from './dialog';
   selector: 'app-dialog-host',
   imports: [AppDialog],
   template: `
-    <button type="button" id="opener" (click)="open.set(true)">Open</button>
+    @if (showOpener()) {
+      <button type="button" id="opener" (click)="open.set(true)">Open</button>
+    }
+    <button type="button" id="other">Somewhere else</button>
     @if (open()) {
       <app-dialog heading="New budget" [locked]="locked()" (closed)="onClosed()">
         <label for="name">Name</label>
@@ -20,6 +23,7 @@ import { AppDialog } from './dialog';
 class DialogHost {
   readonly open = signal(false);
   readonly locked = signal(false);
+  readonly showOpener = signal(true);
   closedEvents = 0;
 
   onClosed(): void {
@@ -155,6 +159,45 @@ describe('AppDialog', () => {
     expect(queryByRole(element, 'dialog')).toBeNull();
     expect(host.closedEvents).toBe(0);
     expect(document.activeElement).toBe(opener);
+  });
+
+  it('gives focus back to what opened it when the owner removes it after a Save, not only on Cancel', async () => {
+    // Real browsers close a dialog that has left the document without giving focus back (it falls to the
+    // page body): the dialog has to do it by hand. The specs' <dialog> behaves the same way.
+    const { fixture, element, opener, show, dialog } = await setup();
+    await show();
+    expect(document.activeElement).not.toBe(opener);
+
+    getByRole(element, 'button', 'Cancel').click();
+    await settle(fixture);
+
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('leaves focus alone when something else has it by then', async () => {
+    const { fixture, element, show } = await setup();
+    await show();
+    const other = element.querySelector('#other') as HTMLButtonElement;
+    other.focus();
+
+    getByRole(element, 'button', 'Cancel').click();
+    await settle(fixture);
+
+    expect(document.activeElement).toBe(other);
+  });
+
+  it('does not fail when what opened it is gone', async () => {
+    const { fixture, element, host, show, dialog } = await setup();
+    await show();
+    host.showOpener.set(false);
+    await settle(fixture);
+
+    getByRole(element, 'button', 'Cancel').click();
+    await settle(fixture);
+
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('can be opened again', async () => {
