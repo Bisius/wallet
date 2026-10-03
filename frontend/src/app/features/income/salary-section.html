@@ -1,0 +1,108 @@
+<section aria-labelledby="salary-heading" class="card space-y-6">
+  <div>
+    <h2 #heading id="salary-heading" tabindex="-1" class="text-lg font-semibold">Salary</h2>
+    @if (salary() !== undefined) {
+      <p class="mt-1 text-muted">
+        In {{ monthLabel() }} your salary is
+        <span class="font-semibold text-ink"><app-amount [cents]="salary()!" /></span> a month.
+      </p>
+    }
+  </div>
+
+  <div class="space-y-3">
+    <h3 class="font-semibold">Salary history</h3>
+    @if (entries().length === 0) {
+      <app-empty-state
+        title="No salary recorded yet"
+        description="Add your monthly net salary below. Until you do, every month counts no salary."
+      />
+    } @else {
+      <ul class="divide-y divide-line rounded-card border border-line">
+        @for (entry of entries(); track entry.effectiveMonth) {
+          <li class="flex flex-wrap items-center justify-between gap-3 p-3">
+            <div>
+              <p class="font-medium">From {{ label(entry.effectiveMonth) }}</p>
+              @if (entry.effectiveMonth === inEffectMonth()) {
+                <p class="text-sm font-medium text-accent-text">In effect in {{ monthLabel() }}</p>
+              }
+            </div>
+            <div class="flex flex-wrap items-center gap-1">
+              <p class="mr-2 font-semibold">
+                <app-amount [cents]="entry.amount" />
+                <span class="text-sm font-normal text-muted"> a month</span>
+              </p>
+              <button
+                appButton
+                variant="ghost"
+                size="sm"
+                [attr.aria-label]="'Change the salary from ' + label(entry.effectiveMonth)"
+                (click)="edit(entry)"
+              >
+                <app-icon name="pencil" />
+                Change
+              </button>
+              <button
+                appButton
+                variant="ghost"
+                size="sm"
+                [attr.aria-label]="'Delete the salary change from ' + label(entry.effectiveMonth)"
+                (click)="remove(entry)"
+              >
+                <app-icon name="trash" />
+                Delete
+              </button>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <form
+    [formGroup]="form"
+    (ngSubmit)="save()"
+    novalidate
+    class="space-y-4 rounded-card border border-line p-4"
+  >
+    <h3 class="font-semibold">
+      {{ replaced() ? 'Change a salary' : 'Add or change your salary' }}
+    </h3>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <app-field label="Applies from" hint="The first month with this salary.">
+        <app-month-input formControlName="month" [min]="startMonth()" />
+      </app-field>
+      <app-field label="Monthly net salary">
+        <app-money-input formControlName="amount" />
+      </app-field>
+    </div>
+
+    <p class="flex items-start gap-2 text-sm text-muted">
+      <app-icon name="info" class="mt-0.5" />
+      <span>
+        @if (fromLabel(); as from) {
+          This salary applies from {{ from }} onward. Earlier months are not changed.
+          @if (replaced(); as entry) {
+            It replaces the {{ entry.amount | money }} salary that starts in {{ from }}.
+          }
+        } @else {
+          Pick the first month the new salary applies to. Earlier months are not changed.
+        }
+      </span>
+    </p>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <button appButton type="submit" [loading]="saving()">
+      {{ replaced() ? 'Save the change' : 'Save salary' }}
+    </button>
+  </form>
+</section>

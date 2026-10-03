@@ -1,0 +1,155 @@
+<article
+  [attr.aria-labelledby]="nameId()"
+  class="card flex h-full flex-col gap-4 border-l-4"
+  [style.border-left-color]="line().color"
+>
+  <header class="flex items-start gap-3">
+    @if (line().icon) {
+      <span
+        aria-hidden="true"
+        class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-xl"
+        >{{ line().icon }}</span
+      >
+    }
+    <div class="min-w-0 flex-1">
+      <h3 [id]="nameId()" class="font-semibold break-words">{{ line().name }}</h3>
+      <p class="mt-1 flex flex-wrap gap-1.5">
+        @if (line().incremental) {
+          <span [class]="badge">Incremental</span>
+        }
+        @if (endLabel(); as end) {
+          <span [class]="badge">{{ end }}</span>
+        } @else if (line().endsThisMonth) {
+          <span [class]="badge">Last month</span>
+        }
+        @if (startsLabel(); as starts) {
+          <span [class]="badge">{{ starts }}</span>
+        }
+      </p>
+    </div>
+  </header>
+
+  <dl class="flex flex-wrap gap-x-6 gap-y-2">
+    <div>
+      <dt class="text-xs text-muted">Available</dt>
+      <dd class="font-semibold"><app-amount [cents]="line().available" /></dd>
+    </div>
+    <div>
+      <dt class="text-xs text-muted">Spent</dt>
+      <dd class="font-semibold"><app-amount [cents]="line().spent" /></dd>
+    </div>
+    <div>
+      <dt class="text-xs text-muted">Remaining</dt>
+      <dd class="font-semibold"><app-amount [cents]="line().remaining" /></dd>
+    </div>
+  </dl>
+
+  <app-budget-usage [line]="line()" />
+
+  @if (line().incremental) {
+    <p class="text-sm text-muted">
+      @if (line().carriedIn === 0) {
+        Nothing carried in from {{ previousMonthLabel() }}.
+      } @else {
+        Carried in from {{ previousMonthLabel() }}:
+        <app-amount [cents]="line().carriedIn" [signed]="true" />
+      }
+    </p>
+  }
+
+  <div class="space-y-0.5 text-sm text-muted">
+    @for (item of outcome(); track item.kind) {
+      <p>
+        @switch (item.kind) {
+          @case ('carried') {
+            {{ status() === 'closed' ? 'Carried' : 'Projected to carry' }} into
+            {{ nextMonthLabel() }}:
+          }
+          @case ('saved') {
+            {{ status() === 'closed' ? 'Moved to savings:' : 'Projected to move to savings:' }}
+          }
+          @case ('taken') {
+            {{
+              status() === 'closed' ? 'Taken from savings:' : 'Projected to be taken from savings:'
+            }}
+          }
+        }
+        <app-amount [cents]="item.cents" />
+      </p>
+    } @empty {
+      <p>
+        {{
+          status() === 'closed'
+            ? 'Nothing carried over or moved to savings.'
+            : 'Projected: nothing to carry over or move to savings.'
+        }}
+      </p>
+    }
+  </div>
+
+  @if (budget()) {
+    <div class="mt-auto flex flex-wrap items-center gap-1 border-t border-line pt-3">
+      <button
+        appButton
+        variant="ghost"
+        size="sm"
+        [attr.aria-label]="'Edit ' + line().name"
+        [attr.data-action]="'edit-' + line().id"
+        (click)="edit.emit()"
+      >
+        <app-icon name="pencil" />
+        Edit
+      </button>
+      @if (canArchive()) {
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [attr.aria-label]="'Archive ' + line().name"
+          (click)="archive.emit()"
+        >
+          <app-icon name="archive" />
+          Archive
+        </button>
+      }
+      @if (!budget()?.hasHistory) {
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          [attr.aria-label]="'Delete ' + line().name"
+          (click)="remove.emit()"
+        >
+          <app-icon name="trash" />
+          Delete
+        </button>
+      }
+      <span class="ml-auto flex gap-1">
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          class="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+          [attr.aria-label]="'Move ' + line().name + ' up'"
+          [attr.aria-disabled]="!canMoveUp() || busy()"
+          [attr.data-action]="'up-' + line().id"
+          (click)="move('up')"
+        >
+          <app-icon name="arrow-up" />
+        </button>
+        <button
+          appButton
+          variant="ghost"
+          size="sm"
+          class="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
+          [attr.aria-label]="'Move ' + line().name + ' down'"
+          [attr.aria-disabled]="!canMoveDown() || busy()"
+          [attr.data-action]="'down-' + line().id"
+          (click)="move('down')"
+        >
+          <app-icon name="arrow-down" />
+        </button>
+      </span>
+    </div>
+  }
+</article>

@@ -7,7 +7,13 @@ const db = createDb(config.databasePath);
 runMigrations(db);
 
 const app = createApp({ db, config });
-const server = app.listen(config.port, config.host, () => {
+// Express 5 passes a listen failure (such as EADDRINUSE) to this callback instead of throwing, so
+// it must be handled here: otherwise the process would claim to listen, then exit with code 0.
+const server = app.listen(config.port, config.host, (error?: Error) => {
+  if (error) {
+    console.error(`Cannot listen on ${config.host}:${config.port}: ${error.message}`);
+    process.exit(1);
+  }
   console.log(
     `Wallet listening on http://${config.host}:${config.port} (db: ${config.databasePath})`,
   );

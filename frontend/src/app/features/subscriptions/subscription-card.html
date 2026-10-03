@@ -1,0 +1,161 @@
+<article
+  [attr.aria-labelledby]="nameId()"
+  class="card flex h-full flex-col gap-4 border-l-4"
+  [style.border-left-color]="subscription().color"
+>
+  <header>
+    <h3 [id]="nameId()" class="font-semibold break-words">{{ subscription().name }}</h3>
+    <p class="mt-1 flex flex-wrap gap-1.5">
+      <span [class]="badge">{{ yearly() ? 'Yearly' : 'Monthly' }}</span>
+      <span [class]="badge">{{ statusLabel() }}</span>
+      @if (endLabel(); as end) {
+        <span [class]="badge">{{ end }}</span>
+      }
+      @if (startsLabel(); as starts) {
+        <span [class]="badge">{{ starts }}</span>
+      }
+    </p>
+  </header>
+
+  <dl class="grid grid-cols-2 gap-3">
+    <div>
+      <dt class="text-xs text-muted">Price</dt>
+      <dd class="font-semibold">
+        @if (price(); as cents) {
+          <app-amount [cents]="cents" />
+          <span class="text-sm font-normal text-muted">{{
+            yearly() ? ' a year' : ' a month'
+          }}</span>
+        }
+      </dd>
+    </div>
+    @if (subscription().monthlyEquivalent !== null) {
+      <div>
+        <dt class="text-xs text-muted">
+          {{ yearly() ? 'Monthly equivalent (approximate)' : 'Per month' }}
+        </dt>
+        <dd class="font-semibold">
+          @if (yearly()) {
+            <span class="text-sm font-normal text-muted">About </span>
+          }
+          <app-amount [cents]="subscription().monthlyEquivalent ?? 0" />
+        </dd>
+      </div>
+    }
+  </dl>
+
+  <p class="text-sm text-muted">{{ schedule() }}</p>
+  @if (nextRenewal(); as next) {
+    <p class="text-sm text-muted">
+      Next renewal:
+      <span class="font-medium text-ink">{{ next.month }}</span>
+      ({{ next.price | money }})
+    </p>
+  }
+
+  @if (line(); as line) {
+    <div class="space-y-2 rounded-control bg-subtle p-3 text-sm">
+      @if (yearly()) {
+        @if (reserve(); as reserve) {
+          @switch (reserve.kind) {
+            @case ('renewal') {
+              <p>
+                It renews in {{ monthLabel() }}. The {{ line.price | money }} renewal is paid out of
+                the reserve you set aside, so the reserve is empty afterwards.
+              </p>
+              @if (line.charge > 0) {
+                <p class="text-muted">
+                  This month's top-up before the renewal: {{ line.charge | money }}.
+                </p>
+              }
+            }
+            @case ('saving') {
+              <p>In {{ monthLabel() }}, {{ line.charge | money }} goes into the reserve.</p>
+              <app-progress-bar
+                [label]="subscription().name + ' reserve'"
+                [percent]="reserve.percent"
+                [valueText]="reserve.valueText"
+              />
+              <p>
+                <span class="font-semibold">{{ line.reserveBalance | money }}</span> of
+                <span class="font-semibold">{{ line.nextRenewalPrice ?? 0 | money }}</span> set
+                aside so the {{ reserve.renewal }} renewal is already paid.
+              </p>
+            }
+            @case ('ends-first') {
+              <p>
+                It ends before its next renewal, so nothing more is set aside for it. In
+                {{ monthLabel() }} it takes {{ line.charge | money }}.
+              </p>
+            }
+          }
+        }
+        @if (line.reserveReleased > 0) {
+          <p class="font-medium">
+            {{ line.reserveReleased | money }} of the reserve goes back to savings in
+            {{ monthLabel() }}.
+          </p>
+        }
+      } @else {
+        <p>In {{ monthLabel() }} it takes {{ line.charge | money }} from your income.</p>
+      }
+      @if (line.endsThisMonth) {
+        <p class="font-medium">{{ monthLabel() }} is the last month it is charged.</p>
+      }
+    </div>
+  } @else {
+    <p class="text-sm text-muted">Not charged in {{ monthLabel() }}.</p>
+  }
+
+  @if (subscription().notes; as notes) {
+    <p class="text-sm break-words text-muted">{{ notes }}</p>
+  }
+
+  <div class="mt-auto flex flex-wrap items-center gap-1 border-t border-line pt-3">
+    <button
+      appButton
+      variant="ghost"
+      size="sm"
+      [attr.aria-label]="'Edit ' + subscription().name"
+      [attr.data-action]="'edit-' + subscription().id"
+      (click)="edit.emit()"
+    >
+      <app-icon name="pencil" />
+      Edit
+    </button>
+    @if (canChangePrice()) {
+      <button
+        appButton
+        variant="ghost"
+        size="sm"
+        [attr.aria-label]="'Change the price of ' + subscription().name"
+        (click)="changePrice.emit()"
+      >
+        <app-icon name="tag" />
+        Change price
+      </button>
+    }
+    @if (canCancel()) {
+      <button
+        appButton
+        variant="ghost"
+        size="sm"
+        [attr.aria-label]="'Cancel ' + subscription().name"
+        (click)="cancel.emit()"
+      >
+        <app-icon name="ban" />
+        Cancel
+      </button>
+    }
+    <button
+      appButton
+      variant="ghost"
+      size="sm"
+      [attr.aria-label]="'Delete ' + subscription().name"
+      (click)="remove.emit()"
+    >
+      <app-icon name="trash" />
+      Delete
+    </button>
+  </div>
+</article>

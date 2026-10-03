@@ -1,0 +1,155 @@
+<app-page-header
+  title="Budgets"
+  [subtitle]="
+    monthLabel() ? 'Monthly allocations, rollover and what is left, for ' + monthLabel() + '.' : ''
+  "
+>
+  <button appButton (click)="openCreate()">
+    <app-icon name="plus" />
+    New budget
+  </button>
+</app-page-header>
+
+<p class="sr-only" role="status">{{ announcement() }}</p>
+
+@if (month(); as month) {
+  <div class="space-y-6">
+    @switch (viewState()) {
+      @case ('loading') {
+        <app-loading-state label="Loading this month's budgets…" />
+      }
+      @case ('error') {
+        <app-error-state
+          title="Couldn't load this month's budgets"
+          [error]="view.error()"
+          (retry)="view.reload()"
+        />
+      }
+      @default {
+        @if (monthView(); as snapshot) {
+          <app-budget-summary [view]="snapshot" [monthLabel]="monthLabel()" />
+
+          <section aria-labelledby="budget-list-heading" class="space-y-4">
+            <h2 #heading id="budget-list-heading" tabindex="-1" class="text-lg font-semibold">
+              Budgets in {{ monthLabel() }}
+            </h2>
+
+            @if (budgetsState() === 'error') {
+              <app-error-state
+                title="Couldn't load the budget list"
+                [error]="budgets.error()"
+                (retry)="budgets.reload()"
+              />
+              <p class="text-sm text-muted">
+                The figures below are complete, but editing needs the list. Try again to get the
+                buttons back.
+              </p>
+            }
+
+            @if (cards().length === 0) {
+              <app-empty-state
+                [title]="'No budgets in ' + monthLabel()"
+                [description]="
+                  snapshot.status === 'closed'
+                    ? 'No budget was active in this month.'
+                    : 'Create a budget to give part of your income a job. Each one has its own amount for the month.'
+                "
+              >
+                <button appButton (click)="openCreate()">
+                  <app-icon name="plus" />
+                  New budget
+                </button>
+              </app-empty-state>
+            } @else {
+              <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                @for (card of cards(); track card.line.id; let first = $first; let last = $last) {
+                  <li>
+                    <app-budget-card
+                      [line]="card.line"
+                      [month]="month"
+                      [status]="snapshot.status"
+                      [budget]="card.budget"
+                      [canMoveUp]="!first"
+                      [canMoveDown]="!last"
+                      [busy]="moving()"
+                      (edit)="openEdit(card.budget)"
+                      (archive)="archive(card.budget)"
+                      (remove)="remove(card.budget)"
+                      (moveUp)="move(card, 'up')"
+                      (moveDown)="move(card, 'down')"
+                    />
+                  </li>
+                }
+              </ul>
+            }
+          </section>
+
+          @if (inactive().length > 0) {
+            <details class="card">
+              <summary class="cursor-pointer rounded-control text-lg font-semibold">
+                Upcoming and ended budgets ({{ inactive().length }})
+              </summary>
+              <p class="mt-2 text-sm text-muted">
+                These are not active in {{ monthLabel() }}. They can still be edited, and deleted
+                when they have no spendings.
+              </p>
+              <ul class="mt-3 divide-y divide-line rounded-card border border-line">
+                @for (budget of inactive(); track budget.id) {
+                  <li class="flex flex-wrap items-center justify-between gap-3 p-3">
+                    <div class="min-w-0">
+                      <p class="font-medium break-words">{{ budget.name }}</p>
+                      <p class="text-sm text-muted">
+                        {{ describe(budget) }}
+                        @if (version(budget); as version) {
+                          · {{ version.amount | money }} a month{{
+                            version.incremental ? ', incremental' : ''
+                          }}
+                        }
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap gap-1">
+                      <button
+                        appButton
+                        variant="ghost"
+                        size="sm"
+                        [attr.aria-label]="'Edit ' + budget.name"
+                        (click)="openEdit(budget)"
+                      >
+                        <app-icon name="pencil" />
+                        Edit
+                      </button>
+                      @if (!budget.hasHistory) {
+                        <button
+                          appButton
+                          variant="ghost"
+                          size="sm"
+                          [attr.aria-label]="'Delete ' + budget.name"
+                          (click)="remove(budget)"
+                        >
+                          <app-icon name="trash" />
+                          Delete
+                        </button>
+                      }
+                    </div>
+                  </li>
+                }
+              </ul>
+            </details>
+          }
+        }
+      }
+    }
+  </div>
+}
+
+@if (form(); as dialog) {
+  @if (month(); as month) {
+    <app-budget-form
+      [budget]="dialog.budget"
+      [month]="month"
+      (changed)="reload()"
+      (finished)="closeForm()"
+      (cancelled)="closeForm()"
+    />
+  }
+}

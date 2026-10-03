@@ -255,11 +255,17 @@ export const savingsTransactions = sqliteTable(
     settlesMonth: text(),
     goalId: integer().references(() => savingsGoals.id, { onDelete: 'set null' }),
     note: text(),
+    /**
+     * Ties the two rows of a reallocation together: both carry the id of the first (negative) row.
+     * Null for every other kind. No foreign key, the number only has to be shared.
+     */
+    groupId: integer(),
     createdAt: timestamp(),
   },
   (t) => [
     index('savings_transactions_settles_month_idx').on(t.settlesMonth),
     index('savings_transactions_goal_idx').on(t.goalId),
+    index('savings_transactions_group_idx').on(t.groupId),
     check('savings_amount_non_zero', sql`${t.amount} <> 0 or ${t.kind} = 'opening'`),
     check(
       'savings_settlement_month',

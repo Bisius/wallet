@@ -1,0 +1,83 @@
+<app-dialog [heading]="heading()" [locked]="saving()" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+    <p class="text-sm text-muted">{{ intro() }}</p>
+
+    <app-field label="Amount">
+      <app-money-input formControlName="amount" />
+    </app-field>
+
+    @switch (kind()) {
+      @case ('deposit') {
+        <app-field label="Deposit into">
+          <select appInput formControlName="goalId">
+            @for (place of destinations(); track place.value) {
+              <option [value]="place.value">{{ place.label }} · {{ place.balance | money }}</option>
+            }
+          </select>
+        </app-field>
+      }
+      @case ('withdrawal') {
+        <app-field label="Withdraw from" [hint]="sourceHint()">
+          <select appInput formControlName="goalId">
+            @for (place of sources(); track place.value) {
+              <option [value]="place.value">{{ place.label }} · {{ place.balance | money }}</option>
+            }
+          </select>
+        </app-field>
+      }
+      @case ('reallocation') {
+        <app-field label="Move from" [hint]="sourceHint()">
+          <select appInput formControlName="fromGoalId">
+            @for (place of sources(); track place.value) {
+              <option [value]="place.value">{{ place.label }} · {{ place.balance | money }}</option>
+            }
+          </select>
+        </app-field>
+        <app-field label="Move to">
+          <select appInput formControlName="toGoalId">
+            @for (place of destinations(); track place.value) {
+              <option [value]="place.value">{{ place.label }} · {{ place.balance | money }}</option>
+            }
+          </select>
+        </app-field>
+      }
+    }
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <app-field label="Date">
+        <input
+          appInput
+          type="date"
+          formControlName="date"
+          [attr.min]="firstDay() ?? null"
+          [attr.max]="lastDay() ?? null"
+        />
+      </app-field>
+      <app-field label="Note" [optional]="true">
+        <input
+          appInput
+          formControlName="note"
+          autocomplete="off"
+          [attr.maxlength]="notesMaxLength"
+        />
+      </app-field>
+    </div>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">{{ heading() }}</button>
+    </div>
+  </form>
+</app-dialog>

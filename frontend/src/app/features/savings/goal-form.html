@@ -1,0 +1,44 @@
+<app-dialog
+  [heading]="editing() ? 'Edit ' + (goal()?.name ?? '') : 'New goal'"
+  [locked]="saving()"
+  (closed)="cancelled.emit()"
+>
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-5">
+    <app-field label="Name">
+      <input appInput formControlName="name" autocomplete="off" [attr.maxlength]="nameMaxLength" />
+    </app-field>
+
+    <app-field label="Target amount" hint="How much you want to have saved for it.">
+      <app-money-input formControlName="targetAmount" />
+    </app-field>
+
+    <app-field
+      label="Deadline"
+      [optional]="true"
+      hint="Only the month counts: the goal is on time through the end of that month."
+    >
+      <input appInput type="date" formControlName="deadline" />
+    </app-field>
+
+    <app-color-picker formControlName="color" />
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">
+        {{ editing() ? 'Save changes' : 'Create goal' }}
+      </button>
+    </div>
+  </form>
+</app-dialog>

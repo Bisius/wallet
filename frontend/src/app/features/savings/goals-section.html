@@ -1,0 +1,85 @@
+<section aria-labelledby="goals-heading" class="space-y-4">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 #heading id="goals-heading" tabindex="-1" class="text-lg font-semibold">Goals</h2>
+      <p class="mt-1 text-sm text-muted">
+        Things you are saving for. Money you put into a goal counts towards its target.
+      </p>
+    </div>
+    <button appButton variant="secondary" (click)="openCreate()">
+      <app-icon name="plus" />
+      New goal
+    </button>
+  </div>
+
+  @if (goals().length === 0) {
+    <app-empty-state
+      title="No goals yet"
+      description="A goal has a target amount and, if you like, a deadline. Create one to put money towards it."
+    >
+      <button appButton (click)="openCreate()">
+        <app-icon name="plus" />
+        New goal
+      </button>
+    </app-empty-state>
+  } @else {
+    @if (inUse().length === 0) {
+      <p class="rounded-card border border-dashed border-line-strong p-4 text-sm text-muted">
+        All your goals are archived. Create a new goal, or bring one back below.
+      </p>
+    } @else {
+      <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        @for (goal of inUse(); track goal.id) {
+          <li>
+            <app-goal-card
+              [goal]="goal"
+              [busy]="busy()"
+              (deposit)="moveMoney.emit({ kind: 'deposit', goalId: goal.id })"
+              (withdraw)="moveMoney.emit({ kind: 'withdrawal', goalId: goal.id })"
+              (edit)="openEdit(goal)"
+              (toggleArchive)="toggleArchive(goal)"
+              (remove)="remove(goal)"
+            />
+          </li>
+        }
+      </ul>
+    }
+
+    @if (archived().length > 0) {
+      <details class="card">
+        <summary class="cursor-pointer rounded-control text-lg font-semibold">
+          Archived goals ({{ archived().length }})
+        </summary>
+        <p class="mt-2 text-sm text-muted">
+          An archived goal keeps its balance but takes no new money. You can still take out what it
+          holds. Unarchive it to use it again, or delete it to move its balance to unassigned
+          savings.
+        </p>
+        <ul class="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+          @for (goal of archived(); track goal.id) {
+            <li>
+              <app-goal-card
+                [goal]="goal"
+                [busy]="busy()"
+                (withdraw)="moveMoney.emit({ kind: 'withdrawal', goalId: goal.id })"
+                (reallocate)="moveMoney.emit({ kind: 'reallocation', goalId: goal.id })"
+                (edit)="openEdit(goal)"
+                (toggleArchive)="toggleArchive(goal)"
+                (remove)="remove(goal)"
+              />
+            </li>
+          }
+        </ul>
+      </details>
+    }
+  }
+</section>
+
+@if (form(); as dialog) {
+  <app-goal-form
+    [goal]="dialog.goal"
+    (changed)="reload()"
+    (finished)="closeForm()"
+    (cancelled)="closeForm()"
+  />
+}

@@ -4,8 +4,10 @@
   "private": true,
   "description": "Types, zod schemas and pure helpers shared by backend and frontend",
   "type": "module",
+  "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -15,6 +17,7 @@
     "zod": "^4.1.0"
   },
   "devDependencies": {
+    "fast-check": "^4.10.2",
     "typescript": "~6.0.2",
     "vitest": "^4.0.8"
   }

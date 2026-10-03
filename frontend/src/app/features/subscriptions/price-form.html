@@ -1,0 +1,49 @@
+<app-dialog
+  [heading]="'Change the price of ' + subscription().name"
+  [locked]="saving()"
+  (closed)="cancelled.emit()"
+>
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+    @if (priceNow(); as cents) {
+      <p class="text-sm text-muted">
+        It costs <span class="font-semibold text-ink">{{ cents | money }}</span>
+        {{ yearly() ? 'a year' : 'a month' }} now.
+      </p>
+    }
+
+    <app-field [label]="priceLabel()">
+      <app-money-input formControlName="amount" />
+    </app-field>
+
+    <app-field label="Applies from" hint="The first month with the new price.">
+      <app-month-input formControlName="month" [min]="minMonth()" [max]="maxMonth()" />
+    </app-field>
+
+    @if (monthNote(); as note) {
+      <p
+        class="flex items-start gap-2 rounded-control p-3 text-sm text-ink"
+        [class]="note.tone === 'warning' ? 'border border-warning bg-warning-soft' : 'bg-subtle'"
+      >
+        <app-icon [name]="note.tone === 'warning' ? 'alert' : 'info'" class="mt-0.5" />
+        <span>{{ note.text }}</span>
+      </p>
+    }
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">Save price</button>
+    </div>
+  </form>
+</app-dialog>

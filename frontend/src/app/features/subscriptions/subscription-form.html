@@ -1,0 +1,90 @@
+<app-dialog
+  [heading]="editing() ? 'Edit ' + (subscription()?.name ?? '') : 'Add a subscription'"
+  [locked]="saving()"
+  (closed)="cancelled.emit()"
+>
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-5">
+    <app-field label="Name">
+      <input appInput formControlName="name" autocomplete="off" [attr.maxlength]="nameMaxLength" />
+    </app-field>
+
+    @if (editing()) {
+      <p class="rounded-control bg-subtle p-3 text-sm text-ink">
+        <span class="font-medium">{{
+          frequencyLabels[subscription()?.frequency ?? 'monthly']
+        }}</span>
+        subscription. The frequency can't be changed: cancel this one and add a new one instead. To
+        change what it costs, use Change price.
+      </p>
+    } @else {
+      <div class="grid gap-4 sm:grid-cols-2">
+        <app-field label="Frequency">
+          <select appInput formControlName="frequency">
+            @for (frequency of frequencies; track frequency) {
+              <option [value]="frequency">{{ frequencyLabels[frequency] }}</option>
+            }
+          </select>
+        </app-field>
+        <app-field [label]="priceLabel()">
+          <app-money-input formControlName="amount" />
+        </app-field>
+      </div>
+    }
+
+    <app-field
+      label="Charge date"
+      hint="A day it was, or will be, charged. Its day is the billing day. For a yearly subscription its month is the renewal month."
+    >
+      <input appInput type="date" formControlName="anchorDate" />
+    </app-field>
+
+    @if (!editing()) {
+      <div>
+        <app-field label="Start month" hint="The first month it is charged.">
+          <app-month-input formControlName="startMonth" [min]="firstMonth()" />
+        </app-field>
+        @if (startNote(); as note) {
+          <p
+            class="mt-2 flex items-start gap-2 rounded-control p-3 text-sm text-ink"
+            [class]="
+              note.tone === 'warning' ? 'border border-warning bg-warning-soft' : 'bg-subtle'
+            "
+          >
+            <app-icon [name]="note.tone === 'warning' ? 'alert' : 'info'" class="mt-0.5" />
+            <span>{{ note.text }}</span>
+          </p>
+        }
+      </div>
+    }
+
+    <app-color-picker formControlName="color" />
+
+    <app-field label="Notes" [optional]="true">
+      <textarea
+        appInput
+        formControlName="notes"
+        rows="3"
+        [attr.maxlength]="notesMaxLength"
+      ></textarea>
+    </app-field>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">
+        {{ editing() ? 'Save changes' : 'Add subscription' }}
+      </button>
+    </div>
+  </form>
+</app-dialog>

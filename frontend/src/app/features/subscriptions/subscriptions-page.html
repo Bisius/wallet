@@ -1,0 +1,120 @@
+<app-page-header
+  title="Subscriptions"
+  [subtitle]="monthLabel() ? 'Monthly and yearly recurring costs, for ' + monthLabel() + '.' : ''"
+>
+  <button appButton (click)="dialog.set({ kind: 'form', subscription: undefined })">
+    <app-icon name="plus" />
+    Add subscription
+  </button>
+</app-page-header>
+
+@if (month(); as month) {
+  <div class="space-y-6">
+    @switch (viewState()) {
+      @case ('loading') {
+        <app-loading-state label="Loading this month's fixed costs…" />
+      }
+      @case ('error') {
+        <app-error-state
+          title="Couldn't load this month's fixed costs"
+          [error]="view.error()"
+          (retry)="view.reload()"
+        />
+      }
+      @default {
+        @if (monthView(); as snapshot) {
+          <section aria-labelledby="fixed-costs-heading" class="card space-y-2">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="fixed-costs-heading" class="text-lg font-semibold">
+                Fixed costs in {{ monthLabel() }}
+              </h2>
+              <app-month-status [status]="snapshot.status" />
+            </div>
+            <p class="text-2xl font-semibold"><app-amount [cents]="snapshot.fixedCosts" /></p>
+            <p class="text-sm text-muted">
+              What your subscriptions take off the top of this month's income. For a yearly one it
+              is the share set aside this month for its renewal, not the whole price.
+            </p>
+          </section>
+        }
+      }
+    }
+
+    @switch (listState()) {
+      @case ('loading') {
+        <app-loading-state label="Loading subscriptions…" />
+      }
+      @case ('error') {
+        <app-error-state
+          title="Couldn't load the subscriptions"
+          [error]="subscriptions.error()"
+          (retry)="subscriptions.reload()"
+        />
+      }
+      @default {
+        @if (list(); as all) {
+          @if (all.length === 0) {
+            <app-empty-state
+              title="No subscriptions yet"
+              description="Add the things you pay for every month or every year. Yearly ones are set aside a little each month, so the renewal is already paid when it comes."
+            >
+              <button appButton (click)="dialog.set({ kind: 'form', subscription: undefined })">
+                <app-icon name="plus" />
+                Add subscription
+              </button>
+            </app-empty-state>
+          }
+          @for (section of sections(); track section.status) {
+            <section [attr.aria-labelledby]="'subscriptions-' + section.status" class="space-y-3">
+              <div>
+                <h2 [id]="'subscriptions-' + section.status" class="text-lg font-semibold">
+                  {{ section.title }} ({{ section.items.length }})
+                </h2>
+                <p class="text-sm text-muted">{{ section.description }}</p>
+              </div>
+              <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                @for (subscription of section.items; track subscription.id) {
+                  <li>
+                    <app-subscription-card
+                      [subscription]="subscription"
+                      [line]="lineOf(subscription)"
+                      [month]="month"
+                      (edit)="dialog.set({ kind: 'form', subscription })"
+                      (changePrice)="dialog.set({ kind: 'price', subscription })"
+                      (cancel)="cancel(subscription)"
+                      (remove)="remove(subscription)"
+                    />
+                  </li>
+                }
+              </ul>
+            </section>
+          }
+        }
+      }
+    }
+  </div>
+}
+
+@if (dialog(); as open) {
+  @if (month(); as month) {
+    @switch (open.kind) {
+      @case ('form') {
+        <app-subscription-form
+          [subscription]="open.subscription"
+          [month]="month"
+          (changed)="reload()"
+          (finished)="closeDialog()"
+          (cancelled)="closeDialog()"
+        />
+      }
+      @case ('price') {
+        <app-price-form
+          [subscription]="open.subscription"
+          (changed)="reload()"
+          (finished)="closeDialog()"
+          (cancelled)="closeDialog()"
+        />
+      }
+    }
+  }
+}

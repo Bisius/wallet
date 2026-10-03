@@ -1,14 +1,69 @@
-import { Component } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
+import { resourceState } from '../../core/resource-state';
+import { SelectedMonth } from '../../core/selected-month';
+import { SettingsStore } from '../../core/settings.store';
+import { formatMonth } from '../../shared/format';
 import { PageHeader } from '../../shared/page-header';
+import { Amount } from '../../shared/ui/amount';
+import { MonthStatusBadge } from '../../shared/ui/month-status';
+import { ErrorState, LoadingState } from '../../shared/ui/states';
+import { MonthsApi } from '../months/months.api';
+import { IncomesApi } from './incomes.api';
+import { IncomesSection } from './incomes-section';
+import { SalaryApi } from './salary.api';
+import { SalarySection } from './salary-section';
 
+/**
+ * Income of the selected month: the totals the month view reports, the salary history (add, change,
+ * delete) and the month's one-off incomes. Every figure shown is what the API returned.
+ */
 @Component({
   selector: 'app-income-page',
-  imports: [PageHeader],
-  template: `
-    <app-page-header title="Income" subtitle="Salary and other money coming in." />
-    <p class="rounded-lg border border-dashed border-slate-300 p-6 text-sm text-slate-500">
-      Not built yet, see docs/PLAN.md.
-    </p>
-  `,
+  imports: [
+    PageHeader,
+    Amount,
+    LoadingState,
+    ErrorState,
+    MonthStatusBadge,
+    SalarySection,
+    IncomesSection,
+  ],
+  templateUrl: './income-page.html',
 })
-export class IncomePage {}
+export class IncomePage {
+  private readonly settings = inject(SettingsStore);
+
+  protected readonly month = inject(SelectedMonth).month;
+
+  // Resources belong to the page: each visit loads fresh data, so a change made on another page
+  // (or device) is never shown stale.
+  protected readonly view = inject(MonthsApi).view(this.month);
+  protected readonly salary = inject(SalaryApi).history();
+  protected readonly incomes = inject(IncomesApi).forMonth(this.month);
+
+  protected readonly viewState = resourceState(this.view);
+  protected readonly salaryState = resourceState(this.salary);
+  protected readonly incomesState = resourceState(this.incomes);
+
+  protected readonly monthView = computed(() =>
+    this.view.hasValue() ? this.view.value() : undefined,
+  );
+  protected readonly salaryEntries = computed(() =>
+    this.salary.hasValue() ? this.salary.value() : undefined,
+  );
+  protected readonly incomeList = computed(() =>
+    this.incomes.hasValue() ? this.incomes.value() : undefined,
+  );
+
+  protected readonly monthLabel = computed(() => {
+    const month = this.month();
+    return month ? formatMonth(month, this.settings.locale()) : '';
+  });
+
+  /** Something changed on the server: load what this page shows again. */
+  protected reload(): void {
+    this.view.reload();
+    this.salary.reload();
+    this.incomes.reload();
+  }
+}

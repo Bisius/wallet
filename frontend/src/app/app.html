@@ -1,35 +1,76 @@
-<div class="flex min-h-dvh flex-col md:flex-row">
-  <aside class="border-b border-slate-200 bg-white md:w-56 md:shrink-0 md:border-r md:border-b-0">
-    <div class="flex items-center justify-between px-4 py-4">
-      <a routerLink="/dashboard" class="text-lg font-semibold tracking-tight">Wallet</a>
-      <span
-        class="inline-flex items-center gap-1.5 text-xs text-slate-500"
-        [attr.title]="health.error() ? 'API unreachable' : 'API connected'"
+<a
+  href="#main"
+  class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-control focus:bg-accent focus:px-4 focus:py-2 focus:font-medium focus:text-on-accent"
+  (click)="skipToContent($event)"
+>
+  Skip to main content
+</a>
+
+<div class="min-h-dvh md:flex">
+  <aside
+    class="border-b border-line bg-surface md:sticky md:top-0 md:h-dvh md:w-56 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0"
+  >
+    <div class="flex items-center justify-between gap-3 px-4 py-4 md:flex-col md:items-start">
+      <a
+        routerLink="/dashboard"
+        [queryParams]="selectedMonth.linkParams()"
+        class="rounded-control text-lg font-semibold tracking-tight"
       >
-        <span
-          class="size-2 rounded-full"
-          [class.bg-emerald-500]="health.hasValue()"
-          [class.bg-rose-500]="health.error()"
-          [class.bg-slate-300]="health.isLoading()"
-        ></span>
-        API
-      </span>
+        Wallet
+      </a>
+      <app-api-status-indicator />
     </div>
-    <nav aria-label="Main" class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
-      @for (item of nav; track item.path) {
-        <a
-          [routerLink]="item.path"
-          routerLinkActive="bg-slate-900 text-white hover:bg-slate-900"
-          ariaCurrentWhenActive="page"
-          class="rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-700 hover:bg-slate-100"
-        >
-          {{ item.label }}
-        </a>
-      }
-    </nav>
+    @if (!focusLayout()) {
+      <nav aria-label="Main" class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
+        @for (item of nav; track item.path) {
+          <a
+            [routerLink]="item.path"
+            [queryParams]="selectedMonth.linkParams()"
+            routerLinkActive
+            [routerLinkActiveOptions]="{
+              paths: 'subset',
+              queryParams: 'ignored',
+              fragment: 'ignored',
+              matrixParams: 'ignored',
+            }"
+            ariaCurrentWhenActive="page"
+            class="relative rounded-control px-3 py-2.5 text-sm font-medium whitespace-nowrap text-ink hover:bg-subtle aria-[current=page]:bg-accent aria-[current=page]:text-on-accent aria-[current=page]:hover:bg-accent-hover"
+          >
+            {{ item.label }}
+            @if (item.savingsBadge && outstandingMonths() > 0) {
+              <span
+                aria-hidden="true"
+                class="ml-1.5 inline-block min-w-5 rounded-full bg-accent-soft px-1.5 text-center text-xs leading-5 font-semibold text-accent-text ring-1 ring-accent-text/40"
+                >{{ outstandingMonths() }}</span
+              >
+              <span class="sr-only"
+                >, {{ outstandingMonths() }} {{ outstandingMonths() === 1 ? 'month' : 'months' }} to
+                move to savings</span
+              >
+            }
+          </a>
+        }
+      </nav>
+    }
   </aside>
 
-  <main class="flex-1 p-4 md:p-8">
-    <router-outlet />
-  </main>
+  <div class="flex min-w-0 flex-1 flex-col">
+    @if (showMonthSwitcher()) {
+      <section
+        aria-label="Month selection"
+        class="sticky top-0 z-20 border-b border-line bg-surface/95 px-4 py-2 backdrop-blur md:px-8"
+      >
+        <app-month-switcher />
+      </section>
+    }
+    <main #main id="main" tabindex="-1" class="flex-1 p-4 md:p-8">
+      @if (starting()) {
+        <app-loading-state label="Loading Wallet…" />
+      }
+      <router-outlet />
+    </main>
+  </div>
 </div>
+
+<app-toast-container />
+<app-confirm-dialog />

@@ -1,0 +1,76 @@
+<app-dialog [heading]="'Split ' + monthLabel()" [locked]="saving()" (closed)="cancelled.emit()">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-4">
+    <p class="text-sm">
+      {{ monthLabel() }}: <span class="font-semibold">{{ phrase() }}</span
+      >. Share it out below{{ taking() ? ': say how much comes out of each place' : '' }}. Leave a
+      place empty to skip it.
+    </p>
+
+    @if (notice(); as message) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-warning bg-warning-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-warning" />
+        <span>{{ message }}</span>
+      </p>
+    }
+
+    <fieldset class="space-y-3 rounded-card border border-line p-3 sm:p-4">
+      <legend class="px-1 text-sm font-semibold">
+        {{ taking() ? 'Take from' : 'Move to' }}
+      </legend>
+      @for (row of rows(); track row.key) {
+        <div class="flex items-start gap-2" [attr.data-split-row]="row.key">
+          <app-field [label]="row.label" class="min-w-0 flex-1">
+            <app-money-input [formControl]="row.control" />
+          </app-field>
+          <button
+            appButton
+            variant="ghost"
+            size="sm"
+            class="mt-[1.875rem]"
+            [disabled]="left() <= 0"
+            [attr.aria-label]="'Put the rest in ' + row.label"
+            (click)="fillRest(row)"
+          >
+            Rest
+          </button>
+        </div>
+      }
+    </fieldset>
+
+    <p
+      role="status"
+      class="flex items-center gap-2 rounded-control bg-subtle p-3 text-sm font-medium text-ink"
+    >
+      @if (left() === 0) {
+        <app-icon name="check-circle" class="text-positive" />
+        Everything is allocated.
+      } @else if (left() > 0) {
+        <app-icon name="info" />
+        {{ left() | money }} left to allocate
+      } @else {
+        <app-icon name="alert" class="text-negative" />
+        {{ -left() | money }} too much: lower an amount
+      }
+    </p>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">Confirm split</button>
+    </div>
+  </form>
+</app-dialog>

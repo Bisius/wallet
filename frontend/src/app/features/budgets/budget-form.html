@@ -1,0 +1,131 @@
+<app-dialog
+  [heading]="editing() ? 'Edit ' + (budget()?.name ?? '') : 'New budget'"
+  [locked]="saving()"
+  (closed)="cancelled.emit()"
+>
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-5">
+    <app-field label="Name">
+      <input appInput formControlName="name" autocomplete="off" [attr.maxlength]="nameMaxLength" />
+    </app-field>
+
+    <fieldset class="space-y-4 rounded-card border border-line p-3 sm:p-4">
+      <legend class="px-1 text-sm font-semibold">
+        {{ editing() ? 'Amount and mode' : 'Amount' }}
+      </legend>
+
+      <app-field label="Monthly amount">
+        <app-money-input formControlName="amount" />
+      </app-field>
+
+      <app-toggle formControlName="incremental" label="Incremental" [hint]="incrementalHint()" />
+
+      @if (editing()) {
+        <app-field label="Applies from" hint="The first month with this amount and mode.">
+          <app-month-input formControlName="month" [min]="minMonth()" [max]="maxMonth()" />
+        </app-field>
+      } @else {
+        <app-field label="Start month" hint="The first month the budget exists.">
+          <app-month-input formControlName="startMonth" [min]="firstMonth()" />
+        </app-field>
+      }
+
+      @if (monthNote(); as note) {
+        <p
+          class="flex items-start gap-2 rounded-control p-3 text-sm"
+          [class]="
+            note.tone === 'warning'
+              ? 'border border-warning bg-warning-soft text-ink'
+              : 'bg-subtle text-ink'
+          "
+        >
+          <app-icon [name]="note.tone === 'warning' ? 'alert' : 'info'" class="mt-0.5" />
+          <span>{{ note.text }}</span>
+        </p>
+      }
+
+      @if (editing() && stored(); as budget) {
+        <details class="text-sm">
+          <summary class="cursor-pointer rounded-control py-1 font-medium text-accent-text">
+            Amount history ({{ budget.versions.length }})
+          </summary>
+          <ul class="mt-2 space-y-1 text-muted">
+            @for (version of budget.versions; track version.effectiveMonth) {
+              <li>
+                From {{ monthLabel(version.effectiveMonth) }}:
+                <span class="font-medium text-ink">{{ version.amount | money }}</span>
+                {{ version.incremental ? 'incremental' : 'not incremental' }}
+              </li>
+            }
+          </ul>
+        </details>
+      }
+    </fieldset>
+
+    <app-color-picker formControlName="color" />
+
+    <div>
+      <app-field label="Icon" [optional]="true" hint="An emoji shown next to the name.">
+        <input
+          appInput
+          formControlName="icon"
+          autocomplete="off"
+          [attr.maxlength]="iconMaxLength"
+        />
+      </app-field>
+      <div role="group" aria-label="Suggested icons" class="mt-2 flex flex-wrap gap-1.5">
+        @for (suggestion of iconSuggestions; track suggestion.icon) {
+          <button
+            type="button"
+            class="inline-flex size-10 items-center justify-center rounded-control border border-line-strong bg-surface text-xl hover:bg-subtle aria-pressed:border-accent aria-pressed:bg-accent-soft"
+            [attr.aria-label]="'Use the ' + suggestion.name + ' icon'"
+            [attr.aria-pressed]="form.controls.icon.value === suggestion.icon"
+            (click)="pickIcon(suggestion.icon)"
+          >
+            <span aria-hidden="true">{{ suggestion.icon }}</span>
+          </button>
+        }
+      </div>
+    </div>
+
+    <app-field label="Warning threshold (%)" [optional]="true" [hint]="alertHint()">
+      <input
+        appInput
+        type="number"
+        formControlName="alertWarnPercent"
+        min="1"
+        max="100"
+        step="1"
+        inputmode="numeric"
+        autocomplete="off"
+      />
+    </app-field>
+
+    <app-field label="Notes" [optional]="true">
+      <textarea
+        appInput
+        formControlName="notes"
+        rows="3"
+        [attr.maxlength]="notesMaxLength"
+      ></textarea>
+    </app-field>
+
+    @if (formError(); as error) {
+      <p
+        role="alert"
+        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+      >
+        <app-icon name="alert" class="mt-0.5 text-negative" />
+        <span>{{ error }}</span>
+      </p>
+    }
+
+    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+      <button appButton type="submit" [loading]="saving()">
+        {{ editing() ? 'Save changes' : 'Create budget' }}
+      </button>
+    </div>
+  </form>
+</app-dialog>

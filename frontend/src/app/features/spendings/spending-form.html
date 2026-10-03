@@ -1,0 +1,86 @@
+<form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+  <div class="grid gap-4 sm:grid-cols-2">
+    <app-field #amountField label="Amount">
+      <app-money-input formControlName="amount" />
+    </app-field>
+    <app-field label="Budget">
+      <select appInput formControlName="budgetId">
+        @for (line of budgets(); track line.id) {
+          <option [value]="line.id">
+            {{ line.name }} ·
+            @if (line.remaining < 0) {
+              over by {{ -line.remaining | money }}
+            } @else {
+              {{ line.remaining | money }} left
+            }
+          </option>
+        }
+      </select>
+    </app-field>
+  </div>
+
+  <app-toggle
+    formControlName="refund"
+    kind="checkbox"
+    label="Refund"
+    hint="Money coming back into the budget, such as a returned item."
+  />
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <app-field label="Date">
+      <input
+        appInput
+        type="date"
+        formControlName="date"
+        [attr.min]="firstDay()"
+        [attr.max]="lastDay()"
+      />
+    </app-field>
+    <app-field label="Description" [optional]="true">
+      <input
+        appInput
+        formControlName="description"
+        autocomplete="off"
+        [attr.maxlength]="descriptionMaxLength"
+      />
+    </app-field>
+  </div>
+
+  @if (spending()) {
+    <app-field label="Notes" [optional]="true">
+      <textarea
+        appInput
+        formControlName="notes"
+        rows="3"
+        [attr.maxlength]="notesMaxLength"
+      ></textarea>
+    </app-field>
+  }
+
+  @if (formError(); as error) {
+    <p
+      role="alert"
+      class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+    >
+      <app-icon name="alert" class="mt-0.5 text-negative" />
+      <span>{{ error }}</span>
+    </p>
+  }
+
+  <div
+    [class]="
+      spending()
+        ? 'dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end'
+        : 'flex flex-col gap-2 sm:flex-row sm:justify-end'
+    "
+  >
+    @if (spending()) {
+      <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+        Cancel
+      </button>
+    }
+    <button appButton type="submit" [loading]="saving()">
+      {{ spending() ? 'Save changes' : isRefund() ? 'Add refund' : 'Add spending' }}
+    </button>
+  </div>
+</form>

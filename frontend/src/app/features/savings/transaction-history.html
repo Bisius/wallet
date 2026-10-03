@@ -1,0 +1,162 @@
+<section aria-labelledby="history-heading" class="card space-y-4">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 #heading id="history-heading" tabindex="-1" class="text-lg font-semibold">History</h2>
+      <p class="mt-1 text-sm text-muted">
+        Every settlement, deposit, withdrawal and reallocation, newest first.
+      </p>
+    </div>
+    <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+      <app-field label="Filter by goal">
+        <select appInput (change)="onPlaceChange($event)">
+          <option value="all" [selected]="data.filter().place === 'all'">All savings</option>
+          <option value="unassigned" [selected]="data.filter().place === 'unassigned'">
+            {{ unassignedLabel }}
+          </option>
+          @for (goal of goals(); track goal.id) {
+            <option [value]="goal.id" [selected]="data.filter().place === goal.id">
+              {{ goal.name }}{{ goal.archived ? ' (archived)' : '' }}
+            </option>
+          }
+        </select>
+      </app-field>
+      <app-field label="Filter by type">
+        <select appInput (change)="onKindChange($event)">
+          @for (choice of kindChoices; track choice.value) {
+            <option [value]="choice.value" [selected]="(data.filter().kind ?? '') === choice.value">
+              {{ choice.label }}
+            </option>
+          }
+        </select>
+      </app-field>
+    </div>
+  </div>
+
+  @switch (data.historyState()) {
+    @case ('loading') {
+      <app-loading-state label="Loading the history…" />
+    }
+    @case ('error') {
+      <app-error-state
+        title="Couldn't load the history"
+        [error]="data.history.error()"
+        (retry)="data.history.reload()"
+      />
+    }
+    @default {
+      @if (views().length === 0) {
+        @if (data.filtered()) {
+          <app-empty-state
+            title="Nothing matches these filters"
+            description="There are no entries for this goal or type."
+          >
+            <button appButton variant="secondary" (click)="clearFilters()">Show everything</button>
+          </app-empty-state>
+        } @else {
+          <app-empty-state
+            title="No savings activity yet"
+            description="Settlements, deposits, withdrawals and reallocations show up here."
+          />
+        }
+      } @else {
+        <ul class="divide-y divide-line rounded-card border border-line">
+          @for (view of views(); track view.entry.key) {
+            <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 p-3">
+              <div class="min-w-0 flex-1">
+                <p class="font-medium break-words">{{ view.text.title }}</p>
+                <p class="mt-0.5 text-sm text-muted">
+                  {{ view.date }}
+                  @if (view.entry.note) {
+                    · {{ view.entry.note }}
+                  }
+                </p>
+                @if (view.text.slices.length > 0) {
+                  <ul class="mt-1.5 space-y-0.5 text-sm">
+                    @for (slice of view.text.slices; track $index) {
+                      <li>
+                        {{ slice.place }}:
+                        <span class="font-medium"
+                          ><app-amount [cents]="slice.amount" [signed]="true"
+                        /></span>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+              @if (view.text.amount !== null) {
+                <p class="font-semibold">
+                  <app-amount [cents]="view.text.amount" [signed]="true" />
+                </p>
+              }
+              @if (view.deletable || view.entry.offersUndo || view.entry.kind === 'opening') {
+                <div class="flex w-full justify-end gap-1 sm:w-auto">
+                  @if (view.deletable) {
+                    <button
+                      appButton
+                      variant="ghost"
+                      size="sm"
+                      [attr.aria-label]="'Delete ' + view.label"
+                      (click)="remove(view)"
+                    >
+                      <app-icon name="trash" />
+                      Delete
+                    </button>
+                  }
+                  @if (view.entry.offersUndo) {
+                    <button
+                      appButton
+                      variant="ghost"
+                      size="sm"
+                      [attr.aria-label]="'Undo ' + view.text.title"
+                      (click)="undoSettlement(view)"
+                    >
+                      <app-icon name="arrows-left-right" />
+                      Undo settlement
+                    </button>
+                  }
+                  @if (view.entry.kind === 'opening') {
+                    <button
+                      appButton
+                      variant="ghost"
+                      size="sm"
+                      aria-label="Edit opening balance"
+                      (click)="editOpening.emit()"
+                    >
+                      <app-icon name="pencil" />
+                      Edit opening balance
+                    </button>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ul>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <p role="status" class="text-sm text-muted">
+            Showing {{ data.rows().length }} of {{ data.total() }} records
+          </p>
+          @if (data.hasMore()) {
+            <button
+              appButton
+              variant="secondary"
+              [loading]="data.loadingMore()"
+              (click)="loadMore()"
+            >
+              Load more
+            </button>
+          }
+        </div>
+        @if (data.moreError(); as message) {
+          <p
+            role="alert"
+            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+          >
+            <app-icon name="alert" class="mt-0.5 text-negative" />
+            <span>Couldn't load more of the history. {{ message }}</span>
+          </p>
+        }
+      }
+    }
+  }
+</section>

@@ -1,7 +1,169 @@
 @import 'tailwindcss';
 
+/*
+ * Dark mode uses the class strategy: `<html class="dark">` is set by ThemeService (and, before
+ * Angular boots, by public/theme-init.js so there is no flash of the wrong theme).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Design tokens. Templates use these semantic names (bg-surface, text-muted, border-line, ...) and
+ * never raw palette colors, so a theme only has to redefine the values below.
+ *
+ * Contrast (WCAG AA) was checked for every pair used in the UI, in both themes:
+ *   - text colors (ink, muted, accent, positive, negative, warning) on canvas, surface and subtle:
+ *     at least 4.5:1
+ *   - on-accent / on-negative on their fills, and the *-soft pairs: at least 4.5:1
+ *   - line-strong (form control borders) and focus on every surface: at least 3:1
+ */
+@theme {
+  /* Surfaces */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-subtle: #f1f5f9;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-muted: #475569;
+
+  /* Borders: `line` is decorative, `line-strong` outlines form controls (3:1) */
+  --color-line: #e2e8f0;
+  --color-line-strong: #64748b;
+
+  /* Accent (primary actions, links, active navigation) */
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #1e40af;
+  --color-on-accent: #ffffff;
+  --color-accent-soft: #dbeafe;
+  --color-accent-text: #1e40af;
+
+  /* Status colors. Always paired with a sign, icon or label, never the only signal. */
+  --color-positive: #047857;
+  --color-positive-soft: #d1fae5;
+  --color-negative: #b91c1c;
+  --color-negative-hover: #991b1b;
+  --color-on-negative: #ffffff;
+  --color-negative-soft: #fee2e2;
+  --color-warning: #92400e;
+  --color-warning-soft: #fef3c7;
+
+  /*
+   * Chart series: one hue per measure, in a fixed order (1 income, 2 spent, 3 saved) that follows the
+   * measure and never its rank, and is never reused for another meaning (status colors above are
+   * reserved for states). They are marks only: labels and values wear `ink` and `muted`. Checked with
+   * the dataviz palette validator against `surface` in both themes: color-blind separation of every
+   * pair (OKLab delta E >= 9), lightness band, and at least 3:1 contrast on `surface`. Series are also
+   * told apart by line style and marker shape, never by hue alone.
+   */
+  --color-series-1: #2a78d6;
+  --color-series-2: #eb6834;
+  --color-series-3: #17a173;
+
+  /* Keyboard focus ring */
+  --color-focus: #1d4ed8;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+
+  /* Radii */
+  --radius-control: 0.5rem;
+  --radius-card: 0.75rem;
+}
+
+/* Dark theme: only the colors change. */
+.dark {
+  --color-canvas: #020617;
+  --color-surface: #0f172a;
+  --color-subtle: #1e293b;
+
+  --color-ink: #f1f5f9;
+  --color-muted: #a8b4c6;
+
+  --color-line: #1e293b;
+  --color-line-strong: #74829a;
+
+  --color-accent: #60a5fa;
+  --color-accent-hover: #93c5fd;
+  --color-on-accent: #020617;
+  --color-accent-soft: #1e3a8a;
+  --color-accent-text: #bfdbfe;
+
+  --color-positive: #34d399;
+  --color-positive-soft: #064e3b;
+  --color-negative: #f87171;
+  --color-negative-hover: #fca5a5;
+  --color-on-negative: #020617;
+  --color-negative-soft: #450a0a;
+  --color-warning: #fbbf24;
+  --color-warning-soft: #451a03;
+
+  /* The same hues, stepped for the dark surface (not an automatic flip). */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+
+  --color-focus: #93c5fd;
+}
+
 @layer base {
   html {
     font-family: ui-sans-serif, system-ui, sans-serif;
+    color-scheme: light;
+  }
+
+  /* Native controls (date pickers, scrollbars, select menus) follow the theme. */
+  html.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+  }
+
+  /* One visible focus style for everything that can take focus. */
+  :where(a, button, input, select, textarea, summary, dialog, [tabindex]):focus-visible {
+    outline: var(--focus-ring-width) solid var(--color-focus);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  /* Containers and headings that only take focus from code (route changes, wizard steps). */
+  :where(main, h1, h2, dialog)[tabindex='-1']:focus-visible,
+  dialog:focus-visible {
+    outline: none;
+  }
+
+  /* Money columns line up. */
+  :where(.tabular-nums) {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@utility card {
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  padding: calc(var(--spacing) * 4);
+
+  @media (min-width: 48rem) {
+    padding: calc(var(--spacing) * 6);
+  }
+}
+
+/*
+ * The Save / Cancel row of a form in a dialog. The fields scroll and this row stays at the bottom of
+ * the dialog, so the main action is always in reach on a phone. It sits in the dialog's scrolling
+ * area, so the negative margins stretch it to the dialog's edges (see `AppDialog`).
+ */
+@utility dialog-footer {
+  position: sticky;
+  bottom: 0;
+  margin-inline: calc(var(--spacing) * -4);
+  border-top: 1px solid var(--color-line);
+  background-color: var(--color-surface);
+  padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+
+  @media (min-width: 40rem) {
+    margin-inline: calc(var(--spacing) * -5);
+    padding-inline: calc(var(--spacing) * 5);
   }
 }

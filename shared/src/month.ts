@@ -1,6 +1,9 @@
 /** A budgeting month, formatted as "YYYY-MM". */
 export type MonthKey = string;
 
+/** A calendar date with no time zone, as "YYYY-MM-DD". Its month is its first 7 characters. */
+export type IsoDate = string;
+
 const MONTH_KEY_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 export function isMonthKey(value: string): value is MonthKey {
@@ -29,6 +32,13 @@ export function addMonths(key: MonthKey, delta: number): MonthKey {
 
 export function compareMonths(a: MonthKey, b: MonthKey): number {
   return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/** Number of months from `from` to `to`: 0 when equal, negative when `to` is earlier. */
+export function monthDiff(from: MonthKey, to: MonthKey): number {
+  const a = parseMonthKey(from);
+  const b = parseMonthKey(to);
+  return (b.year - a.year) * 12 + (b.month - a.month);
 }
 
 /** Inclusive list of month keys from `from` to `to`. Empty if `from` is after `to`. */
