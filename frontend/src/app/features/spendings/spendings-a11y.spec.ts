@@ -45,6 +45,14 @@ describe('SpendingsPage: markup a screen reader can use', () => {
     expect(a11yProblems(p.element)).toEqual([]);
   });
 
+  it('has nothing wrong with the toolbar with its panel open', async () => {
+    const p = await openSpendingsPage(http, { tags: TAGS });
+    await p.openFilters();
+    expect(p.filtersButton().getAttribute('aria-expanded')).toBe('true');
+
+    expect(a11yProblems(p.element)).toEqual([]);
+  });
+
   it('has nothing wrong with the filters when they are all in use', async () => {
     const p = await openSpendingsPage(http, {
       url: '/spendings?q=shop&budgetId=1&tagId=2&minAmount=-500&maxAmount=2000',
@@ -62,9 +70,9 @@ describe('SpendingsPage: markup a screen reader can use', () => {
     expect(a11yProblems(p.element)).toEqual([]);
   });
 
-  it('has nothing wrong with the add form once the tag field is up and its list is open', async () => {
+  it('has nothing wrong with the add form once More is open and the tag list is open', async () => {
     const p = await openSpendingsPage(http, { tags: TAGS });
-    await p.press('Add tags', p.form());
+    await p.openMore();
     const box = getByRole(p.form(), 'combobox', 'Tags (optional)') as HTMLInputElement;
     box.click();
     await settle(p.fixture);

@@ -143,7 +143,8 @@ export function importButton(page: Page): Locator {
 /** The last step: "Imported N spendings." */
 export async function expectImported(page: Page, count: number): Promise<void> {
   await expect(page.getByRole('heading', { name: 'Import complete' })).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: /^Imported / })).toHaveText(
+  // The message is an `app-alert`, whose text sits in a div of its own: the raw text starts with a space.
+  await expect(page.getByRole('status').filter({ hasText: /^\s*Imported / })).toHaveText(
     `Imported ${count} ${count === 1 ? 'spending' : 'spendings'}.`,
   );
 }

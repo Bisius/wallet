@@ -3,9 +3,12 @@ import { resourceState } from '../../core/resource-state';
 import { SelectedMonth } from '../../core/selected-month';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
-import { PageHeader } from '../../shared/page-header';
-import { Amount } from '../../shared/ui/amount';
+import { AsyncSection } from '../../shared/ui/async-section';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { Stat } from '../../shared/ui/stat';
+import { StatGrid } from '../../shared/ui/stat-grid';
 import { ErrorState, LoadingState } from '../../shared/ui/states';
 import { MonthsApi } from '../months/months.api';
 import { IncomesApi } from './incomes.api';
@@ -20,13 +23,16 @@ import { SalarySection } from './salary-section';
 @Component({
   selector: 'app-income-page',
   imports: [
+    AppPage,
     PageHeader,
-    Amount,
+    AsyncSection,
     LoadingState,
     ErrorState,
     MonthStatusBadge,
     SalarySection,
     IncomesSection,
+    Stat,
+    StatGrid,
   ],
   templateUrl: './income-page.html',
 })
@@ -54,6 +60,18 @@ export class IncomePage {
   protected readonly incomeList = computed(() =>
     this.incomes.hasValue() ? this.incomes.value() : undefined,
   );
+
+  /** What the month's status means for these figures, when it is not the running month. */
+  protected readonly monthNote = computed(() => {
+    switch (this.monthView()?.status) {
+      case 'closed':
+        return 'This month is closed. Changing its income changes what is due to savings.';
+      case 'future':
+        return 'This month has not started yet, so these figures are a projection.';
+      default:
+        return undefined;
+    }
+  });
 
   protected readonly monthLabel = computed(() => {
     const month = this.month();

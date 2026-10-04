@@ -1,10 +1,12 @@
-<app-page-header
-  title="Budgets"
-  [subtitle]="
-    monthLabel() ? 'Monthly allocations, rollover and what is left, for ' + monthLabel() + '.' : ''
-  "
->
-  <div class="flex flex-wrap gap-2">
+<app-page width="wide">
+  <app-page-header
+    title="Budgets"
+    [subtitle]="
+      monthLabel()
+        ? 'Monthly allocations, rollover and what is left, for ' + monthLabel() + '.'
+        : ''
+    "
+  >
     @if (canMove()) {
       <button appButton variant="secondary" (click)="openMove(null)">
         <app-icon name="arrows-left-right" />
@@ -15,13 +17,11 @@
       <app-icon name="plus" />
       New budget
     </button>
-  </div>
-</app-page-header>
+  </app-page-header>
 
-<p class="sr-only" role="status">{{ announcement() }}</p>
+  <p class="sr-only" role="status">{{ announcement() }}</p>
 
-@if (month(); as month) {
-  <div class="space-y-6">
+  @if (month(); as month) {
     @switch (viewState()) {
       @case ('loading') {
         <app-loading-state label="Loading this month's budgets…" />
@@ -35,13 +35,9 @@
       }
       @default {
         @if (monthView(); as snapshot) {
-          <app-budget-summary [view]="snapshot" [monthLabel]="monthLabel()" />
+          <app-budget-summary [view]="snapshot" [monthLabel]="monthLabel()" layout="slim" />
 
-          <section aria-labelledby="budget-list-heading" class="space-y-4">
-            <h2 #heading id="budget-list-heading" tabindex="-1" class="text-lg font-semibold">
-              Budgets in {{ monthLabel() }}
-            </h2>
-
+          <app-section variant="plain" focusable landmark [heading]="'Budgets in ' + monthLabel()">
             @if (budgetsState() === 'error') {
               <app-error-state
                 title="Couldn't load the budget list"
@@ -91,7 +87,7 @@
                 }
               </ul>
             }
-          </section>
+          </app-section>
 
           <app-transfers-section
             [month]="month"
@@ -106,30 +102,31 @@
           />
 
           @if (inactive().length > 0) {
-            <details class="card">
-              <summary class="cursor-pointer rounded-control text-lg font-semibold">
-                Upcoming and ended budgets ({{ inactive().length }})
-              </summary>
-              <p class="mt-2 text-sm text-muted">
+            <app-disclosure
+              size="section"
+              [summary]="'Upcoming and ended budgets (' + inactive().length + ')'"
+            >
+              <p class="text-sm text-muted">
                 These are not active in {{ monthLabel() }}. They can still be edited, and deleted
                 when they have no spendings.
               </p>
-              <ul class="mt-3 divide-y divide-line rounded-card border border-line">
+              <ul appList class="mt-3">
                 @for (budget of inactive(); track budget.id) {
-                  <li class="flex flex-wrap items-center justify-between gap-3 p-3">
-                    <div class="min-w-0">
-                      <p class="font-medium break-words">{{ budget.name }}</p>
-                      <p class="text-sm text-muted">
+                  <li appListRow>
+                    <span rowTitle>{{ budget.name }}</span>
+                    <p rowMeta>
+                      <span>
                         {{ describe(budget) }}
                         @if (version(budget); as version) {
                           · {{ version.amount | money }} a month{{
                             version.incremental ? ', incremental' : ''
                           }}
                         }
-                      </p>
-                    </div>
-                    <div class="flex flex-wrap gap-1">
+                      </span>
+                    </p>
+                    @if (budget.hasHistory) {
                       <button
+                        rowActions
                         appButton
                         variant="ghost"
                         size="sm"
@@ -139,29 +136,28 @@
                         <app-icon name="pencil" />
                         Edit
                       </button>
-                      @if (!budget.hasHistory) {
-                        <button
-                          appButton
-                          variant="ghost"
-                          size="sm"
-                          [attr.aria-label]="'Delete ' + budget.name"
-                          (click)="remove(budget)"
-                        >
+                    } @else {
+                      <app-action-menu rowActions [label]="'More actions for ' + budget.name">
+                        <button appMenuItem (click)="openEdit(budget)">
+                          <app-icon name="pencil" />
+                          Edit
+                        </button>
+                        <button appMenuItem destructive (click)="remove(budget)">
                           <app-icon name="trash" />
                           Delete
                         </button>
-                      }
-                    </div>
+                      </app-action-menu>
+                    }
                   </li>
                 }
               </ul>
-            </details>
+            </app-disclosure>
           }
         }
       }
     }
-  </div>
-}
+  }
+</app-page>
 
 @if (moving(); as dialog) {
   @if (month(); as month) {

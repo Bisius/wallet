@@ -10,6 +10,7 @@ import { ToastService } from '../../shared/ui/toast.service';
 import { getByRole, queryAllByRole, queryByRole, textOf } from '../../../testing/dom';
 import { budgetDto, transferDto } from '../../../testing/fixtures';
 import { flushError, primeStores, settle } from '../../../testing/harness';
+import { menuItemNames, rowAction } from '../../../testing/menu';
 import { TransfersSection } from './transfers-section';
 
 @Component({
@@ -95,6 +96,9 @@ describe('TransfersSection', () => {
         getByRole(root, 'button', name).click();
         await settle(fixture);
       },
+      /** Presses an item of the menu of a transfer, named by the words of its row: `€50.00 from A to B on Oct 2, 2026`. */
+      rowAction: (transfer: string, item: string | RegExp) =>
+        rowAction(element, item, `More actions for transfer of ${transfer}`),
       toasts: () =>
         TestBed.inject(ToastService)
           .toasts()
@@ -131,8 +135,9 @@ describe('TransfersSection', () => {
       const t = await setup({ transfers: [transferDto()] });
 
       const name = queryAllByRole(t.section(), 'listitem')[0].querySelector('p') as HTMLElement;
-      expect(name.textContent).toContain('→');
-      expect(name.querySelector('[aria-hidden="true"]')?.textContent).toBe('→');
+      // An icon, not a text glyph, and hidden from assistive technology.
+      expect(name.textContent).not.toContain('→');
+      expect(name.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
       expect(textOf(name)).toBe('From Groceries to Fun');
     });
 
@@ -169,15 +174,19 @@ describe('TransfersSection', () => {
       const t = await setup({ transfers: [transferDto()] });
 
       expect(queryByRole(t.section(), 'button', /Edit/)).toBeNull();
+      // The one thing to do with a row is in its menu, which is the only button the row shows.
       expect(
-        queryAllByRole(t.section(), 'button').map((b) => b.getAttribute('aria-label') ?? textOf(b)),
-      ).toEqual(['Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026']);
+        queryAllByRole(t.section(), 'button')
+          .filter((b) => !b.closest('[popover]'))
+          .map((b) => b.getAttribute('aria-label') ?? textOf(b)),
+      ).toEqual(['More actions for transfer of €50.00 from Groceries to Fun on Oct 2, 2026']);
+      expect(menuItemNames(t.section())).toEqual(['Delete']);
     });
 
     it('does not use the sign or the color of an amount: money moved is neither in nor out', async () => {
       const t = await setup({ transfers: [transferDto({ amount: 5000 })] });
-      const amount = Array.from(t.section().querySelectorAll('p')).find(
-        (p) => textOf(p) === '€50.00',
+      const amount = Array.from(t.section().querySelectorAll('app-amount span')).find(
+        (span) => textOf(span) === '€50.00',
       )!;
       expect(amount.className).not.toContain('text-negative');
       expect(amount.className).not.toContain('text-positive');
@@ -219,7 +228,7 @@ describe('TransfersSection', () => {
     it('asks first, and says what it does, and does nothing when cancelled', async () => {
       const t = await setup({ transfers: [transferDto({ note: 'x' })] });
 
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
 
       const text = textOf(t.confirmDialog());
       expect(text).toContain('Delete this transfer?');
@@ -231,11 +240,13 @@ describe('TransfersSection', () => {
       await t.press('Cancel', t.confirmDialog());
       http.expectNone('/api/transfers/1');
       expect(t.host.changes).toBe(0);
+      // The question was asked from the menu of the row, and focus goes back to its button.
+      expect(document.activeElement).toBe(getByRole(t.section(), 'button', /^More actions/));
     });
 
     it('deletes once confirmed, tells the page to load everything again, and puts focus on the heading', async () => {
       const t = await setup({ transfers: [transferDto()] });
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
       await t.press('Delete transfer', t.confirmDialog());
 
       const request = http.expectOne('/api/transfers/1');
@@ -256,7 +267,7 @@ describe('TransfersSection', () => {
         transfers: [transferDto({ date: '2026-09-20' })],
       });
 
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Sep 20, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Sep 20, 2026', 'Delete');
 
       const text = textOf(t.confirmDialog());
       expect(text).toContain(
@@ -273,14 +284,14 @@ describe('TransfersSection', () => {
         transfers: [transferDto({ date: '2026-12-03' })],
       });
 
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Dec 3, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Dec 3, 2026', 'Delete');
 
       expect(textOf(t.confirmDialog())).not.toContain('closed');
     });
 
     it('says a transfer that was already gone is gone, and still has the page load again', async () => {
       const t = await setup({ transfers: [transferDto()] });
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
       await t.press('Delete transfer', t.confirmDialog());
 
       flushError(http.expectOne('/api/transfers/1'), 404, 'not_found', 'Transfer not found');
@@ -292,7 +303,7 @@ describe('TransfersSection', () => {
 
     it("reports another failure with the API's words and changes nothing on the page", async () => {
       const t = await setup({ transfers: [transferDto()] });
-      await t.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await t.rowAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
       await t.press('Delete transfer', t.confirmDialog());
 
       flushError(http.expectOne('/api/transfers/1'), 500, 'internal_error', 'Something broke');

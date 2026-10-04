@@ -4,59 +4,34 @@ import { addMonths, type MonthKey } from '@wallet/shared/month';
 import { SelectedMonth } from '../../core/selected-month';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../format';
-import { Icon } from './icon';
-
-const BUTTON =
-  'inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink ' +
-  'hover:bg-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-surface';
+import { PeriodSwitcher } from './period-switcher';
 
 /**
- * Previous month, the selected month, next month, and a jump back to this month. The selection is
- * `SelectedMonth`, so it lives in the URL (`?month=2026-10`).
- *
- * A button at the edge of the allowed range stays focusable and is marked `aria-disabled` instead of
- * `disabled`: a button that disables itself while it has focus would drop the keyboard user's place.
+ * Previous month, the selected month, next month, and a jump back to this month: the period
+ * switcher, worded for months. The selection is `SelectedMonth`, so it lives in the URL
+ * (`?month=2026-10`). Each button says where it goes ("Previous month, September 2026"), or that it
+ * is not available at the edge of the range.
  */
 @Component({
   selector: 'app-month-switcher',
-  imports: [Icon],
+  imports: [PeriodSwitcher],
   template: `
     @if (selected.month()) {
-      <div role="group" aria-label="Month" class="flex flex-wrap items-center gap-2">
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            [class]="button"
-            [attr.aria-label]="previousName()"
-            [attr.aria-disabled]="!selected.canGoPrevious()"
-            (click)="previous()"
-          >
-            <app-icon name="chevron-left" />
-          </button>
-          <p aria-live="polite" class="min-w-28 text-center font-semibold">
-            <span aria-hidden="true">{{ shortLabel() }}</span>
-            <span class="sr-only">{{ longLabel() }}</span>
-          </p>
-          <button
-            type="button"
-            [class]="button"
-            [attr.aria-label]="nextName()"
-            [attr.aria-disabled]="!selected.canGoNext()"
-            (click)="next()"
-          >
-            <app-icon name="chevron-right" />
-          </button>
-        </div>
-        <button
-          type="button"
-          [class]="button"
-          [attr.aria-label]="'Go to this month, ' + currentLabel()"
-          [attr.aria-disabled]="selected.isCurrent()"
-          (click)="goToCurrent()"
-        >
-          This month
-        </button>
-      </div>
+      <app-period-switcher
+        label="Month"
+        [text]="shortLabel()"
+        [spokenText]="longLabel()"
+        [previousLabel]="previousName()"
+        [nextLabel]="nextName()"
+        [currentLabel]="'Go to this month, ' + currentLabel()"
+        currentText="This month"
+        [canGoPrevious]="selected.canGoPrevious()"
+        [canGoNext]="selected.canGoNext()"
+        [isCurrent]="selected.isCurrent()"
+        (goPrevious)="previous()"
+        (goNext)="next()"
+        (goCurrent)="goToCurrent()"
+      />
     }
   `,
   host: { class: 'block' },
@@ -64,8 +39,6 @@ const BUTTON =
 export class MonthSwitcher {
   protected readonly selected = inject(SelectedMonth);
   private readonly settings = inject(SettingsStore);
-
-  protected readonly button = BUTTON;
 
   protected readonly shortLabel = computed(() => this.format(this.selected.month(), 'short'));
   protected readonly longLabel = computed(() => this.format(this.selected.month(), 'long'));

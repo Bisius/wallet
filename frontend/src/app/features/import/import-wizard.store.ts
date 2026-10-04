@@ -171,8 +171,7 @@ export class ImportWizardStore {
 
   /** The mapping is valid and the file has rows to import, and not too many. */
   readonly mappingReady = computed(
-    () =>
-      this.fileReady() && this.mapping() !== null && this.dataRows() > 0 && !this.tooManyRows(),
+    () => this.fileReady() && this.mapping() !== null && this.dataRows() > 0 && !this.tooManyRows(),
   );
 
   /** Something the user would lose by leaving: a file was read and nothing was imported yet. */
@@ -222,7 +221,9 @@ export class ImportWizardStore {
       await this.runParse(undefined, text);
     } catch {
       if (token === this.fileToken) {
-        this.readError.set(`Couldn't read ${file.name}. Check that it is a text file and try again.`);
+        this.readError.set(
+          `Couldn't read ${file.name}. Check that it is a text file and try again.`,
+        );
       }
     } finally {
       if (token === this.fileToken) this.reading.set(false);

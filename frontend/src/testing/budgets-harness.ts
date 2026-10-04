@@ -10,6 +10,7 @@ import { ToastService } from '../app/shared/ui/toast.service';
 import { getByLabel, getByRole, queryByRole, textOf, typeInto } from './dom';
 import { budgetDto, budgetLine, monthView, savingsDto } from './fixtures';
 import { primeStores, settle } from './harness';
+import { rowAction } from './menu';
 
 /** The Budgets page with the shell's confirm dialog and toasts, as the app has them. */
 @Component({
@@ -111,6 +112,17 @@ export function budgetsPageHelpers(
       getByRole(root, 'button', name).click();
       await settle(fixture);
     },
+    /**
+     * Opens the "More actions" menu called `menu` (a row or a card has one each) and presses its
+     * item: `await p.menuAction('More actions for Holiday 2027', 'Delete')`.
+     */
+    menuAction: (menu: string | RegExp, item: string | RegExp) => rowAction(element, item, menu),
+    /**
+     * Presses an item of the menu of a row of the transfers list, which a spec names by the words of
+     * the row: `await p.transferAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete')`.
+     */
+    transferAction: (transfer: string, item: string | RegExp) =>
+      rowAction(element, item, `More actions for transfer of ${transfer}`),
     type: async (label: string | RegExp, value: string, root: ParentNode = element) => {
       typeInto(getByLabel(root, label), value);
       await settle(fixture);

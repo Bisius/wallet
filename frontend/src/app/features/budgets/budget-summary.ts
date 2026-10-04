@@ -1,9 +1,13 @@
 import { Component, computed, input } from '@angular/core';
-import type { MonthStatus, MonthView } from '@wallet/shared';
+import type { Cents, MonthStatus, MonthView } from '@wallet/shared';
 import { MoneyPipe } from '../../shared/money.pipe';
-import { Amount } from '../../shared/ui/amount';
+import { Alert } from '../../shared/ui/alert';
 import { Icon } from '../../shared/ui/icon';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
+import { SectionHelp } from '../../shared/ui/section';
+import { Stat, StatNote, type StatSize } from '../../shared/ui/stat';
+import { StatGrid, type StatColumns } from '../../shared/ui/stat-grid';
+import { StatStrip } from '../../shared/ui/stat-strip';
 
 /** What a month's status means for the figures below it, in a sentence. */
 const STATUS_EXPLANATIONS: Record<MonthStatus, string> = {
@@ -15,76 +19,108 @@ const STATUS_EXPLANATIONS: Record<MonthStatus, string> = {
     'This month has not started yet. These figures are a projection that assumes the current month ends as it stands now.',
 };
 
+/** The figures of the month view that a strip can show: each is one field of it. */
+type Figure = 'income' | 'spent' | 'unallocated' | 'fixedCosts' | 'budgeted';
+
+const LABELS: Record<Figure, string> = {
+  income: 'Income',
+  spent: 'Spent',
+  unallocated: 'Unallocated',
+  fixedCosts: 'Fixed costs',
+  budgeted: 'Budgeted',
+};
+
+interface Layout {
+  columns: StatColumns;
+  /** The figures in the order they are shown, each with its size. */
+  figures: readonly { key: Figure; size: StatSize }[];
+}
+
 /**
- * The month at a glance: income, fixed costs, what the budgets add up to and what is left
- * unassigned, plus the status of the month in words. When more is planned than the month earns the
+ * `full` is the Dashboard's strip: what came in, what went out and what is left are the big figures,
+ * what was set aside for fixed costs and budgets are smaller. `slim` is the Budgets page's: only what
+ * the budgets add up to and what is left to give a job (the rest is on the Dashboard, and the cards
+ * show what each budget spent).
+ */
+const LAYOUTS = {
+  full: {
+    columns: 5,
+    figures: [
+      { key: 'income', size: 'lg' },
+      { key: 'spent', size: 'lg' },
+      { key: 'unallocated', size: 'lg' },
+      { key: 'fixedCosts', size: 'md' },
+      { key: 'budgeted', size: 'md' },
+    ],
+  },
+  slim: {
+    columns: 2,
+    figures: [
+      { key: 'budgeted', size: 'md' },
+      { key: 'unallocated', size: 'md' },
+    ],
+  },
+} satisfies Record<string, Layout>;
+
+export type BudgetSummaryLayout = keyof typeof LAYOUTS;
+
+/**
+ * The month at a glance: a strip of figures from the month view, the status of the month in words,
+ * and what the status means folded away under them. When more is planned than the month earns the
  * strip says so in an alert, and by how much. Every number is a field of the month view.
  *
- * The Dashboard also wants what has been spent so far (`showSpent`), which the Budgets page shows
- * on every card instead.
+ * The Dashboard and the Budgets page both show it, each with the figures that suit it (`layout`), so
+ * the two never disagree about what a figure is called or says.
  */
 @Component({
   selector: 'app-budget-summary',
-  imports: [Amount, Icon, MoneyPipe, MonthStatusBadge],
+  imports: [
+    Alert,
+    Icon,
+    MoneyPipe,
+    MonthStatusBadge,
+    SectionHelp,
+    Stat,
+    StatGrid,
+    StatNote,
+    StatStrip,
+  ],
   template: `
-    <section aria-labelledby="month-summary-heading" class="card space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="month-summary-heading" class="text-lg font-semibold">
-          {{ monthLabel() }} at a glance
-        </h2>
-        <app-month-status [status]="view().status" />
-      </div>
-      <p class="text-sm text-muted">{{ explanation() }}</p>
+    <app-stat-strip [heading]="monthLabel() + ' at a glance'">
+      <app-month-status stripStatus [status]="view().status" />
 
-      <dl [class]="gridClass()">
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Income</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="view().income.total" /></dd>
-        </div>
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Fixed costs</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="view().fixedCosts" /></dd>
-        </div>
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Budgeted</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="view().totals.allocated" /></dd>
-        </div>
-        @if (showSpent()) {
-          <div class="rounded-control bg-subtle p-3">
-            <dt class="text-sm text-muted">Spent</dt>
-            <dd class="text-lg font-semibold"><app-amount [cents]="view().totals.spent" /></dd>
+      <dl appStatGrid [columns]="shown().columns">
+        @for (figure of shown().figures; track figure.key) {
+          <div
+            appStat
+            [label]="labels[figure.key]"
+            [size]="figure.size"
+            [cents]="cents(figure.key)"
+          >
+            @if (figure.key === 'unallocated' && view().overAllocated) {
+              <dd statNote tone="negative">
+                <app-icon name="alert" />
+                Over-allocated
+              </dd>
+            }
           </div>
         }
-        <div class="rounded-control bg-subtle p-3" [class]="lastTileClass()">
-          <dt class="text-sm text-muted">Unallocated</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="view().unallocated" /></dd>
-          @if (view().overAllocated) {
-            <dd class="mt-0.5 flex items-center gap-1 text-sm font-medium text-negative">
-              <app-icon name="alert" />
-              Over-allocated
-            </dd>
-          }
-        </div>
       </dl>
 
       @if (view().overAllocated) {
-        <div role="alert" class="rounded-card border border-negative bg-negative-soft p-4 text-ink">
-          <p class="flex items-center gap-2 font-semibold text-negative">
-            <app-icon name="alert" />
-            Over-allocated by {{ -view().unallocated | money }}
-          </p>
-          <p class="mt-1 text-sm">
-            @if (view().status === 'closed') {
-              Fixed costs and budgets added up to more than this month's income, so that amount is
-              taken from savings.
-            } @else {
-              Fixed costs and budgets add up to more than this month's income. Lower a budget or add
-              income, or that amount will be taken from savings when the month closes.
-            }
-          </p>
-        </div>
+        <app-alert tone="error" [title]="'Over-allocated by ' + (-view().unallocated | money)">
+          @if (view().status === 'closed') {
+            Fixed costs and budgets added up to more than this month's income, so that amount is
+            taken from savings.
+          } @else {
+            Fixed costs and budgets add up to more than this month's income. Lower a budget or add
+            income, or that amount will be taken from savings when the month closes.
+          }
+        </app-alert>
       }
-    </section>
+
+      <p sectionHelp>{{ explanation() }}</p>
+    </app-stat-strip>
   `,
   host: { class: 'block' },
 })
@@ -92,23 +128,26 @@ export class BudgetSummary {
   readonly view = input.required<MonthView>();
   /** The month's name, as the page shows it ("October 2026"). */
   readonly monthLabel = input.required<string>();
-  /** Also show what has been spent from the budgets (`totals.spent`). */
-  readonly showSpent = input(false);
+  /** Which figures to show: all of them (`full`, the Dashboard) or only the budgeted and the unallocated (`slim`). */
+  readonly layout = input<BudgetSummaryLayout>('full');
 
+  protected readonly labels = LABELS;
+  protected readonly shown = computed<Layout>(() => LAYOUTS[this.layout()]);
   protected readonly explanation = computed(() => STATUS_EXPLANATIONS[this.view().status]);
 
-  /**
-   * On a phone the tiles are a wrapping row: two to a row, and an amount too wide for half the row
-   * (a million or more) takes a row of its own instead of pushing the page sideways. From `sm` up
-   * they are a grid: four tiles in two columns or four, five (with `spent`) in three or five.
-   */
-  protected readonly gridClass = computed(() =>
-    this.showSpent()
-      ? 'flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-3 xl:grid-cols-5'
-      : 'flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-2 lg:grid-cols-4',
-  );
-  /** With five tiles the last one takes the leftover cell(s) of its row. */
-  protected readonly lastTileClass = computed(() =>
-    this.showSpent() ? 'col-span-2 xl:col-span-1' : '',
-  );
+  protected cents(figure: Figure): Cents {
+    const view = this.view();
+    switch (figure) {
+      case 'income':
+        return view.income.total;
+      case 'spent':
+        return view.totals.spent;
+      case 'unallocated':
+        return view.unallocated;
+      case 'fixedCosts':
+        return view.fixedCosts;
+      case 'budgeted':
+        return view.totals.allocated;
+    }
+  }
 }

@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { a11yProblems } from '../../../testing/a11y';
 import { textOf } from '../../../testing/dom';
 import { render } from '../../../testing/harness';
 import { MONTH_STATUS_LABELS, MonthStatusBadge } from './month-status';
@@ -27,5 +28,21 @@ describe('MonthStatusBadge', () => {
       current: 'Current month',
       future: 'Projection',
     });
+  });
+
+  it('is a badge: the month that is running stands out, the others are plain labels', async () => {
+    const fixture = await render(StatusHost);
+    const badges = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+        'app-month-status app-badge',
+      ),
+    );
+
+    expect(badges.map((badge) => badge.classList.contains('bg-accent-soft'))).toEqual([
+      false,
+      true,
+      false,
+    ]);
+    expect(a11yProblems(fixture.nativeElement)).toEqual([]);
   });
 });

@@ -15,7 +15,7 @@ import { ConfirmService } from './confirm.service';
       #dialog
       aria-labelledby="confirm-title"
       aria-describedby="confirm-message"
-      class="m-auto w-[min(92vw,26rem)] rounded-card border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/60"
+      class="m-auto w-[min(92vw,26rem)] rounded-card border border-line bg-surface-raised p-0 text-ink shadow-overlay backdrop:bg-black/60 motion-safe:animate-dialog-in motion-safe:backdrop:animate-fade-in"
       (close)="answer(false)"
       (click)="onBackdropClick($event)"
     >

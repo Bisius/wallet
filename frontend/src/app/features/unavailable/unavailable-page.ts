@@ -4,9 +4,10 @@ import { ApiStatus } from '../../core/api-status';
 import { parseApiError } from '../../core/api-error';
 import { SettingsStore } from '../../core/settings.store';
 import { TodayStore } from '../../core/today.store';
-import { PageHeader } from '../../shared/page-header';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
 
 /**
  * Where the guards send the user when the settings or today's date could not be loaded (the API is
@@ -15,24 +16,19 @@ import { Icon } from '../../shared/ui/icon';
  */
 @Component({
   selector: 'app-unavailable-page',
-  imports: [PageHeader, Button, Icon],
+  imports: [AppPage, PageHeader, Alert, Button],
   template: `
-    <app-page-header
-      title="Wallet can't load"
-      subtitle="The server did not give the app what it needs to start."
-    />
-    <div
-      role="alert"
-      class="max-w-xl space-y-3 rounded-card border border-negative bg-negative-soft p-4 text-ink md:p-6"
-    >
-      <p class="flex items-center gap-2 font-semibold text-negative">
-        <app-icon name="alert" />
-        What went wrong
-      </p>
-      <p>{{ message() }}</p>
-      <p class="text-sm">Check that the Wallet server is running and reachable from this device.</p>
-      <button appButton [loading]="retrying()" (click)="retry()">Try again</button>
-    </div>
+    <app-page width="narrow">
+      <app-page-header
+        title="Wallet can't load"
+        subtitle="The server did not give the app what it needs to start."
+      />
+      <app-alert tone="error" title="What went wrong">
+        <p>{{ message() }}</p>
+        <p class="mt-2">Check that the Wallet server is running and reachable from this device.</p>
+        <button alertAction appButton [loading]="retrying()" (click)="retry()">Try again</button>
+      </app-alert>
+    </app-page>
   `,
 })
 export class UnavailablePage {

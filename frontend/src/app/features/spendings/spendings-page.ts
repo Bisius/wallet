@@ -4,7 +4,6 @@ import {
   Component,
   computed,
   effect,
-  ElementRef,
   inject,
   Injector,
   linkedSignal,
@@ -23,33 +22,32 @@ import { SettingsStore } from '../../core/settings.store';
 import { TagsStore } from '../../core/tags.store';
 import { TodayStore } from '../../core/today.store';
 import { formatDate, formatMonth } from '../../shared/format';
-import { formatMoney, MoneyPipe } from '../../shared/money.pipe';
-import { PageHeader } from '../../shared/page-header';
+import { formatMoney } from '../../shared/money.pipe';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
+import { Alert } from '../../shared/ui/alert';
 import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
 import { LinkButton } from '../../shared/ui/link-button';
+import { AppList, ListRow } from '../../shared/ui/list';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { AppSection } from '../../shared/ui/section';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { TagChip } from '../../shared/ui/tag-chip';
 import { ToastService } from '../../shared/ui/toast.service';
 import { BudgetsApi } from '../budgets/budgets.api';
-import { ALERT_LABELS } from '../budgets/budget-utils';
 import { MonthsApi } from '../months/months.api';
 import { groupByDay } from './group-by-day';
+import { type Added, addedConfirmation } from './spending-confirmation';
 import { SpendingEditDialog } from './spending-edit-dialog';
 import { type BudgetOption, SpendingFilterBar } from './spending-filter-bar';
 import { filtersProblem, narrowingCount } from './spending-filters';
 import { SpendingForm } from './spending-form';
 import { SpendingQuery } from './spending-query';
 import { SpendingsApi, type SpendingsFilter } from './spendings.api';
-
-/** What was just added, for the confirmation under the form. */
-interface Added {
-  budgetId: number;
-  amount: number;
-}
 
 /** Rows that "Load more" added to the first page, for the filter they belong to. */
 interface Extras {
@@ -103,12 +101,18 @@ const STALE_LOOK = 'opacity-90 saturate-50 delay-200';
   selector: 'app-spendings-page',
   imports: [
     RouterLink,
+    AppPage,
     PageHeader,
+    AppSection,
+    ActionMenu,
+    Alert,
+    AppList,
     Button,
     Icon,
     LinkButton,
+    ListRow,
+    MenuItem,
     Amount,
-    MoneyPipe,
     MonthStatusBadge,
     EmptyState,
     ErrorState,
@@ -129,7 +133,7 @@ export class SpendingsPage {
   private readonly injector = inject(Injector);
   private readonly today = inject(TodayStore);
   private readonly query = inject(SpendingQuery);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly listSection = viewChild<AppSection>('listSection');
   /** The form that adds a spending (not the one in the edit dialog, which is in the dialog's view). */
   private readonly addForm = viewChild(SpendingForm);
 
@@ -251,6 +255,18 @@ export class SpendingsPage {
       ? 'Every expense, linked to a budget, in every month. The form adds to ' + month + '.'
       : 'Every expense, linked to a budget, for ' + month + '.';
   });
+  /** What a spending added here means for the month, when it is not the running one. */
+  protected readonly addNote = computed(() => {
+    const month = this.monthLabel();
+    switch (this.monthView()?.status) {
+      case 'closed':
+        return `${month} is closed. A spending added to it changes what is due to savings.`;
+      case 'future':
+        return `${month} has not started yet. A spending dated in it counts towards its projection.`;
+      default:
+        return undefined;
+    }
+  });
   /** What the list covers, for its heading: "October 2026", or "all months". */
   protected readonly scopeLabel = computed(() =>
     this.filters().allMonths ? 'all months' : this.monthLabel(),
@@ -340,31 +356,15 @@ export class SpendingsPage {
 
   /**
    * What was just added, in a sentence or two, with the budget's figures as the month view reports
-   * them (nothing here is calculated: only the sign is turned around to say "over budget by").
+   * them (see `addedConfirmation`).
    */
   protected readonly confirmation = computed(() => {
     const added = this.added();
     if (!added) return null;
     const line = this.lines().find((candidate) => candidate.id === added.budgetId);
-    const money = (cents: number) =>
-      formatMoney(cents, this.settings.locale(), this.settings.currency());
-    const name = line?.name ?? 'the budget';
-
-    const parts = [
-      added.amount < 0
-        ? `Refund of ${money(-added.amount)} added to ${name}.`
-        : `Added ${money(added.amount)} to ${name}.`,
-    ];
-    if (line && line.remaining < 0) {
-      const used = line.usagePercent === null ? '' : ` (${line.usagePercent}% used)`;
-      parts.push(`Over budget by ${money(-line.remaining)}${used}.`);
-    } else if (line) {
-      parts.push(`${money(line.remaining)} left of ${money(line.available)}.`);
-      if (line.alert === 'warning' && line.usagePercent !== null) {
-        parts.push(`${ALERT_LABELS.warning}: ${line.usagePercent}% used.`);
-      }
-    }
-    return parts.join(' ');
+    return addedConfirmation(added, line, (cents) =>
+      formatMoney(cents, this.settings.locale(), this.settings.currency()),
+    );
   });
 
   constructor() {
@@ -447,7 +447,7 @@ export class SpendingsPage {
   /** Every filter off, and focus on the list heading: the button that was pressed is gone. */
   protected async clearFilters(): Promise<void> {
     await this.query.clear();
-    this.focus(() => this.heading()?.nativeElement ?? null);
+    this.focusListHeading();
   }
 
   /** Something changed on the server: load the list from its first page again, and the month view. */
@@ -509,7 +509,7 @@ export class SpendingsPage {
       this.refreshSavingsFor(spending.date);
       await this.reload();
       // The row that had focus is gone.
-      this.focus(() => this.heading()?.nativeElement ?? null);
+      this.focusListHeading();
     } catch (error) {
       this.toast.error(parseApiError(error).message);
     }
@@ -536,7 +536,7 @@ export class SpendingsPage {
         items: [...(extras.key === key ? extras.items : []), ...page.items],
       }));
       // The button that had focus leaves with the last page: keep the keyboard in the list.
-      if (!this.hasMore()) this.focus(() => this.heading()?.nativeElement ?? null);
+      if (!this.hasMore()) this.focusListHeading();
     } catch (error) {
       this.moreError.set(parseApiError(error).message);
     } finally {
@@ -544,7 +544,7 @@ export class SpendingsPage {
     }
   }
 
-  private focus(find: () => HTMLElement | null): void {
-    afterNextRender(() => find()?.focus(), { injector: this.injector });
+  private focusListHeading(): void {
+    afterNextRender(() => this.listSection()?.focusHeading(), { injector: this.injector });
   }
 }

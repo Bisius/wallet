@@ -8,7 +8,9 @@ import {
   type LineChartCategory,
   type LineChartSeries,
 } from '../../shared/ui/charts/line-chart';
-import { MONTH_STATUS_LABELS } from '../../shared/ui/month-status';
+import { MONTH_STATUS_LABELS, MonthStatusBadge } from '../../shared/ui/month-status';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
+import { TableScroll } from '../../shared/ui/table-scroll';
 
 /**
  * The year month by month: a line chart of income, spent and saved (the shared chart, the same
@@ -18,18 +20,17 @@ import { MONTH_STATUS_LABELS } from '../../shared/ui/month-status';
  */
 @Component({
   selector: 'app-report-months',
-  imports: [Amount, LineChart],
+  imports: [Amount, AppSection, LineChart, MonthStatusBadge, SectionHelp, TableScroll],
   template: `
-    <section aria-labelledby="report-months-heading" class="card space-y-4">
-      <div>
-        <h2 id="report-months-heading" class="text-lg font-semibold">Month by month</h2>
-        <p class="mt-1 text-sm text-muted">
-          Saved is what is due to savings when a month closes: below zero, money is taken from
-          savings. A month marked Projection has not started, so its figures assume the current
-          month ends as it stands.
-        </p>
-      </div>
-
+    <app-section
+      heading="Month by month"
+      description="Figures for each month, and the year's total at the end."
+    >
+      <p sectionHelp>
+        Saved is what is due to savings when a month closes: below zero, money is taken from
+        savings. A month marked Projection has not started, so its figures assume the current month
+        ends as it stands.
+      </p>
       <app-line-chart
         [label]="'Income, spent and saved per month, ' + report().year"
         [categories]="categories()"
@@ -40,82 +41,74 @@ import { MONTH_STATUS_LABELS } from '../../shared/ui/month-status';
         hint="Use the left and right arrow keys to move between months. Home and End go to the first and the last."
       />
 
-      <div
-        class="overflow-x-auto rounded-card border border-line"
-        role="region"
-        aria-label="Figures per month"
-        tabindex="0"
-      >
-        <table class="w-full min-w-[40rem] border-collapse text-left text-sm">
+      <app-table-scroll label="Figures per month">
+        <table class="data-table min-w-[40rem]">
           <caption class="sr-only">
             Figures per month in
             {{
               report().year
             }}
           </caption>
-          <thead class="bg-subtle">
+          <thead>
             <tr>
-              <th scope="col" class="px-3 py-2 font-semibold">Month</th>
-              <th scope="col" class="px-3 py-2 text-right font-semibold">Income</th>
-              <th scope="col" class="px-3 py-2 text-right font-semibold">Fixed costs</th>
-              <th scope="col" class="px-3 py-2 text-right font-semibold">Budgeted</th>
-              <th scope="col" class="px-3 py-2 text-right font-semibold">Spent</th>
-              <th scope="col" class="px-3 py-2 text-right font-semibold">Saved</th>
+              <th scope="col">Month</th>
+              <th scope="col" class="cell-num">Income</th>
+              <th scope="col" class="cell-num">Fixed costs</th>
+              <th scope="col" class="cell-num">Budgeted</th>
+              <th scope="col" class="cell-num">Spent</th>
+              <th scope="col" class="cell-num">Saved</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-line">
+          <tbody>
             @for (month of rows(); track month.key) {
               <tr [class.bg-subtle]="month.status === 'future'">
-                <th scope="row" class="px-3 py-2 font-medium whitespace-nowrap">
+                <th scope="row" class="whitespace-nowrap">
                   {{ month.name }}
                   @if (month.status !== 'closed') {
-                    <span
-                      class="ml-1 rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium"
-                      >{{ month.statusLabel }}</span
-                    >
+                    <app-month-status class="ml-1" [status]="month.status" />
                   }
                 </th>
-                <td class="px-3 py-2 text-right tabular-nums">
+                <td class="cell-num">
                   <app-amount [cents]="month.income.total" />
                 </td>
-                <td class="px-3 py-2 text-right tabular-nums">
+                <td class="cell-num">
                   <app-amount [cents]="month.fixedCosts" />
                 </td>
-                <td class="px-3 py-2 text-right tabular-nums">
+                <td class="cell-num">
                   <app-amount [cents]="month.allocated" />
                 </td>
-                <td class="px-3 py-2 text-right tabular-nums">
+                <td class="cell-num">
                   <app-amount [cents]="month.spent" />
                 </td>
-                <td class="px-3 py-2 text-right tabular-nums">
+                <td class="cell-num">
                   <app-amount [cents]="month.saved" [signed]="true" plain />
                 </td>
               </tr>
             }
           </tbody>
-          <tfoot class="border-t-2 border-line-strong font-semibold">
+          <tfoot>
             <tr>
-              <th scope="row" class="px-3 py-2">Total {{ report().year }}</th>
-              <td class="px-3 py-2 text-right tabular-nums">
+              <th scope="row">Total {{ report().year }}</th>
+              <td class="cell-num">
                 <app-amount [cents]="report().income.total" />
               </td>
-              <td class="px-3 py-2 text-right tabular-nums">
+              <td class="cell-num">
                 <app-amount [cents]="report().fixedCosts.total" />
               </td>
-              <td class="px-3 py-2 text-right tabular-nums">
+              <td class="cell-num">
                 <app-amount [cents]="report().allocated" />
               </td>
-              <td class="px-3 py-2 text-right tabular-nums">
+              <td class="cell-num">
                 <app-amount [cents]="report().spent" />
               </td>
-              <td class="px-3 py-2 text-right tabular-nums">
+              <td class="cell-num">
                 <app-amount [cents]="report().saved" [signed]="true" plain />
               </td>
             </tr>
           </tfoot>
         </table>
-      </div>
-    </section>
+      </app-table-scroll>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -130,7 +123,6 @@ export class ReportMonths {
       ...month,
       key: month.month,
       name: formatMonth(month.month, locale),
-      statusLabel: MONTH_STATUS_LABELS[month.status],
     }));
   });
 

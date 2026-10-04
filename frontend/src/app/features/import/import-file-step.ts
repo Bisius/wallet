@@ -4,8 +4,10 @@ import { SettingsStore } from '../../core/settings.store';
 import { formatBytes } from '../../shared/format';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { KeyValue, KeyValues } from '../../shared/ui/key-values';
 import { LoadingState } from '../../shared/ui/states';
 import { encodingNote } from './decode-csv';
 import { DELIMITER_LABELS } from './import-text';
@@ -20,16 +22,27 @@ import { ImportWizardStore } from './import-wizard.store';
  */
 @Component({
   selector: 'app-import-file-step',
-  imports: [Field, AppInput, Button, Icon, LoadingState],
+  imports: [
+    AppSection,
+    SectionHelp,
+    Alert,
+    Field,
+    AppInput,
+    Button,
+    KeyValue,
+    KeyValues,
+    LoadingState,
+  ],
   template: `
-    <section aria-labelledby="import-file-heading" class="card max-w-2xl space-y-4">
-      <h2 #heading id="import-file-heading" tabindex="-1" class="text-xl font-semibold tracking-tight">
-        Choose your bank's file
-      </h2>
-      <p class="text-sm text-muted">
-        A .csv or .txt file with one row per transaction, up to {{ maxSize }} and
-        {{ maxRows }} rows. It is read in your browser and sent to your own Wallet server. Nothing is
-        stored until you confirm the last step.
+    <app-section
+      heading="Choose your bank's file"
+      description="A .csv or .txt file with one row per transaction."
+      focusable
+    >
+      <p sectionHelp>{{ limits }}</p>
+      <p sectionHelp>
+        It is read in your browser and sent to your own Wallet server. Nothing is stored until you
+        confirm the last step.
       </p>
 
       <app-field label="CSV file">
@@ -38,7 +51,6 @@ import { ImportWizardStore } from './import-wizard.store';
           appInput
           type="file"
           accept=".csv,.txt,text/csv,text/plain"
-          class="file:mr-3 file:cursor-pointer file:rounded-control file:border-0 file:bg-subtle file:px-3 file:py-1 file:font-medium file:text-ink"
           (change)="onPick($event)"
         />
       </app-field>
@@ -49,46 +61,36 @@ import { ImportWizardStore } from './import-wizard.store';
 
       <div aria-live="polite">
         @if (wizard.readError(); as error) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-          >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span>
-              <strong class="font-semibold">Couldn't use this file.</strong> {{ error }}
-            </span>
-          </p>
+          <app-alert tone="error">
+            <strong class="font-semibold">Couldn't use this file.</strong> {{ error }}
+          </app-alert>
         }
       </div>
 
       @if (wizard.file(); as file) {
         @if (wizard.parse(); as parse) {
-          <dl class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
-            <dt class="font-medium">File</dt>
-            <dd class="break-all">{{ file.name }} ({{ size(file.sizeBytes) }})</dd>
-            <dt class="font-medium">Rows found</dt>
-            <dd>{{ parse.recordCount }} (the first one may be a header)</dd>
-            <dt class="font-medium">Columns</dt>
-            <dd>{{ parse.columnCount }}</dd>
-            <dt class="font-medium">Cells separated by</dt>
-            <dd>{{ delimiterLabels[parse.delimiter] }}, detected</dd>
+          <dl appKeyValues>
+            <div appKeyValue label="File">
+              <span class="break-all">{{ file.name }} ({{ size(file.sizeBytes) }})</span>
+            </div>
+            <div appKeyValue label="Rows found">
+              {{ parse.recordCount }} (the first one may be a header)
+            </div>
+            <div appKeyValue label="Columns">{{ parse.columnCount }}</div>
+            <div appKeyValue label="Cells separated by">
+              {{ delimiterLabels[parse.delimiter] }}, detected
+            </div>
           </dl>
           @if (note(); as text) {
             <p class="text-sm text-muted">{{ text }}</p>
           }
           @if (parse.recordCount === 0) {
-            <p
-              role="alert"
-              class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-            >
-              <app-icon name="alert" class="mt-0.5 text-negative" />
-              <span>The file has no rows. Choose another file.</span>
-            </p>
+            <app-alert tone="error">The file has no rows. Choose another file.</app-alert>
           }
         }
       }
 
-      <div class="flex justify-end border-t border-line pt-4">
+      <div class="wizard-actions">
         <button
           appButton
           [disabled]="!wizard.fileReady() || wizard.reading()"
@@ -97,7 +99,7 @@ import { ImportWizardStore } from './import-wizard.store';
           Next: choose the columns
         </button>
       </div>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -109,6 +111,7 @@ export class ImportFileStep {
   protected readonly delimiterLabels = DELIMITER_LABELS;
   protected readonly maxSize = formatBytes(IMPORT_MAX_BODY_BYTES, 'en-US');
   protected readonly maxRows = new Intl.NumberFormat('en-US').format(IMPORT_MAX_ROWS);
+  protected readonly limits = `Up to ${this.maxSize} and ${this.maxRows} rows.`;
 
   protected size(bytes: number): string {
     return formatBytes(bytes, this.settings.locale());

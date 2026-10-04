@@ -1,6 +1,8 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   afterNextRender,
   Component,
+  computed,
   effect,
   ElementRef,
   inject,
@@ -12,7 +14,7 @@ import {
   untracked,
   viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import {
   FormControl,
   FormGroup,
@@ -43,7 +45,9 @@ import { TagInput } from '../../shared/forms/tag-input';
 import { Toggle } from '../../shared/forms/toggle';
 import { dateInMonth } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
+import { Disclosure } from '../../shared/ui/disclosure';
 import { Icon } from '../../shared/ui/icon';
 import { LastBudgetStore } from './last-budget.store';
 import { SpendingsApi } from './spendings.api';
@@ -94,21 +98,27 @@ function sameIds(a: readonly number[], b: readonly number[]): boolean {
  * clears the amount, description, tags and Refund switch and keeps the budget and date, ready for the
  * next entry, with focus back on the amount.
  *
- * Tags are optional and out of the way: a new spending shows an "Add tags" button that brings up the
- * tag field (and it stays up for the next entry), while the edit dialog always has the field.
+ * The quick add on a page is compact: amount, budget and date, and under a "More" disclosure the
+ * description, the tags and the Refund switch. "More" opens by itself when something in it has a value
+ * or a problem, so nothing that matters is out of sight. In a dialog (the edit dialog, the shell's Add
+ * spending) every field is there: a new spending shows an "Add tags" button that brings up the tag
+ * field (and it stays up for the next entry), while the edit dialog always has the field.
  *
  * `saved` carries what the API stored. The page reloads what it shows and confirms.
  */
 @Component({
   selector: 'app-spending-form',
   imports: [
+    Alert,
     ReactiveFormsModule,
+    NgTemplateOutlet,
     Field,
     AppInput,
     MoneyInput,
     TagInput,
     Toggle,
     Button,
+    Disclosure,
     Icon,
     MoneyPipe,
   ],
@@ -134,6 +144,12 @@ export class SpendingForm implements OnInit {
   readonly budgets = input.required<readonly MonthBudgetLine[]>();
   /** The spending to edit. Leave unset to add a new one. */
   readonly spending = input<SpendingDto>();
+  /**
+   * The form is in a dialog (the edit dialog, or the shell's Add spending): Save and Cancel sit in the
+   * dialog's own footer, which stays in view. Only a new spending on a page, which has no Cancel, is
+   * `false`.
+   */
+  readonly inDialog = input(false);
 
   readonly saved = output<SpendingDto>();
   readonly cancelled = output<void>();
@@ -145,6 +161,8 @@ export class SpendingForm implements OnInit {
   protected readonly formError = signal<string | null>(null);
   /** The tag field is up. A new spending starts without it; the edit dialog always has it. */
   protected readonly tagsOpen = signal(false);
+  /** "More" of the compact form is unfolded. */
+  protected readonly moreOpen = signal(false);
 
   protected firstDay = () => firstDayOf(this.month());
   protected lastDay = () => lastDayOf(this.month());
@@ -178,6 +196,12 @@ export class SpendingForm implements OnInit {
   protected readonly isRefund = toSignal(this.form.controls.refund.valueChanges, {
     initialValue: false,
   });
+  /** The footer is the dialog's: Cancel and the main action. An edit is always in a dialog. */
+  protected readonly dialogFooter = computed(
+    () => this.inDialog() || this.spending() !== undefined,
+  );
+  /** The quick add of a page: a new spending that is not in a dialog. */
+  protected readonly compact = computed(() => !this.dialogFooter());
 
   constructor() {
     // The month can change while the form is open (the month switcher is always there): keep the
@@ -201,6 +225,14 @@ export class SpendingForm implements OnInit {
         const wanted = budgets.find((line) => line.id === last) ?? budgets[0];
         control.setValue(wanted ? String(wanted.id) : '');
       });
+    });
+
+    // What is under "More" is never out of sight while it holds something.
+    this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
+      const { description, tagIds, refund } = this.form.controls;
+      if (description.value.trim() !== '' || tagIds.value.length > 0 || refund.value) {
+        this.moreOpen.set(true);
+      }
     });
   }
 
@@ -323,7 +355,14 @@ export class SpendingForm implements OnInit {
     this.focusAmount();
   }
 
+  /** Unfolds "More" when a field in it has a problem, so that focus can go to it and it can be read. */
+  private revealInvalidMore(): void {
+    const { description, tagIds } = this.form.controls;
+    if (description.invalid || tagIds.invalid) this.moreOpen.set(true);
+  }
+
   private focusInvalidAfterRender(): void {
+    this.revealInvalidMore();
     afterNextRender(() => focusFirstInvalidOrSubmit(this.host.nativeElement), {
       injector: this.injector,
     });

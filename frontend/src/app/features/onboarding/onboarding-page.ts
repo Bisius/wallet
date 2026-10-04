@@ -49,9 +49,15 @@ import { START_MONTH_HINT, START_MONTH_RULE_HELP } from '../../shared/forms/star
 import { Toggle } from '../../shared/forms/toggle';
 import { nonNegativeAmount, zodValidator } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
-import { PageHeader } from '../../shared/page-header';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
+import { KeyValue, KeyValues } from '../../shared/ui/key-values';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { AppSection } from '../../shared/ui/section';
+import { Stepper } from '../../shared/ui/stepper';
 import { ToastService } from '../../shared/ui/toast.service';
 import { OnboardingApi } from './onboarding.api';
 
@@ -63,14 +69,27 @@ interface Step {
   label: string;
   /** Heading of the step. Focus moves here when the step opens. */
   heading: string;
+  /** One line under the heading, for a step whose fields do not say it all. */
+  description?: string;
 }
 
 const STEPS: readonly Step[] = [
   { id: 'basics', label: 'Basics', heading: 'Start month and currency' },
   { id: 'salary', label: 'Salary', heading: 'Your monthly salary' },
   { id: 'savings', label: 'Savings', heading: 'Your savings so far' },
-  { id: 'budgets', label: 'Budgets', heading: 'Your first budgets' },
-  { id: 'review', label: 'Review', heading: 'Review and finish' },
+  {
+    id: 'budgets',
+    label: 'Budgets',
+    heading: 'Your first budgets',
+    description:
+      'Split your income into spending categories. You can skip this and add budgets later.',
+  },
+  {
+    id: 'review',
+    label: 'Review',
+    heading: 'Review and finish',
+    description: 'Check everything, then create your wallet. Nothing is saved until you do.',
+  },
 ];
 
 type BudgetForm = FormGroup<{
@@ -89,6 +108,9 @@ type BudgetForm = FormGroup<{
 @Component({
   selector: 'app-onboarding-page',
   imports: [
+    Alert,
+    AppPage,
+    AppSection,
     ReactiveFormsModule,
     PageHeader,
     Field,
@@ -99,6 +121,11 @@ type BudgetForm = FormGroup<{
     Button,
     Icon,
     MoneyPipe,
+    KeyValue,
+    KeyValues,
+    AppList,
+    ListRow,
+    Stepper,
   ],
   templateUrl: './onboarding-page.html',
 })
@@ -146,7 +173,7 @@ export class OnboardingPage {
   /** An error that belongs to no field: shown above the buttons. */
   protected readonly formError = signal<string | null>(null);
 
-  private readonly stepHeading = viewChild<ElementRef<HTMLElement>>('stepHeading');
+  private readonly stepSection = viewChild(AppSection);
   private readonly addBudgetButton = viewChild('addBudgetButton', { read: ElementRef });
 
   /** Everything typed so far, as a signal (for the review and for the money inputs' currency). */
@@ -208,7 +235,7 @@ export class OnboardingPage {
     this.stepIndex.set(index);
     this.formError.set(null);
     // The new step's heading takes focus, so screen reader and keyboard users arrive at the top of it.
-    afterNextRender(() => this.stepHeading()?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => this.stepSection()?.focusHeading(), { injector: this.injector });
   }
 
   /** Marks the step's controls touched and says whether they are valid. Focuses the first problem. */

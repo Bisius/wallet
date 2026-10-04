@@ -101,8 +101,7 @@ describe('ImportPreviewTable', () => {
     await settle(fixture);
     const element = fixture.nativeElement as HTMLElement;
 
-    const checkbox = (line: number) =>
-      getByLabel<HTMLInputElement>(element, `Import line ${line}`);
+    const checkbox = (line: number) => getByLabel<HTMLInputElement>(element, `Import line ${line}`);
     const row = (line: number) => checkbox(line).closest('tr') as HTMLTableRowElement;
     const budget = (line: number) =>
       getByLabel<HTMLSelectElement>(element, `Budget for line ${line}`);
@@ -572,7 +571,10 @@ describe('ImportPreviewTable', () => {
           { line: 2, errors: ['duplicate'] },
           { line: 7, errors: ['unknown_budget', 'some_future_code'] },
         ],
-        { budgets: BUDGETS, rows: [{ ...COFFEE, duplicate: true }, LUNCH, SALARY, RENT, GYM, CINEMA] },
+        {
+          budgets: BUDGETS,
+          rows: [{ ...COFFEE, duplicate: true }, LUNCH, SALARY, RENT, GYM, CINEMA],
+        },
       );
 
       expect(t.cells(2)[2]).toBe(

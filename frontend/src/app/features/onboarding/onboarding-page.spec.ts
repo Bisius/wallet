@@ -11,6 +11,7 @@ import {
 import { SettingsStore } from '../../core/settings.store';
 import { ToastService } from '../../shared/ui/toast.service';
 import {
+  accessibleName,
   fieldError,
   getAllByLabel,
   getByLabel,
@@ -208,11 +209,13 @@ describe('OnboardingPage', () => {
         null,
         null,
       ]);
-      expect(items().map((li) => textOf(li))).toEqual(
-        ['1 Basics', '2 Salary', '3 Savings', '4 Budgets', '5 Review'].map((t) =>
-          t.replace(/^\d /, ''),
-        ),
-      );
+      expect(items().map((li) => textOf(li))).toEqual([
+        'Basics',
+        'Salary (upcoming)',
+        'Savings (upcoming)',
+        'Budgets (upcoming)',
+        'Review (upcoming)',
+      ]);
 
       await wizard.next();
       expect(textOf(wizard.element)).toContain('Step 2 of 5');
@@ -374,6 +377,30 @@ describe('OnboardingPage', () => {
       expect(document.activeElement).toBe(getAllByLabel(wizard.element, 'Name')[0]);
     });
 
+    it('lists the rows as plain groups divided by a line, not as boxes inside the card', async () => {
+      const wizard = await atBudgets();
+      await wizard.press('Add a budget');
+      await wizard.press('Add a budget');
+
+      const groups = queryAllByRole(wizard.element, 'group').filter((group) =>
+        /^Budget \d$/.test(accessibleName(group)),
+      );
+      expect(groups).toHaveLength(2);
+      for (const group of groups) {
+        expect(group.className).not.toMatch(/\b(border|rounded-card)\b/);
+      }
+      // Each group sits in a row of its own, and the rows are divided by a line.
+      expect((groups[0].parentElement?.parentElement as Element).className).toContain('divide-y');
+    });
+
+    it('says in one line under the heading that budgets may be skipped', async () => {
+      const wizard = await atBudgets();
+
+      expect(textOf(wizard.element.querySelector('h2')?.nextElementSibling as Element)).toBe(
+        'Split your income into spending categories. You can skip this and add budgets later.',
+      );
+    });
+
     it('explains rollover in one line, next to the toggle', async () => {
       const wizard = await atBudgets();
       await wizard.press('Add a budget');
@@ -494,8 +521,8 @@ describe('OnboardingPage', () => {
       expect(text).toContain('Currency and locale EUR · en-US');
       expect(text).toContain('Monthly net salary €2,500.00');
       expect(text).toContain('Savings balance on the 1st of October 2026 €1,000.00');
-      expect(text).toContain('Groceries · Incremental €400.00');
-      expect(text).toContain('Fun · Not incremental €100.50');
+      expect(text).toContain('Groceries Incremental €400.00');
+      expect(text).toContain('Fun Not incremental €100.50');
       expect(text).toContain('Nothing is saved until you do.');
     });
 

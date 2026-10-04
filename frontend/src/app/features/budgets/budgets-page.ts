@@ -3,11 +3,11 @@ import {
   Component,
   computed,
   DOCUMENT,
-  ElementRef,
   inject,
   Injector,
   signal,
   viewChild,
+  viewChildren,
 } from '@angular/core';
 import type { BudgetDto, MonthBudgetLine } from '@wallet/shared';
 import { firstValueFrom } from 'rxjs';
@@ -19,10 +19,15 @@ import { SettingsStore } from '../../core/settings.store';
 import { TodayStore } from '../../core/today.store';
 import { formatMonth } from '../../shared/format';
 import { MoneyPipe } from '../../shared/money.pipe';
-import { PageHeader } from '../../shared/page-header';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
+import { Disclosure } from '../../shared/ui/disclosure';
 import { Icon } from '../../shared/ui/icon';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { AppSection } from '../../shared/ui/section';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { MonthsApi } from '../months/months.api';
@@ -55,9 +60,16 @@ interface Card {
 @Component({
   selector: 'app-budgets-page',
   imports: [
+    AppPage,
     PageHeader,
+    AppSection,
+    Disclosure,
+    ActionMenu,
+    AppList,
     Button,
     Icon,
+    ListRow,
+    MenuItem,
     EmptyState,
     ErrorState,
     LoadingState,
@@ -77,9 +89,9 @@ export class BudgetsPage {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly doc = inject(DOCUMENT);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly listSection = viewChild(AppSection);
+  private readonly cardViews = viewChildren(BudgetCard);
   private readonly transfersSection = viewChild(TransfersSection);
 
   protected readonly month = inject(SelectedMonth).month;
@@ -223,8 +235,8 @@ export class BudgetsPage {
       await firstValueFrom(this.api.archive(budget.id));
       this.toast.success(`${budget.name} archived.`);
       await this.reload();
-      // The Archive button that had focus is gone: go back to the card.
-      this.focus(() => this.byAction(`edit-${budget.id}`));
+      // The menu item that was pressed is hidden: keep the keyboard on the card's menu button.
+      this.focusCard(budget.id);
     } catch (error) {
       this.toast.error(parseApiError(error).message);
       await this.reload();
@@ -248,7 +260,7 @@ export class BudgetsPage {
       this.toast.success(`${budget.name} deleted.`);
       await this.reload();
       // The card that had focus is gone.
-      this.focus(() => this.heading()?.nativeElement ?? null);
+      afterNextRender(() => this.listSection()?.focusHeading(), { injector: this.injector });
     } catch (error) {
       // 409 `has_history`: spendings were added since the list was loaded. The message says so.
       this.toast.error(parseApiError(error).message);
@@ -291,15 +303,19 @@ export class BudgetsPage {
     this.announcement.set(
       `${card.line.name} moved ${direction}. It is now number ${position} of ${now.length}.`,
     );
-    // The card keeps its identity but may have moved in the page: keep the keyboard where it was.
-    this.focus(() => this.byAction(`${direction}-${card.line.id}`));
+    // The item that was pressed is hidden, and the card may have a new place in the page (its
+    // element moves, which drops focus): put the keyboard on the card's menu button.
+    this.focusCard(card.line.id);
   }
 
-  private byAction(action: string): HTMLElement | null {
-    return this.host.nativeElement.querySelector<HTMLElement>(`[data-action="${action}"]`);
-  }
-
-  private focus(find: () => HTMLElement | null): void {
-    afterNextRender(() => find()?.focus(), { injector: this.injector });
+  /** Puts the keyboard on the "More actions" button of a card, once the page has drawn it. */
+  private focusCard(budgetId: number): void {
+    afterNextRender(
+      () =>
+        this.cardViews()
+          .find((view) => view.line().id === budgetId)
+          ?.focusMenu(),
+      { injector: this.injector },
+    );
   }
 }

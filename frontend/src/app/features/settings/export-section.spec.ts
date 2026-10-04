@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import {
+  accessibleName,
   fieldError,
   getByLabel,
   getByRole,
@@ -29,7 +30,9 @@ describe('ExportSection', () => {
   it('offers the three downloads as plain links, for the whole history', async () => {
     const { link, element } = await setup();
 
-    const hrefs = ['spendings', 'incomes', 'savings'].map((kind) => link(kind).getAttribute('href'));
+    const hrefs = ['spendings', 'incomes', 'savings'].map((kind) =>
+      link(kind).getAttribute('href'),
+    );
     expect(hrefs).toEqual([
       '/api/export/spendings.csv',
       '/api/export/incomes.csv',
@@ -42,6 +45,22 @@ describe('ExportSection', () => {
     expect(link('savings').getAttribute('download')).toBe('wallet-savings-all.csv');
     expect(queryAllByRole(element, 'button')).toEqual([]);
     expect(textOf(element)).toContain('Your salary is not in this file.');
+  });
+
+  it('says in a line what each file holds and keeps the detail in the help', async () => {
+    const { element } = await setup();
+
+    const rows = queryAllByRole(getByRole(element, 'list'), 'listitem').map((row) => textOf(row));
+    expect(rows).toEqual([
+      'Spendings Date, amount, budget, notes and tags. Download',
+      'Incomes The extra incomes you added. Download',
+      'Savings Every savings transaction. Download',
+    ]);
+    const text = textOf(element);
+    expect(text).toContain('How this works');
+    expect(text).toContain('An export is for reading, not a backup');
+    expect(text).toContain('Refunds are negative.');
+    expect(text).toContain('settlements, deposits, withdrawals and reallocations.');
   });
 
   it('shares the range between the three links', async () => {
@@ -64,12 +83,16 @@ describe('ExportSection', () => {
     const { link, type } = await setup();
 
     await type(/^From/, '2026-01-01');
-    expect(link('spendings').getAttribute('href')).toBe('/api/export/spendings.csv?from=2026-01-01');
+    expect(link('spendings').getAttribute('href')).toBe(
+      '/api/export/spendings.csv?from=2026-01-01',
+    );
 
     await type(/^From/, '');
     await type(/^To/, '2026-03-31');
     expect(link('spendings').getAttribute('href')).toBe('/api/export/spendings.csv?to=2026-03-31');
-    expect(link('spendings').getAttribute('download')).toBe('wallet-spendings-until-2026-03-31.csv');
+    expect(link('spendings').getAttribute('download')).toBe(
+      'wallet-spendings-until-2026-03-31.csv',
+    );
   });
 
   it('accepts a single day as a range', async () => {
@@ -92,7 +115,9 @@ describe('ExportSection', () => {
 
       expect(queryByRole(element, 'link')).toBeNull();
       const buttons = queryAllByRole(element, 'button');
-      expect(buttons.map((button) => textOf(button))).toEqual([
+      // The word on the button is "Download": the row says which file, and the name says it again.
+      expect(buttons.map((button) => textOf(button))).toEqual(['Download', 'Download', 'Download']);
+      expect(buttons.map((button) => accessibleName(button))).toEqual([
         'Download spendings CSV',
         'Download incomes CSV',
         'Download savings CSV',
@@ -127,7 +152,9 @@ describe('ExportSection', () => {
     await type(/^To/, '12345-01-01');
 
     expect(queryByRole(element, 'link')).toBeNull();
-    expect(fieldError(getByLabel(element, /^To/))).toBe('Enter a valid "To" date, with a four-digit year.');
+    expect(fieldError(getByLabel(element, /^To/))).toBe(
+      'Enter a valid "To" date, with a four-digit year.',
+    );
   });
 
   it('labels every control and has nothing a screen reader cannot use', async () => {

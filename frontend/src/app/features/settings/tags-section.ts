@@ -11,10 +11,13 @@ import type { TagDto } from '@wallet/shared';
 import { parseApiError } from '../../core/api-error';
 import { TagsStore } from '../../core/tags.store';
 import { COLOR_SWATCHES } from '../../shared/forms/color-picker';
-import { Button } from '../../shared/ui/button';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
+import { AsyncSection } from '../../shared/ui/async-section';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
-import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { SectionHelp } from '../../shared/ui/section';
+import { EmptyState } from '../../shared/ui/states';
 import { TagChip } from '../../shared/ui/tag-chip';
 import { ToastService } from '../../shared/ui/toast.service';
 import { TagForm } from './tag-form';
@@ -34,77 +37,64 @@ function usage(count: number): string {
  */
 @Component({
   selector: 'app-tags-section',
-  imports: [Button, EmptyState, ErrorState, Icon, LoadingState, TagChip, TagForm],
+  imports: [
+    ActionMenu,
+    AppList,
+    AsyncSection,
+    EmptyState,
+    Icon,
+    ListRow,
+    MenuItem,
+    SectionHelp,
+    TagChip,
+    TagForm,
+  ],
   template: `
-    <section aria-labelledby="tags-heading" class="card space-y-4">
-      <div>
-        <h2 #heading id="tags-heading" tabindex="-1" class="text-lg font-semibold">Tags</h2>
-        <p class="mt-1 text-sm text-muted">
-          Labels you put on spendings to find them later. A tag never changes a budget or a balance.
-          You create tags while you add or edit a spending.
-        </p>
-      </div>
-
-      @switch (store.state()) {
-        @case ('loading') {
-          <app-loading-state label="Loading tags…" />
-        }
-        @case ('error') {
-          <app-error-state
-            title="Couldn't load the tags"
-            [error]="store.error()"
-            (retry)="store.reload()"
-          />
-        }
-        @default {
-          @if (store.tags().length === 0) {
-            <app-empty-state
-              title="No tags yet"
-              description="Add a tag to a spending and it will be listed here."
-            />
-          } @else {
-            <ul class="divide-y divide-line rounded-card border border-line">
-              @for (tag of store.tags(); track tag.id) {
-                <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3">
-                  <div class="min-w-0 flex-1">
-                    <p><app-tag-chip [name]="tag.name" [color]="tag.color" /></p>
-                    <p class="mt-1 text-sm text-muted">
-                      {{ colorName(tag) }} · {{ usageText(tag) }}
-                    </p>
-                  </div>
-                  <div class="flex gap-1">
-                    <button
-                      appButton
-                      variant="ghost"
-                      size="sm"
-                      [attr.aria-label]="'Edit tag ' + tag.name"
-                      [attr.data-action]="'edit-tag-' + tag.id"
-                      [disabled]="busy()"
-                      (click)="editing.set(tag)"
-                    >
-                      <app-icon name="pencil" />
-                      Edit
-                    </button>
-                    <button
-                      appButton
-                      variant="ghost"
-                      size="sm"
-                      [attr.aria-label]="'Delete tag ' + tag.name"
-                      [attr.data-action]="'delete-tag-' + tag.id"
-                      [disabled]="busy()"
-                      (click)="remove(tag)"
-                    >
-                      <app-icon name="trash" />
-                      Delete
-                    </button>
-                  </div>
-                </li>
-              }
-            </ul>
+    <app-async-section
+      heading="Tags"
+      description="Labels you put on spendings to find them later."
+      focusable
+      [state]="store.state()"
+      [error]="store.error()"
+      loadingLabel="Loading tags…"
+      errorTitle="Couldn't load the tags"
+      (retry)="store.reload()"
+    >
+      <p sectionHelp>
+        A tag never changes a budget or a balance. You create tags while you add or edit a spending.
+      </p>
+      @if (store.tags().length === 0) {
+        <app-empty-state
+          title="No tags yet"
+          description="Add a tag to a spending and it will be listed here."
+        />
+      } @else {
+        <ul appList>
+          @for (tag of store.tags(); track tag.id) {
+            <li appListRow [titleLabel]="'Edit tag ' + tag.name" (titleClick)="edit(tag)">
+              <span rowTitle><app-tag-chip [name]="tag.name" [color]="tag.color" /></span>
+              <p rowMeta>
+                <span>{{ colorName(tag) }} · {{ usageText(tag) }}</span>
+              </p>
+              <app-action-menu
+                rowActions
+                [attr.data-menu]="tag.id"
+                [label]="'More actions for tag ' + tag.name"
+              >
+                <button appMenuItem [disabled]="busy()" (click)="edit(tag)">
+                  <app-icon name="pencil" />
+                  Edit
+                </button>
+                <button appMenuItem destructive [disabled]="busy()" (click)="remove(tag)">
+                  <app-icon name="trash" />
+                  Delete
+                </button>
+              </app-action-menu>
+            </li>
           }
-        }
+        </ul>
       }
-    </section>
+    </app-async-section>
 
     @if (editing(); as tag) {
       <app-tag-form [tag]="tag" (finished)="editing.set(null)" (cancelled)="editing.set(null)" />
@@ -118,7 +108,7 @@ export class TagsSection {
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly section = viewChild(AsyncSection);
 
   /** The tag being edited in the dialog. */
   protected readonly editing = signal<TagDto | null>(null);
@@ -139,6 +129,10 @@ export class TagsSection {
 
   protected usageText(tag: TagDto): string {
     return usage(tag.usageCount);
+  }
+
+  protected edit(tag: TagDto): void {
+    if (!this.busy()) this.editing.set(tag);
   }
 
   protected async remove(tag: TagDto): Promise<void> {
@@ -177,14 +171,13 @@ export class TagsSection {
       this.busy.set(false);
     }
     // The row that had focus is gone, so the heading is where the keyboard goes. When the delete
-    // failed the row is still there: its button was disabled while the request was out, which took
-    // focus away, so it gets focus back.
+    // failed the row is still there, and focus goes back to the button of its menu.
     afterNextRender(
       () =>
         gone
-          ? this.heading()?.nativeElement.focus()
+          ? this.section()?.focusHeading()
           : this.host.nativeElement
-              .querySelector<HTMLElement>(`[data-action="delete-tag-${tag.id}"]`)
+              .querySelector<HTMLElement>(`[data-menu="${tag.id}"] button`)
               ?.focus(),
       { injector: this.injector },
     );

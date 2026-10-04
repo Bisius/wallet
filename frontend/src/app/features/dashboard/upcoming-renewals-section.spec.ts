@@ -84,7 +84,7 @@ describe('UpcomingRenewalsSection', () => {
     const p = await open([STREAMING, DOMAIN]);
 
     const rows = queryAllByRole(p.region(), 'listitem');
-    expect(rows.map((row) => row.querySelector('h3')?.textContent)).toEqual([
+    expect(rows.map((row) => row.querySelector('p')?.textContent?.trim())).toEqual([
       'Streaming',
       'Domain',
     ]);
@@ -112,10 +112,13 @@ describe('UpcomingRenewalsSection', () => {
     const bar = getByRole(yearly, 'progressbar', 'Domain reserve');
     expect(bar.getAttribute('aria-valuenow')).toBe('75');
     expect(bar.getAttribute('aria-valuetext')).toBe('75% reserved');
-    // The highlight is a ring and a label, and a monthly renewal has neither nor a reserve.
-    expect(yearly.classList.contains('ring-2')).toBe(true);
+    // The highlight is a label in the accent color, and a monthly renewal has neither nor a reserve.
+    const label = Array.from(yearly.querySelectorAll('app-badge')).find(
+      (badge) => textOf(badge) === 'Yearly renewal',
+    );
+    expect(label?.classList.contains('text-accent-text')).toBe(true);
     expect(textOf(monthly)).not.toContain('Yearly renewal');
-    expect(monthly.classList.contains('ring-2')).toBe(false);
+    expect(monthly.querySelector('app-badge')).toBeNull();
     expect(queryByRole(monthly, 'progressbar')).toBeNull();
   });
 
@@ -134,19 +137,41 @@ describe('UpcomingRenewalsSection', () => {
     expect(getByRole(p.region(), 'progressbar').getAttribute('aria-valuenow')).toBe('100');
   });
 
-  it('colors the row with the subscription color', async () => {
+  it('marks the row with a dot in the subscription color, for the eye only', async () => {
     const p = await open([DOMAIN]);
 
     const row = queryAllByRole(p.region(), 'listitem')[0];
-    expect(row.style.borderLeftColor).not.toBe('');
+    const dot = row.querySelector<HTMLElement>('span[aria-hidden="true"].rounded-full');
+    expect(dot?.style.backgroundColor).not.toBe('');
   });
 
   it('links to the subscriptions, keeping the selected month in the link', async () => {
     const p = await open([STREAMING]);
 
-    expect(getByRole(p.region(), 'link', /Open subscriptions/).getAttribute('href')).toBe(
+    expect(getByRole(p.region(), 'link', /See all subscriptions/).getAttribute('href')).toBe(
       '/subscriptions',
     );
+  });
+
+  it('says in one line what it shows, and keeps the rest behind "How this works"', async () => {
+    const p = await open([STREAMING]);
+
+    expect(textOf(p.region().querySelector('header p') as Element)).toBe(
+      'Subscriptions billed in the next 30 days.',
+    );
+    const details = p.region().querySelector('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(textOf(details.querySelector('summary') as Element)).toBe('How this works');
+    expect(textOf(details)).toContain(
+      'A yearly renewal shows how much of its price is already set aside.',
+    );
+  });
+
+  it('has no corner link and no help when nothing renews', async () => {
+    const p = await open([]);
+
+    expect(queryByRole(p.region(), 'link', /See all/)).toBeNull();
+    expect(p.region().querySelector('details')).toBeNull();
   });
 
   it('says when nothing renews, and offers the subscriptions', async () => {

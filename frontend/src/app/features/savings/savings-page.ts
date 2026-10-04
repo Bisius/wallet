@@ -1,5 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
-import { PageHeader } from '../../shared/page-header';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
 import { ErrorState, LoadingState } from '../../shared/ui/states';
 import { GoalsSection } from './goals-section';
 import { MoneyMoveDialog, type MoneyMoveKind } from './money-move-dialog';
@@ -30,6 +31,7 @@ interface MoveRequest {
 @Component({
   selector: 'app-savings-page',
   imports: [
+    AppPage,
     PageHeader,
     ErrorState,
     LoadingState,
@@ -43,43 +45,45 @@ interface MoveRequest {
   ],
   providers: [SavingsData, Settlement],
   template: `
-    <app-page-header
-      title="Savings"
-      subtitle="Your balance, your goals, and the months waiting to be moved to savings."
-    />
+    <app-page width="wide">
+      <app-page-header
+        title="Savings"
+        subtitle="Your balance, your goals, and the months waiting to be moved to savings."
+      />
 
-    @switch (data.state()) {
-      @case ('loading') {
-        <app-loading-state label="Loading your savings…" />
-      }
-      @case ('error') {
-        <app-error-state
-          title="Couldn't load your savings"
-          [error]="data.error()"
-          (retry)="data.reloadOverview()"
-        />
-      }
-      @default {
-        @if (data.savings(); as savings) {
-          <div class="max-w-5xl space-y-6">
+      @switch (data.state()) {
+        @case ('loading') {
+          <app-loading-state label="Loading your savings…" />
+        }
+        @case ('error') {
+          <app-error-state
+            title="Couldn't load your savings"
+            [error]="data.error()"
+            (retry)="data.reloadOverview()"
+          />
+        }
+        @default {
+          @if (data.savings()) {
             <app-savings-summary (move)="openMove($event, null)" />
             <app-settle-inbox />
             <app-goals-section (moveMoney)="openMove($event.kind, $event.goalId)" />
             <app-opening-balance-card (edit)="editingOpening.set(true)" />
             <app-transaction-history (editOpening)="editingOpening.set(true)" />
-          </div>
-
-          @if (move(); as request) {
-            <app-money-move-dialog
-              [kind]="request.kind"
-              [savings]="savings"
-              [goalId]="request.goalId"
-              (changed)="data.reload()"
-              (finished)="move.set(null)"
-              (cancelled)="move.set(null)"
-            />
           }
         }
+      }
+    </app-page>
+
+    @if (data.savings(); as savings) {
+      @if (move(); as request) {
+        <app-money-move-dialog
+          [kind]="request.kind"
+          [savings]="savings"
+          [goalId]="request.goalId"
+          (changed)="data.reload()"
+          (finished)="move.set(null)"
+          (cancelled)="move.set(null)"
+        />
       }
     }
 

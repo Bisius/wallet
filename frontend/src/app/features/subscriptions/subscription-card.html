@@ -1,52 +1,38 @@
 <article
-  [attr.aria-labelledby]="nameId()"
-  class="card flex h-full flex-col gap-4 border-l-4"
-  [style.border-left-color]="subscription().color"
+  appEntityCard
+  [heading]="subscription().name"
+  [color]="subscription().color"
+  [statColumns]="2"
 >
-  <header>
-    <h3 [id]="nameId()" class="font-semibold break-words">{{ subscription().name }}</h3>
-    <p class="mt-1 flex flex-wrap gap-1.5">
-      <span [class]="badge">{{ yearly() ? 'Yearly' : 'Monthly' }}</span>
-      <span [class]="badge">{{ statusLabel() }}</span>
-      @if (endLabel(); as end) {
-        <span [class]="badge">{{ end }}</span>
-      }
-      @if (startsLabel(); as starts) {
-        <span [class]="badge">{{ starts }}</span>
-      }
-    </p>
-  </header>
-
-  <dl class="grid grid-cols-2 gap-3">
-    <div>
-      <dt class="text-xs text-muted">Price</dt>
-      <dd class="font-semibold">
-        @if (price(); as cents) {
-          <app-amount [cents]="cents" />
-          <span class="text-sm font-normal text-muted">{{
-            yearly() ? ' a year' : ' a month'
-          }}</span>
-        }
-      </dd>
-    </div>
-    @if (subscription().monthlyEquivalent !== null) {
-      <div>
-        <dt class="text-xs text-muted">
-          {{ yearly() ? 'Monthly equivalent (approximate)' : 'Per month' }}
-        </dt>
-        <dd class="font-semibold">
-          @if (yearly()) {
-            <span class="text-sm font-normal text-muted">About </span>
-          }
-          <app-amount [cents]="subscription().monthlyEquivalent ?? 0" />
-        </dd>
-      </div>
+  <ng-container entityBadges>
+    <app-badge>{{ yearly() ? 'Yearly' : 'Monthly' }}</app-badge>
+    <app-badge [tone]="status().tone">{{ status().label }}</app-badge>
+    @if (endLabel(); as end) {
+      <app-badge>{{ end }}</app-badge>
     }
-  </dl>
+    @if (startsLabel(); as starts) {
+      <app-badge>{{ starts }}</app-badge>
+    }
+  </ng-container>
 
-  <p class="text-sm text-muted">{{ schedule() }}</p>
+  <div appStat label="Price">
+    @if (price(); as cents) {
+      <app-amount [cents]="cents" />
+      <span class="text-sm font-normal text-muted">{{ yearly() ? ' a year' : ' a month' }}</span>
+    }
+  </div>
+  @if (subscription().monthlyEquivalent !== null) {
+    <div appStat [label]="yearly() ? 'Monthly equivalent (approximate)' : 'Per month'">
+      @if (yearly()) {
+        <span class="text-sm font-normal text-muted">About </span>
+      }
+      <app-amount [cents]="subscription().monthlyEquivalent ?? 0" />
+    </div>
+  }
+
+  <p class="text-muted">{{ schedule() }}</p>
   @if (nextRenewal(); as next) {
-    <p class="text-sm text-muted">
+    <p class="text-muted">
       Next renewal:
       <span class="font-medium text-ink">{{ next.month }}</span>
       ({{ next.price | money }})
@@ -54,7 +40,7 @@
   }
 
   @if (line(); as line) {
-    <div class="space-y-2 rounded-control bg-subtle p-3 text-sm">
+    <div class="space-y-2">
       @if (yearly()) {
         @if (reserve(); as reserve) {
           @switch (reserve.kind) {
@@ -70,17 +56,21 @@
               }
             }
             @case ('saving') {
-              <p>In {{ monthLabel() }}, {{ line.charge | money }} goes into the reserve.</p>
+              <dl appStatGrid compact [columns]="2">
+                <div appStat label="Reserve">
+                  <app-amount [cents]="line.reserveBalance" />
+                  <span class="block text-sm leading-5 font-normal text-muted">
+                    of {{ line.nextRenewalPrice ?? 0 | money }} set aside so the
+                    {{ reserve.renewal }} renewal is already paid.
+                  </span>
+                </div>
+              </dl>
               <app-progress-bar
                 [label]="subscription().name + ' reserve'"
                 [percent]="reserve.percent"
                 [valueText]="reserve.valueText"
               />
-              <p>
-                <span class="font-semibold">{{ line.reserveBalance | money }}</span> of
-                <span class="font-semibold">{{ line.nextRenewalPrice ?? 0 | money }}</span> set
-                aside so the {{ reserve.renewal }} renewal is already paid.
-              </p>
+              <p>In {{ monthLabel() }}, {{ line.charge | money }} goes into the reserve.</p>
             }
             @case ('ends-first') {
               <p>
@@ -104,20 +94,19 @@
       }
     </div>
   } @else {
-    <p class="text-sm text-muted">Not charged in {{ monthLabel() }}.</p>
+    <p class="text-muted">Not charged in {{ monthLabel() }}.</p>
   }
 
   @if (subscription().notes; as notes) {
-    <p class="text-sm break-words text-muted">{{ notes }}</p>
+    <p class="break-words text-muted">{{ notes }}</p>
   }
 
-  <div class="mt-auto flex flex-wrap items-center gap-1 border-t border-line pt-3">
+  <ng-container entityActions>
     <button
       appButton
-      variant="ghost"
+      variant="secondary"
       size="sm"
       [attr.aria-label]="'Edit ' + subscription().name"
-      [attr.data-action]="'edit-' + subscription().id"
       (click)="edit.emit()"
     >
       <app-icon name="pencil" />
@@ -126,7 +115,7 @@
     @if (canChangePrice()) {
       <button
         appButton
-        variant="ghost"
+        variant="secondary"
         size="sm"
         [attr.aria-label]="'Change the price of ' + subscription().name"
         (click)="changePrice.emit()"
@@ -135,27 +124,21 @@
         Change price
       </button>
     }
-    @if (canCancel()) {
-      <button
-        appButton
-        variant="ghost"
-        size="sm"
-        [attr.aria-label]="'Cancel ' + subscription().name"
-        (click)="cancel.emit()"
-      >
-        <app-icon name="ban" />
-        Cancel
+    <app-action-menu [label]="'More actions for ' + subscription().name">
+      @if (canCancel()) {
+        <button
+          appMenuItem
+          [attr.aria-label]="'Cancel ' + subscription().name"
+          (click)="cancel.emit()"
+        >
+          <app-icon name="ban" />
+          Cancel
+        </button>
+      }
+      <button appMenuItem destructive (click)="remove.emit()">
+        <app-icon name="trash" />
+        Delete
       </button>
-    }
-    <button
-      appButton
-      variant="ghost"
-      size="sm"
-      [attr.aria-label]="'Delete ' + subscription().name"
-      (click)="remove.emit()"
-    >
-      <app-icon name="trash" />
-      Delete
-    </button>
-  </div>
+    </app-action-menu>
+  </ng-container>
 </article>

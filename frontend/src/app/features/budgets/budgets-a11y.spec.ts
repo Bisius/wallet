@@ -6,6 +6,7 @@ import { a11yProblems } from '../../../testing/a11y';
 import { openBudgetsPage } from '../../../testing/budgets-harness';
 import { budgetLine, monthView, transferDto } from '../../../testing/fixtures';
 import { StubPage } from '../../../testing/harness';
+import { openActionMenu } from '../../../testing/menu';
 
 describe('BudgetsPage: markup a screen reader can use', () => {
   let http: HttpTestingController;
@@ -36,6 +37,13 @@ describe('BudgetsPage: markup a screen reader can use', () => {
         transferDto({ id: 2, fromBudgetId: null, note: 'Bonus' }),
       ],
     });
+
+    expect(a11yProblems(p.element)).toEqual([]);
+  });
+
+  it('has nothing wrong with the cards while a card menu is open', async () => {
+    const p = await openBudgetsPage(http);
+    await openActionMenu(p.card('Fun'));
 
     expect(a11yProblems(p.element)).toEqual([]);
   });

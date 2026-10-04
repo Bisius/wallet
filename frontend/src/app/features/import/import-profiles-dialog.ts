@@ -5,10 +5,12 @@ import { type ImportProfileDto, NAME_MAX_LENGTH } from '@wallet/shared';
 import { parseApiError } from '../../core/api-error';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { AppDialog } from '../../shared/ui/dialog';
 import { Icon } from '../../shared/ui/icon';
+import { AppList, ListRow } from '../../shared/ui/list';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { ImportProfilesStore } from './import-profiles.store';
@@ -22,10 +24,24 @@ import { ImportWizardStore } from './import-wizard.store';
  */
 @Component({
   selector: 'app-import-profiles-dialog',
-  imports: [ReactiveFormsModule, AppDialog, Field, AppInput, Button, Icon, EmptyState, ErrorState, LoadingState],
+  imports: [
+    ReactiveFormsModule,
+    ActionMenu,
+    AppDialog,
+    AppList,
+    Field,
+    AppInput,
+    Button,
+    Icon,
+    EmptyState,
+    ErrorState,
+    ListRow,
+    LoadingState,
+    MenuItem,
+  ],
   template: `
     <app-dialog heading="Import profiles" [locked]="busy()" (closed)="closed.emit()">
-      <div class="space-y-4 pb-4">
+      <div class="space-y-4">
         <p class="text-sm text-muted">
           A profile remembers the columns and formats of one bank. Renaming or deleting one never
           changes what you imported.
@@ -49,10 +65,10 @@ import { ImportWizardStore } from './import-wizard.store';
                 description="Set the columns of a file and use Save these settings as a profile."
               />
             } @else {
-              <ul class="divide-y divide-line rounded-card border border-line">
+              <ul appList>
                 @for (profile of store.profiles(); track profile.id) {
-                  <li class="p-3">
-                    @if (renaming()?.id === profile.id) {
+                  @if (renaming()?.id === profile.id) {
+                    <li appListRow bare>
                       <form (submit)="saveName($event, profile)" novalidate class="space-y-2">
                         <app-field
                           [label]="'New name for ' + profile.name"
@@ -67,7 +83,9 @@ import { ImportWizardStore } from './import-wizard.store';
                           />
                         </app-field>
                         <div class="flex gap-2">
-                          <button appButton size="sm" type="submit" [loading]="busy()">Save name</button>
+                          <button appButton size="sm" type="submit" [loading]="busy()">
+                            Save name
+                          </button>
                           <button
                             appButton
                             size="sm"
@@ -79,44 +97,40 @@ import { ImportWizardStore } from './import-wizard.store';
                           </button>
                         </div>
                       </form>
-                    } @else {
-                      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-                        <p class="min-w-0 flex-1 font-medium break-words">{{ profile.name }}</p>
-                        <div class="flex gap-1">
-                          <button
-                            appButton
-                            variant="ghost"
-                            size="sm"
-                            [attr.aria-label]="'Rename profile ' + profile.name"
-                            [disabled]="busy()"
-                            (click)="startRename(profile)"
-                          >
-                            <app-icon name="pencil" />
-                            Rename
-                          </button>
-                          <button
-                            appButton
-                            variant="ghost"
-                            size="sm"
-                            [attr.aria-label]="'Delete profile ' + profile.name"
-                            [disabled]="busy()"
-                            (click)="remove(profile)"
-                          >
-                            <app-icon name="trash" />
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    }
-                  </li>
+                    </li>
+                  } @else {
+                    <li appListRow>
+                      <span rowTitle>{{ profile.name }}</span>
+                      <app-action-menu
+                        rowActions
+                        [label]="'More actions for profile ' + profile.name"
+                      >
+                        <button appMenuItem [disabled]="busy()" (click)="startRename(profile)">
+                          <app-icon name="pencil" />
+                          Rename
+                        </button>
+                        <button
+                          appMenuItem
+                          destructive
+                          [disabled]="busy()"
+                          (click)="remove(profile)"
+                        >
+                          <app-icon name="trash" />
+                          Delete
+                        </button>
+                      </app-action-menu>
+                    </li>
+                  }
                 }
               </ul>
             }
           }
         }
 
-        <div class="dialog-footer flex justify-end">
-          <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit()">Close</button>
+        <div class="dialog-footer">
+          <button appButton variant="secondary" [disabled]="busy()" (click)="closed.emit()">
+            Close
+          </button>
         </div>
       </div>
     </app-dialog>
@@ -166,7 +180,11 @@ export class ImportProfilesDialog {
     this.renameError.set(null);
     try {
       // PUT replaces the profile: the mapping and the header signature are sent back as they are.
-      await this.store.update(profile.id, { name, mapping: profile.mapping, header: profile.header });
+      await this.store.update(profile.id, {
+        name,
+        mapping: profile.mapping,
+        header: profile.header,
+      });
       this.toast.success(`Profile renamed to ${name}.`);
       this.renaming.set(null);
     } catch (error) {

@@ -17,8 +17,10 @@ import { TagsStore } from '../../core/tags.store';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
+import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
+import { Segmented, type SegmentedOption } from '../../shared/ui/segmented';
 import {
   activeCount,
   filtersProblem,
@@ -53,11 +55,14 @@ let nextBarId = 0;
  * are signed as stored, so a refund is negative, and a range whose minimum is above its maximum is
  * said so under the field and is not sent.
  *
- * On a small screen the fields sit behind a "Filters" button, with the number of filters in use.
+ * It is a toolbar: the search box is always there, and a "Filters" button, which says in its name how
+ * many filters are on ("Filters, 2 active"), unfolds a panel under it with the rest (the months to
+ * look in, the budget, the tag and the range of amounts). The panel unfolds by itself when the page
+ * arrives with one of those on, so a filter that is in use is never out of sight.
  */
 @Component({
   selector: 'app-spending-filter-bar',
-  imports: [ReactiveFormsModule, Field, AppInput, MoneyInput, Button, Icon],
+  imports: [ReactiveFormsModule, Field, AppInput, MoneyInput, Badge, Button, Icon, Segmented],
   templateUrl: './spending-filter-bar.html',
   host: { class: 'block' },
 })
@@ -74,13 +79,23 @@ export class SpendingFilterBar {
 
   private readonly id = nextBarId++;
   protected readonly panelId = `spending-filters-${this.id}`;
-  protected readonly scopeName = `spending-scope-${this.id}`;
   protected readonly searchMaxLength = SPENDING_SEARCH_MAX_LENGTH;
 
   protected readonly filters = this.query.filters;
+  protected readonly scopeOptions = computed<SegmentedOption[]>(() => [
+    { value: 'month', label: this.monthLabel() || 'The selected month' },
+    { value: 'all', label: 'All months' },
+  ]);
   protected readonly count = computed(() => activeCount(this.filters()));
-  /** The panel is open on a small screen (a large one always shows it). Open when it arrives with filters on. */
-  protected readonly open = signal(this.count() > 0);
+  /** What the button says to a screen reader: the count is in the name, as a badge says it to the eye. */
+  protected readonly filtersLabel = computed(() =>
+    this.count() > 0 ? `Filters, ${this.count()} active` : 'Filters',
+  );
+  /**
+   * The panel is unfolded. It starts so when the page arrives with a filter on that is in the panel (the
+   * search is not: it is always on screen).
+   */
+  protected readonly open = signal(this.count() - (this.filters().q === '' ? 0 : 1) > 0);
 
   protected readonly tagOptions = computed<readonly { id: number; name: string }[]>(() => {
     const tags = this.tagStore.tags().map((tag) => ({ id: tag.id, name: tag.name }));

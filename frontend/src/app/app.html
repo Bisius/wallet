@@ -7,71 +7,33 @@
 </a>
 
 <div class="min-h-dvh md:flex">
-  <aside
-    class="border-b border-line bg-surface md:sticky md:top-0 md:h-dvh md:w-56 md:shrink-0 md:overflow-y-auto md:border-r md:border-b-0"
-  >
-    <div class="flex items-center justify-between gap-3 px-4 py-4 md:flex-col md:items-start">
-      <a
-        routerLink="/dashboard"
-        [queryParams]="selectedMonth.linkParams()"
-        class="rounded-control text-lg font-semibold tracking-tight"
-      >
-        Wallet
-      </a>
-      <app-api-status-indicator />
-    </div>
-    <app-update-notice />
-    @if (!focusLayout()) {
-      <nav aria-label="Main" class="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
-        @for (item of nav; track item.path) {
-          <a
-            [routerLink]="item.path"
-            [queryParams]="selectedMonth.linkParams()"
-            routerLinkActive
-            [routerLinkActiveOptions]="{
-              paths: 'subset',
-              queryParams: 'ignored',
-              fragment: 'ignored',
-              matrixParams: 'ignored',
-            }"
-            ariaCurrentWhenActive="page"
-            class="relative rounded-control px-3 py-2.5 text-sm font-medium whitespace-nowrap text-ink hover:bg-subtle aria-[current=page]:bg-accent aria-[current=page]:text-on-accent aria-[current=page]:hover:bg-accent-hover"
-          >
-            {{ item.label }}
-            @if (item.savingsBadge && outstandingMonths() > 0) {
-              <span
-                aria-hidden="true"
-                class="ml-1.5 inline-block min-w-5 rounded-full bg-accent-soft px-1.5 text-center text-xs leading-5 font-semibold text-accent-text ring-1 ring-accent-text/40"
-                >{{ outstandingMonths() }}</span
-              >
-              <span class="sr-only"
-                >, {{ outstandingMonths() }} {{ outstandingMonths() === 1 ? 'month' : 'months' }} to
-                move to savings</span
-              >
-            }
-          </a>
-        }
-      </nav>
-    }
-  </aside>
+  <app-sidebar [focusLayout]="focusLayout()" />
 
   <div class="flex min-w-0 flex-1 flex-col">
-    @if (showMonthSwitcher()) {
-      <section
-        aria-label="Month selection"
-        class="sticky top-0 z-20 border-b border-line bg-surface/95 px-4 py-2 backdrop-blur md:px-8"
-      >
-        <app-month-switcher />
-      </section>
-    }
-    <main #main id="main" tabindex="-1" class="flex-1 p-4 md:p-8">
+    <app-top-bar [period]="period()" [showAdd]="showAddSpending()" [focusLayout]="focusLayout()" />
+    <main #main id="main" tabindex="-1" [class]="mainClass()">
+      <!-- The sidebar has the notice on a wide screen; a phone has no sidebar. -->
+      <app-update-notice class="md:hidden" />
       @if (starting()) {
         <app-loading-state label="Loading Wallet…" />
       }
       <router-outlet />
+      @if (showAddSpending()) {
+        <app-add-spending-fab />
+      }
     </main>
   </div>
 </div>
 
-<app-toast-container />
+@if (!focusLayout()) {
+  <app-tab-bar />
+}
+<app-toast-container [aboveTabBar]="!focusLayout()" />
 <app-confirm-dialog />
+<!-- The form and what it needs stay out of the first download: they load, ahead of time when the browser
+     is idle, and no later than the first press of "Add spending". -->
+@defer (when addSpending.isOpen(); prefetch on idle) {
+  @if (addSpending.isOpen()) {
+    <app-add-spending-dialog />
+  }
+}

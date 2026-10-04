@@ -9,6 +9,7 @@ import { ToastService } from '../app/shared/ui/toast.service';
 import { getByLabel, getByRole, queryByRole, textOf, typeInto } from './dom';
 import { transactionsPage } from './fixtures';
 import { primeStores, settle } from './harness';
+import { rowAction } from './menu';
 
 /** The Savings page with the shell's confirm dialog and toasts, as the app has them. */
 @Component({
@@ -58,6 +59,11 @@ export function savingsPage(http: HttpTestingController, fixture: ComponentFixtu
       getByRole(root, 'button', name).click();
       await settle(fixture);
     },
+    /**
+     * Opens the "More actions" menu called `menu` (a goal card has one) and presses its item:
+     * `await p.menuAction('More actions for Holiday', 'Archive')`.
+     */
+    menuAction: (menu: string | RegExp, item: string | RegExp) => rowAction(element, item, menu),
     type: async (label: string | RegExp, value: string, root: ParentNode = element) => {
       typeInto(getByLabel(root, label), value);
       await settle(fixture);

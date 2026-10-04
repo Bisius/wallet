@@ -33,10 +33,10 @@ import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { positiveAmount } from '../../shared/forms/validators';
 import { formatMoney } from '../../shared/money.pipe';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { MonthsApi } from '../months/months.api';
 import { closedMonthEffect, POOL_LABEL } from './transfer-text';
@@ -91,7 +91,7 @@ interface Warning {
  */
 @Component({
   selector: 'app-transfer-dialog',
-  imports: [ReactiveFormsModule, AppDialog, Field, AppInput, MoneyInput, Button, Icon],
+  imports: [Alert, ReactiveFormsModule, AppDialog, Field, AppInput, MoneyInput, Button],
   templateUrl: './transfer-dialog.html',
   host: { class: 'block' },
 })

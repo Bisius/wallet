@@ -17,12 +17,14 @@ import {
   fieldError,
   getByLabel,
   getByRole,
+  queryAllByRole,
   queryByRole,
   textOf,
   typeInto,
 } from '../../../testing/dom';
 import { monthView, subscriptionDto, subscriptionLine } from '../../../testing/fixtures';
 import { flushError, primeStores, settle, StubPage } from '../../../testing/harness';
+import { menuItem, menuItemNames, rowAction } from '../../../testing/menu';
 import { SubscriptionsPage } from './subscriptions-page';
 
 @Component({
@@ -128,6 +130,8 @@ describe('SubscriptionsPage', () => {
         getByRole(root, 'button', name).click();
         await settle(fixture);
       },
+      /** Opens the "More actions" menu called `menu` and presses its item: `menuAction('More actions for Gym', 'Delete')`. */
+      menuAction: (menu: string | RegExp, item: string | RegExp) => rowAction(element, item, menu),
       type: async (label: string | RegExp, value: string) => {
         typeInto(getByLabel(element, label), value);
         await settle(fixture);
@@ -191,6 +195,31 @@ describe('SubscriptionsPage', () => {
       expect(summary).toContain('€1,234.56');
       expect(summary).toContain('Current month');
       expect(summary).toContain('not the whole price');
+    });
+
+    it('puts the fixed costs in a flat strip as the big figure, and the long explanation behind "How this works"', async () => {
+      const p = await open('2026-10', {
+        view: monthView({ subscriptions: [DOMAIN_LINE, STREAMING_LINE], fixedCosts: 123456 }),
+      });
+
+      const strip = p.section('Fixed costs in October 2026');
+      expect(strip.closest('.card')).toBeNull();
+      const figure = strip.querySelector('dl > div') as HTMLElement;
+      expect(textOf(figure)).toContain('Fixed costs €1,234.56');
+      expect(figure.querySelector('dd.text-kpi')).not.toBeNull();
+      // One line says what it is; what a yearly one adds is folded away.
+      expect(textOf(figure)).toContain(
+        "What your subscriptions take off the top of this month's income.",
+      );
+      expect(textOf(figure)).not.toContain('not the whole price');
+      const details = strip.querySelector('details') as HTMLDetailsElement;
+      expect(details.open).toBe(false);
+      expect(textOf(details.querySelector('summary') as Element)).toBe('How this works');
+      expect(textOf(details)).toContain('not the whole price');
+      // The status of the month sits with the heading.
+      expect(textOf(strip.querySelector('header') as Element)).toBe(
+        'Fixed costs in October 2026 Current month',
+      );
     });
 
     it('invites the user to add the first subscription when there are none', async () => {
@@ -286,6 +315,20 @@ describe('SubscriptionsPage', () => {
       expect(text).not.toContain('approximate');
     });
 
+    it('gives each status a meaning besides its word: active is positive, upcoming is accent, cancelled is neutral', async () => {
+      const p = await open();
+      const tone = (name: string, label: string) => {
+        const badge = Array.from(p.card(name).querySelectorAll<HTMLElement>('app-badge')).find(
+          (candidate) => textOf(candidate) === label,
+        );
+        return [...(badge?.classList ?? [])].find((className) => className.startsWith('bg-'));
+      };
+
+      expect(tone('Streaming', 'Active')).toBe('bg-positive-soft');
+      expect(tone('Gym', 'Upcoming')).toBe('bg-accent-soft');
+      expect(tone('Old magazine', 'Cancelled')).toBe('bg-subtle');
+    });
+
     it('shows a yearly one: its price per year, and the monthly equivalent as an approximation', async () => {
       const p = await open();
       const text = p.cardText('Domain');
@@ -347,11 +390,52 @@ describe('SubscriptionsPage', () => {
       const p = await open('2026-10', { subscriptions: [styled] });
 
       expect(p.cardText('Streaming')).toContain('Family plan');
-      expect((p.card('Streaming') as HTMLElement).style.borderLeftColor).not.toBe('');
+      // The color is a dot beside the name, for the eye only: the name says what the card is.
+      const dot = p.card('Streaming').querySelector('span[appColorDot]') as HTMLElement;
+      expect(dot.style.backgroundColor).toBe('rgb(126, 34, 206)');
+      expect(dot.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    describe('actions', () => {
+      const visibleButtons = (card: HTMLElement) =>
+        queryAllByRole(card, 'button')
+          .filter((button) => !button.hasAttribute('appMenuItem'))
+          .map((button) => button.getAttribute('aria-label') ?? textOf(button));
+
+      it('are Edit and Change price on the card, and Cancel and Delete in its menu, Delete last', async () => {
+        const p = await open();
+
+        expect(visibleButtons(p.card('Streaming'))).toEqual([
+          'Edit Streaming',
+          'Change the price of Streaming',
+          'More actions for Streaming',
+        ]);
+        expect(menuItemNames(p.card('Streaming'))).toEqual(['Cancel', 'Delete']);
+        // Cancelling the subscription is named for it, so it is not taken for the Cancel of a dialog.
+        expect(menuItem(p.card('Streaming'), 'Cancel Streaming').textContent).toContain('Cancel');
+      });
+
+      it('leave out what does not apply: a cancelled subscription can only be edited or deleted', async () => {
+        const p = await open();
+
+        expect(visibleButtons(p.card('Old magazine'))).toEqual([
+          'Edit Old magazine',
+          'More actions for Old magazine',
+        ]);
+        expect(menuItemNames(p.card('Old magazine'))).toEqual(['Delete']);
+      });
     });
   });
 
   describe('the reserve of a yearly subscription', () => {
+    it('is plain content of the card, not a box inside it', async () => {
+      const p = await open();
+
+      // A card holds no card, tile or tinted panel: the sentences and the bar sit on the card.
+      expect(p.card('Domain').querySelector('div.rounded-control')).toBeNull();
+      expect(p.card('Domain').querySelector('div.bg-subtle:not([role="progressbar"])')).toBeNull();
+    });
+
     it('says in plain words how much is set aside for the next renewal, with a bar', async () => {
       const p = await open();
       const text = p.cardText('Domain');
@@ -364,6 +448,26 @@ describe('SubscriptionsPage', () => {
       const bar = getByRole(p.card('Domain'), 'progressbar', 'Domain reserve');
       expect(bar.getAttribute('aria-valuenow')).toBe('50');
       expect(bar.getAttribute('aria-valuetext')).toBe('50% of the €120.00 renewal set aside');
+    });
+
+    it('shows the amount set aside as a figure over its bar, and says it in one sentence', async () => {
+      const p = await open();
+      const card = p.card('Domain');
+
+      const figure = Array.from(card.querySelectorAll<HTMLElement>('dl > div')).find(
+        (stat) => textOf(stat.querySelector('dt') as Element) === 'Reserve',
+      ) as HTMLElement;
+      expect(figure).toBeTruthy();
+      expect(textOf(figure.querySelector('dd') as Element)).toContain('€60.00');
+      // The figure comes before the bar it is drawn in.
+      const bar = getByRole(card, 'progressbar', 'Domain reserve');
+      expect(Boolean(figure.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(
+        true,
+      );
+      // The real text of the page, not the helper's: a space the template dropped would show here.
+      expect((figure.textContent ?? '').replace(/\s+/g, ' ')).toContain(
+        '€60.00 of €120.00 set aside so the March 2027 renewal is already paid.',
+      );
     });
 
     it('writes the next renewal as one readable line', async () => {
@@ -920,7 +1024,7 @@ describe('SubscriptionsPage', () => {
   describe('cancel', () => {
     it('asks first, saying it is charged through its last month', async () => {
       const p = await open();
-      await p.press('Cancel Streaming');
+      await p.menuAction('More actions for Streaming', 'Cancel Streaming');
 
       const text = textOf(p.confirmDialog());
       expect(text).toContain('Cancel "Streaming"?');
@@ -934,7 +1038,7 @@ describe('SubscriptionsPage', () => {
 
     it('mentions the reserve of a yearly one going back to savings', async () => {
       const p = await open();
-      await p.press('Cancel Domain');
+      await p.menuAction('More actions for Domain', 'Cancel Domain');
 
       expect(textOf(p.confirmDialog())).toContain(
         'Whatever you have set aside for its next renewal goes back to savings.',
@@ -943,7 +1047,7 @@ describe('SubscriptionsPage', () => {
 
     it('posts the cancellation once confirmed, with no end month: the server uses the current one', async () => {
       const p = await open();
-      await p.press('Cancel Streaming');
+      await p.menuAction('More actions for Streaming', 'Cancel Streaming');
       await p.press('Cancel subscription', p.confirmDialog());
 
       const request = http.expectOne('/api/subscriptions/1/cancel');
@@ -961,10 +1065,11 @@ describe('SubscriptionsPage', () => {
       expect(p.toasts()).toEqual(['Streaming cancelled. It is charged through October 2026.']);
       expect(p.cardText('Streaming')).toContain('Ends Oct 2026');
       expect(p.cardText('Streaming')).toContain('October 2026 is the last month it is charged.');
-      // It cannot be cancelled twice, and focus went back to the card instead of the missing button.
-      expect(queryByRole(p.card('Streaming'), 'button', 'Cancel Streaming')).toBeNull();
+      // It cannot be cancelled twice, and focus stayed on the card's menu button: the item that was
+      // pressed is hidden.
+      expect(menuItemNames(p.card('Streaming'))).not.toContain('Cancel');
       expect(document.activeElement).toBe(
-        getByRole(p.card('Streaming'), 'button', 'Edit Streaming'),
+        getByRole(p.card('Streaming'), 'button', 'More actions for Streaming'),
       );
     });
 
@@ -972,15 +1077,15 @@ describe('SubscriptionsPage', () => {
       const ending = { ...STREAMING, endMonth: '2026-12' };
       const p = await open('2026-10', { subscriptions: [ending, DOMAIN, GYM, MAGAZINE] });
 
-      expect(queryByRole(p.card('Streaming'), 'button', /Cancel/)).toBeNull();
-      expect(queryByRole(p.card('Domain'), 'button', 'Cancel Domain')).not.toBeNull();
-      expect(queryByRole(p.card('Gym'), 'button', /Cancel/)).toBeNull();
-      expect(queryByRole(p.card('Old magazine'), 'button', /Cancel/)).toBeNull();
+      expect(menuItemNames(p.card('Streaming'))).not.toContain('Cancel');
+      expect(menuItemNames(p.card('Domain'))).toContain('Cancel');
+      expect(menuItemNames(p.card('Gym'))).not.toContain('Cancel');
+      expect(menuItemNames(p.card('Old magazine'))).not.toContain('Cancel');
     });
 
     it('reports a refusal with the message of the API', async () => {
       const p = await open();
-      await p.press('Cancel Streaming');
+      await p.menuAction('More actions for Streaming', 'Cancel Streaming');
       await p.press('Cancel subscription', p.confirmDialog());
       flushError(
         http.expectOne('/api/subscriptions/1/cancel'),
@@ -1000,7 +1105,7 @@ describe('SubscriptionsPage', () => {
   describe('delete', () => {
     it('asks with a strong warning: it disappears from every month, closed ones too', async () => {
       const p = await open();
-      await p.press('Delete Streaming');
+      await p.menuAction('More actions for Streaming', 'Delete');
 
       const text = textOf(p.confirmDialog());
       expect(text).toContain('Delete "Streaming" for good?');
@@ -1020,13 +1125,13 @@ describe('SubscriptionsPage', () => {
       const p = await open();
 
       for (const name of ['Streaming', 'Domain', 'Gym', 'Old magazine']) {
-        expect(queryByRole(p.card(name), 'button', `Delete ${name}`), name).not.toBeNull();
+        expect(menuItemNames(p.card(name)), name).toContain('Delete');
       }
     });
 
     it('deletes once confirmed, then reloads and puts focus on the page title', async () => {
       const p = await open();
-      await p.press('Delete Streaming');
+      await p.menuAction('More actions for Streaming', 'Delete');
       await p.press('Delete from every month', p.confirmDialog());
 
       const request = http.expectOne('/api/subscriptions/1');
@@ -1044,7 +1149,7 @@ describe('SubscriptionsPage', () => {
 
     it('reports a failure with the message of the API', async () => {
       const p = await open();
-      await p.press('Delete Streaming');
+      await p.menuAction('More actions for Streaming', 'Delete');
       await p.press('Delete from every month', p.confirmDialog());
       flushError(
         http.expectOne('/api/subscriptions/1'),

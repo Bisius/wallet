@@ -1,5 +1,5 @@
-<app-page-header title="Spendings" [subtitle]="subtitle()">
-  <div class="flex flex-wrap items-center gap-3">
+<app-page width="narrow">
+  <app-page-header title="Spendings" [subtitle]="subtitle()">
     @if (monthView(); as snapshot) {
       <app-month-status [status]="snapshot.status" />
     }
@@ -7,14 +7,10 @@
       <app-icon name="upload" />
       Import CSV
     </a>
-  </div>
-</app-page-header>
+  </app-page-header>
 
-@if (month(); as month) {
-  <div class="max-w-3xl space-y-6">
-    <section aria-labelledby="add-spending-heading" class="card space-y-4">
-      <h2 id="add-spending-heading" class="text-lg font-semibold">Add a spending</h2>
-
+  @if (month(); as month) {
+    <app-section heading="Add a spending" [description]="addNote()">
       @switch (viewState()) {
         @case ('loading') {
           <app-loading-state label="Loading this month's budgets…" />
@@ -27,27 +23,17 @@
           />
         }
         @default {
-          @if (monthView(); as snapshot) {
-            @if (snapshot.status === 'closed') {
-              <p class="text-sm text-muted">
-                {{ monthLabel() }} is closed. A spending added to it changes what is due to savings.
-              </p>
-            } @else if (snapshot.status === 'future') {
-              <p class="text-sm text-muted">
-                {{ monthLabel() }} has not started yet. A spending dated in it counts towards its
-                projection.
-              </p>
-            }
-
+          @if (monthView()) {
             @if (lines().length === 0) {
               <app-empty-state
                 [title]="'No budgets in ' + monthLabel()"
                 description="A spending belongs to a budget. Create a budget first, then add spendings to it."
               >
                 <a
+                  appLinkButton
+                  variant="primary"
                   routerLink="/budgets"
                   [queryParams]="selected.linkParams()"
-                  class="inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover"
                 >
                   Go to budgets
                 </a>
@@ -59,39 +45,32 @@
         }
       }
 
-      <p role="status" class="text-sm empty:hidden">
+      <div role="status" class="empty:hidden">
         @if (confirmation(); as message) {
-          <span class="flex items-start gap-2 rounded-control bg-subtle p-3 text-ink">
-            <app-icon name="check-circle" class="mt-0.5 text-positive" />
-            <span>{{ message }}</span>
-          </span>
+          <app-alert tone="success">{{ message }}</app-alert>
+        }
+      </div>
+    </app-section>
+
+    <app-section #listSection variant="plain" [heading]="'Spendings in ' + scopeLabel()" focusable>
+      <!-- Always in the page, so a new result is announced: a live region only speaks of what changes in it. -->
+      <p
+        sectionDescription
+        aria-live="polite"
+        class="mt-1 text-sm text-muted transition-[opacity,filter] duration-150"
+        [class]="refreshing() ? staleLook : ''"
+      >
+        @if (shown() && !problem()) {
+          <span class="font-semibold text-ink"
+            >{{ total() }} {{ total() === 1 ? 'spending' : 'spendings' }}</span
+          >
+          ·
+          <span class="font-semibold text-ink"
+            ><app-amount [cents]="totalAmount()" [plain]="true"
+          /></span>
+          net. Refunds are subtracted.
         }
       </p>
-    </section>
-
-    <section aria-labelledby="spendings-list-heading" class="card space-y-4">
-      <div>
-        <h2 #heading id="spendings-list-heading" tabindex="-1" class="text-lg font-semibold">
-          Spendings in {{ scopeLabel() }}
-        </h2>
-        <!-- Always in the page, so a new result is announced: a live region only speaks of what changes in it. -->
-        <p
-          aria-live="polite"
-          class="text-sm text-muted transition-[opacity,filter] duration-150"
-          [class]="refreshing() ? staleLook : ''"
-        >
-          @if (shown() && !problem()) {
-            <span class="font-semibold text-ink"
-              >{{ total() }} {{ total() === 1 ? 'spending' : 'spendings' }}</span
-            >
-            ·
-            <span class="font-semibold text-ink"
-              ><app-amount [cents]="totalAmount()" [plain]="true"
-            /></span>
-            net. Refunds are subtracted.
-          }
-        </p>
-      </div>
 
       <app-spending-filter-bar
         [budgets]="budgetOptions()"
@@ -108,25 +87,18 @@
           }
           @case ('error') {
             @if (refusal(); as reason) {
-              <div
-                role="alert"
-                class="rounded-card border border-negative bg-negative-soft p-4 text-ink"
-              >
-                <p class="flex items-center gap-2 font-semibold text-negative">
-                  <app-icon name="alert" />
-                  The server didn't accept these filters
-                </p>
-                <p class="mt-1 text-sm">{{ reason }}</p>
+              <app-alert tone="error" title="The server didn't accept these filters">
+                {{ reason }}
                 <button
+                  alertAction
                   appButton
                   variant="secondary"
                   size="sm"
-                  class="mt-3"
                   (click)="clearFilters()"
                 >
                   Clear filters
                 </button>
-              </div>
+              </app-alert>
             } @else {
               <app-error-state
                 title="Couldn't load the spendings"
@@ -182,87 +154,70 @@
                 While a new search is on its way the previous rows stay, dimmed and marked busy, so the
                 page does not empty and jump on every keystroke of a search.
               -->
+              <!-- A button that takes focus is scrolled to below the sticky day header, not under it. -->
               <div
-                class="space-y-5 transition-[opacity,filter] duration-150"
+                class="space-y-5 transition-[opacity,filter] duration-150 [&_button]:scroll-mt-8"
                 [class]="refreshing() ? staleLook : ''"
                 [attr.aria-busy]="refreshing() ? 'true' : null"
               >
                 @for (group of groups(); track group.date) {
                   <div>
-                    <h3 class="mb-2 text-sm font-semibold text-muted">
+                    <!-- Stays under the top bar while its day scrolls; opaque, so the rows do not show through. -->
+                    <h3
+                      class="sticky top-[var(--top-bar-height)] z-10 bg-canvas px-4 py-2 text-sm font-semibold text-muted"
+                    >
                       {{ dateLabel(group.date) }}
                     </h3>
-                    <ul class="divide-y divide-line rounded-card border border-line">
+                    <ul appList>
                       @for (spending of group.items; track spending.id) {
-                        <li class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 p-3">
-                          <div class="min-w-0 flex-1">
-                            <p class="font-medium break-words">
-                              @if (spending.description) {
-                                {{ spending.description }}
-                              } @else {
-                                <span class="font-normal text-muted">No description</span>
-                              }
-                            </p>
-                            <p class="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted">
-                              <span
-                                class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium text-ink"
-                              >
-                                @if (budgetOf(spending.budgetId)?.color; as color) {
-                                  <span
-                                    aria-hidden="true"
-                                    class="size-2 shrink-0 rounded-full"
-                                    [style.background-color]="color"
-                                  ></span>
-                                }
-                                <span class="min-w-0 break-words">{{
-                                  budgetOf(spending.budgetId)?.name ?? 'Budget ' + spending.budgetId
-                                }}</span>
-                              </span>
-                              @if (spending.amount < 0) {
-                                <span class="font-medium text-positive">Refund</span>
-                              }
-                            </p>
-                            @if (tagsOf(spending); as tagList) {
-                              @if (tagList.length > 0) {
-                                <ul class="mt-1.5 flex flex-wrap gap-1" aria-label="Tags">
-                                  @for (tag of tagList; track tag.id) {
-                                    <li class="inline-flex max-w-full">
-                                      <app-tag-chip [name]="tag.name" [color]="tag.color" />
-                                    </li>
-                                  }
-                                </ul>
-                              }
+                        @let tagList = tagsOf(spending);
+                        <li
+                          appListRow
+                          [titleLabel]="'Edit ' + rowLabel(spending)"
+                          (titleClick)="editing.set(spending)"
+                        >
+                          <span rowTitle>
+                            @if (spending.description) {
+                              {{ spending.description }}
+                            } @else {
+                              <span class="font-normal text-muted">No description</span>
                             }
-                          </div>
-                          <p class="font-semibold">
-                            <span
-                              class="tabular-nums"
-                              [class.text-positive]="spending.amount < 0"
-                              >{{ spending.amount | money }}</span
-                            >
+                          </span>
+                          <p rowMeta>
+                            <app-tag-chip
+                              mode="color"
+                              [name]="
+                                budgetOf(spending.budgetId)?.name ?? 'Budget ' + spending.budgetId
+                              "
+                              [color]="budgetOf(spending.budgetId)?.color ?? null"
+                            />
+                            @if (spending.amount < 0) {
+                              <span class="font-medium text-positive">Refund</span>
+                            }
                           </p>
-                          <div class="flex w-full justify-end gap-1 sm:w-auto">
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              [attr.aria-label]="'Edit ' + rowLabel(spending)"
-                              (click)="editing.set(spending)"
-                            >
+                          @if (tagList.length > 0) {
+                            <ul rowMeta aria-label="Tags">
+                              @for (tag of tagList; track tag.id) {
+                                <li class="inline-flex max-w-full">
+                                  <app-tag-chip [name]="tag.name" [color]="tag.color" />
+                                </li>
+                              }
+                            </ul>
+                          }
+                          <app-amount rowAmount [cents]="spending.amount" outflow />
+                          <app-action-menu
+                            rowActions
+                            [label]="'More actions for ' + rowLabel(spending)"
+                          >
+                            <button appMenuItem (click)="editing.set(spending)">
                               <app-icon name="pencil" />
                               Edit
                             </button>
-                            <button
-                              appButton
-                              variant="ghost"
-                              size="sm"
-                              [attr.aria-label]="'Delete ' + rowLabel(spending)"
-                              (click)="remove(spending)"
-                            >
+                            <button appMenuItem destructive (click)="remove(spending)">
                               <app-icon name="trash" />
                               Delete
                             </button>
-                          </div>
+                          </app-action-menu>
                         </li>
                       }
                     </ul>
@@ -286,21 +241,15 @@
                 }
               </div>
               @if (moreError(); as message) {
-                <p
-                  role="alert"
-                  class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-                >
-                  <app-icon name="alert" class="mt-0.5 text-negative" />
-                  <span>Couldn't load more spendings. {{ message }}</span>
-                </p>
+                <app-alert tone="error">Couldn't load more spendings. {{ message }}</app-alert>
               }
             }
           }
         }
       }
-    </section>
-  </div>
-}
+    </app-section>
+  }
+</app-page>
 
 @if (editing(); as spending) {
   @if (editMonth(); as editMonth) {

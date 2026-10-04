@@ -7,7 +7,13 @@ import {
   importPreviewSchema,
   importProfileSchema,
 } from '@wallet/shared';
-import { importMapping, importProfileDto, parseResponse, previewResponse, previewRow } from '../../../testing/fixtures';
+import {
+  importMapping,
+  importProfileDto,
+  parseResponse,
+  previewResponse,
+  previewRow,
+} from '../../../testing/fixtures';
 import { settle } from '../../../testing/harness';
 import { ImportApi } from './import.api';
 
@@ -73,8 +79,22 @@ describe('ImportApi', () => {
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual(body);
     expect(importCommitSchema.safeParse(request.request.body).success).toBe(true);
-    request.flush({ created: 2, items: [{ line: 2, id: 10 }, { line: 5, id: 11 }] });
-    expect(answers).toEqual([{ created: 2, items: [{ line: 2, id: 10 }, { line: 5, id: 11 }] }]);
+    request.flush({
+      created: 2,
+      items: [
+        { line: 2, id: 10 },
+        { line: 5, id: 11 },
+      ],
+    });
+    expect(answers).toEqual([
+      {
+        created: 2,
+        items: [
+          { line: 2, id: 10 },
+          { line: 5, id: 11 },
+        ],
+      },
+    ]);
   });
 
   it('profiles: GET /api/import/profiles as a resource', async () => {
@@ -89,7 +109,11 @@ describe('ImportApi', () => {
   });
 
   it('createProfile: POST /api/import/profiles with name, mapping and header', () => {
-    const body = { name: 'My bank', mapping: importMapping(), header: ['date', 'amount', 'description'] };
+    const body = {
+      name: 'My bank',
+      mapping: importMapping(),
+      header: ['date', 'amount', 'description'],
+    };
     api.createProfile(body).subscribe();
 
     const request = http.expectOne('/api/import/profiles');

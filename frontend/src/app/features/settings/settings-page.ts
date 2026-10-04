@@ -39,7 +39,10 @@ import {
 import { START_MONTH_HINT, START_MONTH_RULE_HELP } from '../../shared/forms/start-month-help';
 import { wholePercent, zodValidator } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
-import { PageHeader } from '../../shared/page-header';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { AppSection } from '../../shared/ui/section';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
 import { LinkButton } from '../../shared/ui/link-button';
@@ -65,8 +68,11 @@ const THEME_LABELS: Record<Theme, string> = {
 @Component({
   selector: 'app-settings-page',
   imports: [
+    Alert,
     ReactiveFormsModule,
+    AppPage,
     PageHeader,
+    AppSection,
     Field,
     AppInput,
     MonthInput,

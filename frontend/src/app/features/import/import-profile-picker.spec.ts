@@ -5,13 +5,10 @@ import { TestBed } from '@angular/core/testing';
 import type { ImportProfileDto } from '@wallet/shared';
 import { a11yProblems } from '../../../testing/a11y';
 import { getByLabel, getByRole, queryByRole, textOf, typeInto } from '../../../testing/dom';
-import {
-  importMapping,
-  importProfileDto,
-  parseResponse,
-} from '../../../testing/fixtures';
+import { importMapping, importProfileDto, parseResponse } from '../../../testing/fixtures';
 import { flushError, primeStores, settle } from '../../../testing/harness';
 import { IMPORT_STORES } from '../../../testing/import-harness';
+import { rowAction } from '../../../testing/menu';
 import {
   type MountOptions,
   mountStep,
@@ -124,7 +121,9 @@ describe('ImportProfilePicker', () => {
     it('says what a profile is for, and has no notice until one is used', async () => {
       const t = await setup();
 
-      expect(textOf(t.element)).toContain('A profile remembers the columns and formats of one bank.');
+      expect(textOf(t.element)).toContain(
+        'A profile remembers the columns and formats of one bank.',
+      );
       expect(t.notice()).toBe('');
     });
 
@@ -166,7 +165,9 @@ describe('ImportProfilePicker', () => {
 
       expect(selectedText(t.select())).toBe('ING');
       expect(t.wizard.draft()).toEqual(ING.mapping);
-      expect(t.notice()).toBe('Profile "ING" applied. Check the columns against the first rows below.');
+      expect(t.notice()).toBe(
+        'Profile "ING" applied. Check the columns against the first rows below.',
+      );
       expect(t.wizard.selectedProfileId()).toBe(4);
       http.expectNone('/api/import/parse');
     });
@@ -233,12 +234,19 @@ describe('ImportProfilePicker', () => {
 
   describe('when the profiles cannot be loaded', () => {
     it('says so, that none was applied and that the columns can be set by hand, with no hint about profiles', async () => {
-      const t = await setup({ profiles: 'error', file: { parse: parseResponse({ suggestedProfileId: 4 }) } });
+      const t = await setup({
+        profiles: 'error',
+        file: { parse: parseResponse({ suggestedProfileId: 4 }) },
+      });
 
       expect(textOf(t.element)).toContain(
         'The saved profiles could not be loaded, so none was applied. You can still set the columns by hand.',
       );
       expect(textOf(t.element)).not.toContain('A profile remembers the columns');
+      // It is the app's warning message, with its "Try again" inside it, not a loose line of text.
+      const notice = t.element.querySelector('app-alert') as HTMLElement;
+      expect(textOf(notice)).toContain('The saved profiles could not be loaded');
+      expect(textOf(getByRole(notice, 'button', 'Try again'))).toBe('Try again');
       expect(optionTexts(t.select())).toEqual(['None: set the columns below']);
       expect(t.select().disabled).toBe(false);
       expect(t.wizard.selectedProfileId()).toBeNull();
@@ -258,7 +266,9 @@ describe('ImportProfilePicker', () => {
         'ING',
         'Revolut',
       ]);
-      expect(textOf(t.element)).toContain('A profile remembers the columns and formats of one bank.');
+      expect(textOf(t.element)).toContain(
+        'A profile remembers the columns and formats of one bank.',
+      );
     });
 
     it('keeps saying so when it fails again', async () => {
@@ -303,7 +313,7 @@ describe('ImportProfilePicker', () => {
       const t = await setup();
       await t.pick('4');
       await t.press('Manage profiles');
-      await t.press('Rename profile ING', t.dialog());
+      await rowAction(t.dialog(), 'Rename', 'More actions for profile ING');
       typeInto(getByLabel(t.dialog(), 'New name for ING'), 'ING Direct');
       await settle(t.fixture);
 
@@ -324,7 +334,7 @@ describe('ImportProfilePicker', () => {
       const t = await setup();
       await t.pick('4');
       await t.press('Manage profiles');
-      await t.press('Delete profile ING', t.dialog());
+      await rowAction(t.dialog(), 'Delete', 'More actions for profile ING');
 
       const confirm = getByRole(t.element, 'dialog', /^Delete the profile "ING"\?/);
       await t.press('Delete profile', confirm);
@@ -333,7 +343,11 @@ describe('ImportProfilePicker', () => {
       request.flush(null, { status: 204, statusText: 'No Content' });
       await t.reload([COMMA_BANK, REVOLUT]);
 
-      expect(optionTexts(t.select())).toEqual(['None: set the columns below', 'Comma bank', 'Revolut']);
+      expect(optionTexts(t.select())).toEqual([
+        'None: set the columns below',
+        'Comma bank',
+        'Revolut',
+      ]);
       expect(selectedText(t.select())).toBe('None: set the columns below');
       expect(t.notice()).toBe('');
       expect(t.wizard.draft()).toEqual(ING.mapping);

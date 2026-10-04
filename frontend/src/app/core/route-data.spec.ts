@@ -7,11 +7,15 @@ const route = (data: object, child: ActivatedRouteSnapshot | null = null) =>
 describe('activeRouteData', () => {
   it('collects the data of the active route and its parents, the deepest winning', () => {
     const snapshot = route(
-      { monthScoped: false, focusLayout: true },
-      route({}, route({ monthScoped: true })),
+      { period: 'year', focusLayout: true },
+      route({}, route({ period: 'month', hideAddSpending: true })),
     );
 
-    expect(activeRouteData(snapshot)).toEqual({ monthScoped: true, focusLayout: true });
+    expect(activeRouteData(snapshot)).toEqual({
+      period: 'month',
+      focusLayout: true,
+      hideAddSpending: true,
+    });
   });
 
   it('is empty for a route without data', () => {

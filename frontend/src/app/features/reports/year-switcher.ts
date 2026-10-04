@@ -1,57 +1,31 @@
 import { Component, computed, input, output } from '@angular/core';
-import { Icon } from '../../shared/ui/icon';
-
-const BUTTON =
-  'inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-3 text-sm font-medium text-ink ' +
-  'hover:bg-subtle aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-surface';
+import { PeriodSwitcher } from '../../shared/ui/period-switcher';
 
 /**
- * Previous year, the year in view, next year, and a jump back to this year. It only asks: the page
- * decides what a change of year does (it puts the year in the URL).
- *
- * A button at the edge of the allowed range stays focusable and is marked `aria-disabled` instead of
- * `disabled`, like the month switcher: a button that disables itself while it has focus would drop
- * the keyboard user's place.
+ * Previous year, the year in view, next year, and a jump back to this year: the period switcher,
+ * worded for years. It only asks: the page decides what a change of year does (it puts the year in
+ * the URL).
  */
 @Component({
   selector: 'app-year-switcher',
-  imports: [Icon],
+  imports: [PeriodSwitcher],
   template: `
-    <div role="group" aria-label="Year" class="flex flex-wrap items-center gap-2">
-      <div class="flex items-center gap-1">
-        <button
-          type="button"
-          [class]="button"
-          [attr.aria-label]="previousName()"
-          [attr.aria-disabled]="!canGoPrevious()"
-          (click)="previous()"
-        >
-          <app-icon name="chevron-left" />
-        </button>
-        <p aria-live="polite" class="min-w-20 text-center font-semibold tabular-nums">
-          {{ year() }}
-        </p>
-        <button
-          type="button"
-          [class]="button"
-          [attr.aria-label]="nextName()"
-          [attr.aria-disabled]="!canGoNext()"
-          (click)="next()"
-        >
-          <app-icon name="chevron-right" />
-        </button>
-      </div>
-      <button
-        type="button"
-        [class]="button"
-        [attr.aria-label]="'Go to this year, ' + current()"
-        [attr.aria-disabled]="isCurrent()"
-        (click)="goToCurrent()"
-      >
-        This year
-      </button>
-    </div>
+    <app-period-switcher
+      label="Year"
+      [text]="'' + year()"
+      [previousLabel]="previousName()"
+      [nextLabel]="nextName()"
+      [currentLabel]="'Go to this year, ' + current()"
+      currentText="This year"
+      [canGoPrevious]="canGoPrevious()"
+      [canGoNext]="canGoNext()"
+      [isCurrent]="isCurrent()"
+      (goPrevious)="previous()"
+      (goNext)="next()"
+      (goCurrent)="goToCurrent()"
+    />
   `,
+  host: { class: 'block' },
 })
 export class YearSwitcher {
   readonly year = input.required<number>();
@@ -62,8 +36,6 @@ export class YearSwitcher {
   /** The current year, for the jump back. */
   readonly current = input.required<number>();
   readonly yearChange = output<number>();
-
-  protected readonly button = BUTTON;
 
   protected readonly canGoPrevious = computed(() => this.year() > this.min());
   protected readonly canGoNext = computed(() => this.year() < this.max());

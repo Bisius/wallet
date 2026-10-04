@@ -1,112 +1,122 @@
-<app-page-header
-  title="Settings"
-  subtitle="Currency, locale, theme, budget warnings and the month tracking starts."
-/>
+<app-page width="narrow">
+  <app-page-header
+    title="Settings"
+    subtitle="How Wallet looks and works, your tags and your data."
+  />
 
-<form [formGroup]="form" (ngSubmit)="save()" novalidate class="card max-w-2xl space-y-5">
-  <app-field label="Currency" hint="A 3-letter code such as EUR or USD.">
-    <input
-      appInput
-      formControlName="currency"
-      list="currency-options"
-      maxlength="3"
-      autocomplete="off"
-      autocapitalize="characters"
-      spellcheck="false"
-      (input)="uppercaseCurrency()"
-    />
-  </app-field>
-  <datalist id="currency-options">
-    @for (code of currencies; track code) {
-      <option [value]="code">{{ currencyName(code) }}</option>
-    }
-  </datalist>
-
-  <app-field
-    label="Locale"
-    hint="How numbers and dates are written. For example it-IT writes 1.234,56."
+  <app-section
+    heading="General"
+    description="How amounts and dates are written, the theme and when tracking starts."
   >
-    <input
-      appInput
-      formControlName="locale"
-      list="locale-options"
-      autocomplete="off"
-      spellcheck="false"
-    />
-  </app-field>
-  <datalist id="locale-options">
-    @for (tag of locales; track tag) {
-      <option [value]="tag">{{ localeName(tag) }}</option>
-    }
-  </datalist>
+    <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <app-field label="Currency" hint="A 3-letter code such as EUR or USD.">
+          <input
+            appInput
+            formControlName="currency"
+            list="currency-options"
+            maxlength="3"
+            autocomplete="off"
+            autocapitalize="characters"
+            spellcheck="false"
+            (input)="uppercaseCurrency()"
+          />
+        </app-field>
 
-  <p class="text-sm text-muted">
-    Amounts look like
-    <span class="font-medium text-ink">{{ sampleAmount | money: currency() : locale() }}</span
-    >.
-  </p>
+        <app-field
+          label="Locale"
+          hint="How numbers and dates are written. For example it-IT writes 1.234,56."
+        >
+          <input
+            appInput
+            formControlName="locale"
+            list="locale-options"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </app-field>
 
-  <app-field label="Theme" hint="Applies right away. Save to keep it.">
-    <select appInput formControlName="theme">
-      @for (theme of themes; track theme) {
-        <option [value]="theme">{{ themeLabels[theme] }}</option>
+        <p class="text-sm text-muted sm:col-span-2">
+          Amounts look like
+          <span class="font-medium text-ink">{{ sampleAmount | money: currency() : locale() }}</span
+          >.
+        </p>
+
+        <app-field label="Theme" hint="Applies right away. Save to keep it.">
+          <select appInput formControlName="theme">
+            @for (theme of themes; track theme) {
+              <option [value]="theme">{{ themeLabels[theme] }}</option>
+            }
+          </select>
+        </app-field>
+
+        <app-field
+          label="Budget warning threshold (%)"
+          hint="A budget shows a warning once this share of its available amount is spent. From 1 to 100."
+        >
+          <input
+            appInput
+            type="number"
+            formControlName="alertWarnPercent"
+            min="1"
+            max="100"
+            step="1"
+            inputmode="numeric"
+            autocomplete="off"
+          />
+        </app-field>
+
+        <app-field label="Start month" [hint]="startMonthHint()">
+          <app-month-input formControlName="startMonth" [max]="today.month()" />
+        </app-field>
+      </div>
+
+      <datalist id="currency-options">
+        @for (code of currencies; track code) {
+          <option [value]="code">{{ currencyName(code) }}</option>
+        }
+      </datalist>
+      <datalist id="locale-options">
+        @for (tag of locales; track tag) {
+          <option [value]="tag">{{ localeName(tag) }}</option>
+        }
+      </datalist>
+
+      @if (formError(); as error) {
+        <app-alert tone="error">{{ error }}</app-alert>
       }
-    </select>
-  </app-field>
 
-  <app-field
-    label="Budget warning threshold (%)"
-    hint="A budget shows a warning once this share of its available amount is spent. From 1 to 100."
+      <div class="form-actions">
+        <button appButton type="submit" [loading]="saving()">Save settings</button>
+      </div>
+    </form>
+  </app-section>
+
+  <app-tags-section />
+
+  <app-section
+    heading="Data"
+    description="Export your records, import a bank file and keep backups of everything."
   >
-    <input
-      appInput
-      type="number"
-      formControlName="alertWarnPercent"
-      min="1"
-      max="100"
-      step="1"
-      inputmode="numeric"
-      autocomplete="off"
-    />
-  </app-field>
+    <div class="divide-y divide-line *:py-6 *:first:pt-0 *:last:pb-0">
+      <app-export-section />
 
-  <app-field label="Start month" [hint]="startMonthHint()">
-    <app-month-input formControlName="startMonth" [max]="today.month()" />
-  </app-field>
+      <app-section
+        level="3"
+        landmark
+        heading="Import"
+        description="Bring in spendings from your bank's CSV file, checking every row first."
+      >
+        <a appLinkButton routerLink="/import">
+          <app-icon name="upload" />
+          Import a CSV file
+        </a>
+      </app-section>
 
-  @if (formError(); as error) {
-    <p
-      role="alert"
-      class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-    >
-      <app-icon name="alert" class="mt-0.5 text-negative" />
-      <span>{{ error }}</span>
-    </p>
-  }
-
-  <div class="border-t border-line pt-4">
-    <button appButton type="submit" [loading]="saving()">Save settings</button>
-  </div>
-</form>
-
-<app-tags-section class="mt-6 max-w-2xl" />
-
-<div class="mt-6 max-w-2xl space-y-6">
-  <app-export-section />
-
-  <section aria-labelledby="import-heading" class="card space-y-3">
-    <h2 id="import-heading" class="text-lg font-semibold">Import</h2>
-    <p class="text-sm text-muted">
-      Bring in spendings from your bank's CSV file. You check every row before anything is stored.
-    </p>
-    <a appLinkButton routerLink="/import">
-      <app-icon name="upload" />
-      Import a CSV file
-    </a>
-  </section>
-
-  <app-backups-section />
-</div>
+      <app-backups-section />
+    </div>
+  </app-section>
+</app-page>
 
 @if (askingForOpening()) {
   <app-opening-balance-dialog

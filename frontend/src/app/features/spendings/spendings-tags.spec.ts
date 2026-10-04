@@ -78,31 +78,46 @@ describe('SpendingsPage: tags on a spending', () => {
   }
 
   describe('adding', () => {
-    it('keeps the tags out of the way: a button, and no field, until they are asked for', async () => {
+    it('keeps the tags out of the way: under "More", folded, until they are asked for', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
 
-      expect(getAllByLabel(p.form(), 'Tags (optional)')).toHaveLength(0);
-      expect(getByRole(p.form(), 'button', 'Add tags')).toBeTruthy();
+      // The quick add is compact: the tags (and the description and Refund) are behind "More", and
+      // no button of their own asks for them.
+      const more = p.form().querySelector('details') as HTMLDetailsElement;
+      expect(textOf(more.querySelector('summary') as Element)).toContain('More');
+      expect(more.open).toBe(false);
+      expect(more.contains(tagBox(p.form()))).toBe(true);
+      expect(queryByRole(p.form(), 'button', 'Add tags')).toBeNull();
       // The fields of the quick entry are the ones they always were.
       for (const label of ['Amount', 'Budget', 'Date', 'Description (optional)', 'Refund']) {
         expect(getByLabel(p.form(), label), label).toBeTruthy();
       }
     });
 
-    it('brings up the tag field with "Add tags", and puts the cursor in it', async () => {
+    it('shows the tag field, with what it is for, once "More" is opened', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
 
-      await p.press('Add tags', p.form());
+      await p.openMore();
 
-      expect(queryByRole(p.form(), 'button', 'Add tags')).toBeNull();
-      expect(document.activeElement).toBe(tagBox(p.form()));
+      expect((p.form().querySelector('details') as HTMLDetailsElement).open).toBe(true);
+      expect(tagBox(p.form())).toBeTruthy();
       expect(textOf(p.form())).toContain('They change no budget or balance.');
+    });
+
+    it('opens "More" by itself when a tag is chosen, so a chosen tag is never out of sight', async () => {
+      const p = await openSpendingsPage(http, { tags: TAGS });
+      const more = p.form().querySelector('details') as HTMLDetailsElement;
+      expect(more.open).toBe(false);
+
+      await chooseTag(p, p.form(), 'groc');
+
+      expect(more.open).toBe(true);
     });
 
     it('sends the tags with the spending, by id', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '12,50', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
       await chooseTag(p, p.form(), 'groc');
       await chooseTag(p, p.form(), 'trav');
       expect(getByRole(p.form(), 'list', 'Selected tags')).toBeTruthy();
@@ -124,7 +139,7 @@ describe('SpendingsPage: tags on a spending', () => {
 
     it('does not send tags when none were chosen, even with the field up', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
-      await p.press('Add tags', p.form());
+      await p.openMore();
       await p.type('Amount', '3', p.form());
 
       await p.press('Add spending', p.form());
@@ -138,7 +153,7 @@ describe('SpendingsPage: tags on a spending', () => {
     it('takes Enter in the tag box for the tag, and does not add the spending', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '3', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
 
       const enter = await chooseTag(p, p.form(), 'trav');
 
@@ -153,7 +168,7 @@ describe('SpendingsPage: tags on a spending', () => {
     it('does not drop text left in the tag box without a word: the form says to add it or clear it', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '9', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
       tagBox(p.form()).focus();
       typeInto(tagBox(p.form()), 'Holi');
       await settle(p.fixture);
@@ -182,7 +197,7 @@ describe('SpendingsPage: tags on a spending', () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '5', p.form());
       await p.type('Budget', '2', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
       await chooseTag(p, p.form(), 'groc');
 
       await p.press('Add spending', p.form());
@@ -192,6 +207,7 @@ describe('SpendingsPage: tags on a spending', () => {
       await reloadAfterChange(p);
 
       // No chips are left, but the field itself stays up: whoever tags one entry tags the next.
+      expect((p.form().querySelector('details') as HTMLDetailsElement).open).toBe(true);
       expect(queryByRole(p.form(), 'list', 'Selected tags')).toBeNull();
       expect(tagBox(p.form()).value).toBe('');
       expect(p.value('Budget', p.form())).toBe('2');
@@ -209,7 +225,7 @@ describe('SpendingsPage: tags on a spending', () => {
     it('makes a tag that does not exist yet, and sends the spending with it', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '40', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
 
       await chooseTag(p, p.form(), 'Gift');
       const post = http.expectOne('/api/tags');
@@ -237,7 +253,7 @@ describe('SpendingsPage: tags on a spending', () => {
         tagDto({ id: index + 1, name: `Tag ${String.fromCharCode(65 + index)}` }),
       );
       const p = await openSpendingsPage(http, { tags: many });
-      await p.press('Add tags', p.form());
+      await p.openMore();
 
       for (let index = 0; index < 10; index++) {
         await chooseTag(p, p.form(), `Tag ${String.fromCharCode(65 + index)}`);
@@ -254,7 +270,7 @@ describe('SpendingsPage: tags on a spending', () => {
     it('takes a tag off the spending when the API says the tag no longer exists', async () => {
       const p = await openSpendingsPage(http, { tags: TAGS });
       await p.type('Amount', '9', p.form());
-      await p.press('Add tags', p.form());
+      await p.openMore();
       await chooseTag(p, p.form(), 'groc');
       await chooseTag(p, p.form(), 'trav');
       await p.press('Add spending', p.form());

@@ -1,122 +1,56 @@
 import { Component, computed, input } from '@angular/core';
 import type { YearlyReportDto } from '@wallet/shared';
-import { Amount } from '../../shared/ui/amount';
+import { Alert } from '../../shared/ui/alert';
+import { Stat } from '../../shared/ui/stat';
+import { StatGrid } from '../../shared/ui/stat-grid';
+import { StatStrip } from '../../shared/ui/stat-strip';
 
 /**
- * The year in one strip: income, fixed costs, budgeted, spent and saved, each exactly as the report
- * gives it. Saved is what is **due** to savings (what the months leave over, or are short), not
- * what was moved, and says so. Below it, the income split into salary and extra income, and what
- * the saved figure is made of.
+ * The year in one strip, with no card around it: income, spent and saved large, fixed costs and
+ * budgeted under them, each exactly as the report gives it. Saved is what is **due** to savings (what
+ * the months leave over, or are short), not what was moved, and says so. When some of the months have
+ * not started, the strip says how many of them its totals include. What a projected month assumes is
+ * said once, in the help of "Month by month". What the income and the saved figure are made of is in
+ * `ReportBreakdown`.
  */
 @Component({
   selector: 'app-report-glance',
-  imports: [Amount],
+  imports: [Alert, Stat, StatGrid, StatStrip],
   template: `
-    <section aria-labelledby="report-glance-heading" class="card space-y-4">
-      <div>
-        <h2 id="report-glance-heading" class="text-lg font-semibold">
-          {{ report().year }} at a glance
-        </h2>
-        @if (projected() > 0) {
-          <p class="mt-1 text-sm text-muted">
-            The totals include {{ projected() }} projected
-            {{ projected() === 1 ? 'month' : 'months' }}: they assume the current month ends as it
-            stands.
-          </p>
-        }
-      </div>
-
-      <dl class="flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-2 lg:grid-cols-5">
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Income</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="report().income.total" /></dd>
-        </div>
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Fixed costs</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="report().fixedCosts.total" /></dd>
-        </div>
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Budgeted</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="report().allocated" /></dd>
-        </div>
-        <div class="rounded-control bg-subtle p-3">
-          <dt class="text-sm text-muted">Spent</dt>
-          <dd class="text-lg font-semibold"><app-amount [cents]="report().spent" /></dd>
-        </div>
-        <div class="col-span-2 rounded-control bg-subtle p-3 lg:col-span-1">
-          <dt class="text-sm text-muted">Saved</dt>
-          <dd class="text-lg font-semibold">
-            <app-amount [cents]="report().saved" [signed]="true" plain />
-          </dd>
-          <dd class="text-xs text-muted">Due to savings</dd>
-        </div>
+    <app-stat-strip [heading]="report().year + ' at a glance'">
+      <dl appStatGrid [columns]="3">
+        <div appStat size="lg" label="Income" [cents]="report().income.total"></div>
+        <div appStat size="lg" label="Spent" [cents]="report().spent"></div>
+        <div
+          appStat
+          size="lg"
+          label="Saved"
+          [cents]="report().saved"
+          [signed]="true"
+          plain
+          hint="Due to savings"
+        ></div>
       </dl>
-
-      <div class="grid gap-6 md:grid-cols-2">
-        <section aria-labelledby="report-income-heading">
-          <h3 id="report-income-heading" class="font-semibold">Income</h3>
-          <dl class="mt-2 divide-y divide-line text-sm">
-            <div class="flex justify-between gap-4 py-2">
-              <dt class="text-muted">Salary</dt>
-              <dd><app-amount [cents]="report().income.salary" /></dd>
-            </div>
-            <div class="flex justify-between gap-4 py-2">
-              <dt class="text-muted">Extra income</dt>
-              <dd><app-amount [cents]="report().income.extra" /></dd>
-            </div>
-            <div class="flex justify-between gap-4 py-2 font-semibold">
-              <dt>Total income</dt>
-              <dd><app-amount [cents]="report().income.total" /></dd>
-            </div>
-          </dl>
-        </section>
-
-        <section aria-labelledby="report-saved-heading">
-          <h3 id="report-saved-heading" class="font-semibold">Saved, due to savings</h3>
-          <p class="mt-1 text-sm text-muted">
-            What moves to savings as each month closes, whether or not you have settled it yet. A
-            negative amount is money taken from savings.
-          </p>
-          <dl class="mt-2 divide-y divide-line text-sm">
-            <div class="flex justify-between gap-4 py-2">
-              <dt class="text-muted">Left unallocated</dt>
-              <dd>
-                <app-amount [cents]="report().savedBreakdown.unallocated" [signed]="true" plain />
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4 py-2">
-              <dt class="text-muted">Budgets settled to savings</dt>
-              <dd>
-                <app-amount
-                  [cents]="report().savedBreakdown.budgetsSettled"
-                  [signed]="true"
-                  plain
-                />
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4 py-2">
-              <dt class="text-muted">Subscription reserves released</dt>
-              <dd>
-                <app-amount
-                  [cents]="report().savedBreakdown.reservesReleased"
-                  [signed]="true"
-                  plain
-                />
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4 py-2 font-semibold">
-              <dt>Saved in {{ report().year }}</dt>
-              <dd><app-amount [cents]="report().saved" [signed]="true" plain /></dd>
-            </div>
-          </dl>
-        </section>
-      </div>
-    </section>
+      <dl appStatGrid [columns]="2">
+        <div appStat label="Fixed costs" [cents]="report().fixedCosts.total"></div>
+        <div appStat label="Budgeted" [cents]="report().allocated"></div>
+      </dl>
+      @if (projectedNote(); as note) {
+        <app-alert tone="info">{{ note }}</app-alert>
+      }
+    </app-stat-strip>
   `,
   host: { class: 'block' },
 })
 export class ReportGlance {
   readonly report = input.required<YearlyReportDto>();
+
+  /** What the totals include, when some of the months have not started. */
+  protected readonly projectedNote = computed(() => {
+    const count = this.projected();
+    if (count === 0) return undefined;
+    return `The totals include ${count} projected ${count === 1 ? 'month' : 'months'}.`;
+  });
 
   /** How many of the included months have not started: their figures are projections. */
   protected readonly projected = computed(

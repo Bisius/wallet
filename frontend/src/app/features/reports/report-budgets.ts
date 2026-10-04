@@ -2,6 +2,8 @@ import { Component, computed, input } from '@angular/core';
 import type { YearlyReportDto } from '@wallet/shared';
 import { BarChart, type BarChartRow } from '../../shared/ui/charts/bar-chart';
 import { Amount } from '../../shared/ui/amount';
+import { KeyValue, KeyValues } from '../../shared/ui/key-values';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
 
 /**
@@ -11,17 +13,18 @@ import { EmptyState } from '../../shared/ui/states';
  */
 @Component({
   selector: 'app-report-budgets',
-  imports: [Amount, BarChart, EmptyState],
+  imports: [Amount, AppSection, BarChart, EmptyState, KeyValue, KeyValues, SectionHelp],
   template: `
-    <section aria-labelledby="report-budgets-heading" class="card space-y-4">
-      <div>
-        <h2 id="report-budgets-heading" class="text-lg font-semibold">Spent per budget</h2>
-        <p class="mt-1 text-sm text-muted">
-          What each budget was given in {{ report().year }} (allocated) and what was spent from it.
-          A bar that runs past its outline spent more than was allocated.
-        </p>
-      </div>
-
+    <app-section
+      heading="Spent per budget"
+      [description]="
+        'What each budget was given in ' + report().year + ' and what was spent from it.'
+      "
+    >
+      <p sectionHelp>
+        Allocated is what the budget was given. A bar that runs past its outline spent more than was
+        allocated.
+      </p>
       @if (rows().length === 0) {
         <app-empty-state
           [title]="'No budgets in ' + report().year"
@@ -36,18 +39,14 @@ import { EmptyState } from '../../shared/ui/states';
           trackLabel="Allocated"
           nameLabel="Budget"
         />
-        <dl class="flex flex-wrap gap-x-8 gap-y-1 border-t border-line pt-3 text-sm">
-          <div class="flex gap-2">
-            <dt class="text-muted">Total allocated</dt>
-            <dd class="font-semibold"><app-amount [cents]="report().allocated" /></dd>
+        <dl appKeyValues>
+          <div appKeyValue label="Total allocated" strong>
+            <app-amount [cents]="report().allocated" />
           </div>
-          <div class="flex gap-2">
-            <dt class="text-muted">Total spent</dt>
-            <dd class="font-semibold"><app-amount [cents]="report().spent" /></dd>
-          </div>
+          <div appKeyValue label="Total spent" strong><app-amount [cents]="report().spent" /></div>
         </dl>
       }
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })

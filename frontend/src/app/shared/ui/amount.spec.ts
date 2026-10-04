@@ -16,6 +16,9 @@ import { Amount } from './amount';
     <app-amount id="refund" [cents]="-500" [signed]="true" />
     <app-amount id="below" [cents]="-12000" plain />
     <app-amount id="plain-in" [cents]="3000" [signed]="true" plain />
+    <app-amount id="spending" [cents]="350" outflow />
+    <app-amount id="money-back" [cents]="-4500" outflow />
+    <app-amount id="money-back-plain" [cents]="-4500" outflow plain />
   `,
 })
 class AmountHost {}
@@ -79,5 +82,17 @@ describe('Amount', () => {
     expect(span('zero').className).not.toContain('text-positive');
     expect(span('refund').textContent).toBe('-€5.00');
     expect(span('refund').className).toContain('text-negative');
+  });
+
+  it('shows money that went out in plain, and the refund of it in green with its minus sign', async () => {
+    const { span } = await setup();
+
+    expect(span('spending').textContent).toBe('€3.50');
+    expect(span('spending').className).not.toContain('text-positive');
+    expect(span('spending').className).not.toContain('text-negative');
+    expect(span('money-back').textContent).toBe('-€45.00');
+    expect(span('money-back').className).toContain('text-positive');
+    expect(span('money-back').className).not.toContain('text-negative');
+    expect(span('money-back-plain').className).not.toContain('text-positive');
   });
 });

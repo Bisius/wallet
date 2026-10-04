@@ -2,14 +2,15 @@ import { Component, computed, inject } from '@angular/core';
 import type { MonthSummary } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
+import { AsyncSection } from '../../shared/ui/async-section';
 import {
   LineChart,
   type LineChartCategory,
   type LineChartSeries,
 } from '../../shared/ui/charts/line-chart';
 import { MONTH_STATUS_LABELS } from '../../shared/ui/month-status';
+import { SectionHelp } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
-import { DashboardCard } from './dashboard-card';
 import { DashboardData } from './dashboard-data';
 
 /**
@@ -20,21 +21,24 @@ import { DashboardData } from './dashboard-data';
  */
 @Component({
   selector: 'app-trend-chart-section',
-  imports: [DashboardCard, EmptyState, LineChart],
+  imports: [AsyncSection, EmptyState, LineChart, SectionHelp],
   template: `
-    <app-dashboard-card
-      title="Income, spent and saved"
-      [description]="
-        'Month by month, up to ' +
-        data.monthLabel() +
-        '. Saved is what moves to savings when a month closes: below zero, money is taken from savings.'
-      "
+    <app-async-section
+      heading="Income, spent and saved"
+      [description]="'Month by month, up to ' + data.monthLabel() + '.'"
       [state]="data.summariesState()"
       [error]="data.summaries.error()"
       loadingLabel="Loading the monthly trend…"
       errorTitle="Couldn't load the monthly trend"
       (retry)="data.summaries.reload()"
     >
+      @if (chart()?.categories?.length) {
+        <p sectionHelp>
+          Saved is what moves to savings when a month closes: below zero, money is taken from
+          savings.
+        </p>
+      }
+
       @if (chart(); as chart) {
         @if (chart.categories.length === 0) {
           <app-empty-state
@@ -53,7 +57,7 @@ import { DashboardData } from './dashboard-data';
           />
         }
       }
-    </app-dashboard-card>
+    </app-async-section>
   `,
   host: { class: 'block' },
 })

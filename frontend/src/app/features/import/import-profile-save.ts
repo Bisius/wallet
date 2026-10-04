@@ -11,8 +11,9 @@ import { parseApiError } from '../../core/api-error';
 import { applyApiErrors, focusFirstInvalidOrSubmit } from '../../shared/forms/api-errors';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { Disclosure } from '../../shared/ui/disclosure';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
 import { ImportProfilesStore } from './import-profiles.store';
 import { ImportWizardStore, profileHeader } from './import-wizard.store';
 
@@ -27,13 +28,10 @@ const notBlank: ValidatorFn = (control) =>
  */
 @Component({
   selector: 'app-import-profile-save',
-  imports: [ReactiveFormsModule, Field, AppInput, Button, Icon],
+  imports: [Disclosure, Alert, ReactiveFormsModule, Field, AppInput, Button],
   template: `
-    <details class="rounded-card border border-line p-3" [open]="open()" (toggle)="onToggle($event)">
-      <summary class="cursor-pointer rounded-control text-sm font-medium">
-        Save these settings as a profile
-      </summary>
-      <form [formGroup]="form" (ngSubmit)="save()" novalidate class="mt-3 space-y-3">
+    <app-disclosure summary="Save these settings as a profile" [(open)]="open">
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-3">
         <app-field
           label="Profile name"
           hint="For example the name of your bank. The next file with the same column titles fills itself in."
@@ -47,13 +45,7 @@ const notBlank: ValidatorFn = (control) =>
         </app-field>
 
         @if (formError(); as error) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-          >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span>{{ error }}</span>
-          </p>
+          <app-alert tone="error">{{ error }}</app-alert>
         }
 
         <button
@@ -69,7 +61,7 @@ const notBlank: ValidatorFn = (control) =>
           <p class="text-sm text-muted">Finish choosing the columns first.</p>
         }
       </form>
-    </details>
+    </app-disclosure>
   `,
   host: { class: 'block' },
 })
@@ -90,10 +82,6 @@ export class ImportProfileSave {
       validators: [Validators.required, notBlank, Validators.maxLength(NAME_MAX_LENGTH)],
     }),
   });
-
-  protected onToggle(event: Event): void {
-    this.open.set((event.target as HTMLDetailsElement).open);
-  }
 
   protected async save(): Promise<void> {
     if (this.saving()) return;

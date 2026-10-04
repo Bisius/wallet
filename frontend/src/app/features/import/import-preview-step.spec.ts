@@ -105,8 +105,7 @@ describe('ImportPreviewStep', () => {
       action();
       await settle(fixture);
     };
-    const click = (name: string | RegExp) =>
-      act(() => getByRole(element, 'button', name).click());
+    const click = (name: string | RegExp) => act(() => getByRole(element, 'button', name).click());
     return {
       fixture,
       element,
@@ -118,8 +117,7 @@ describe('ImportPreviewStep', () => {
       back: () => getByRole(element, 'button', 'Back') as HTMLButtonElement,
       show: () => getByLabel<HTMLSelectElement>(element, 'Show'),
       bulk: () => getByLabel<HTMLSelectElement>(element, 'Budget for the ticked rows'),
-      budget: (line: number) =>
-        getByLabel<HTMLSelectElement>(element, `Budget for line ${line}`),
+      budget: (line: number) => getByLabel<HTMLSelectElement>(element, `Budget for line ${line}`),
       checkbox: (line: number) => getByLabel<HTMLInputElement>(element, `Import line ${line}`),
       lines: () => queryAllByRole(element, 'checkbox').map(lineOf),
       ticked: () =>
@@ -138,8 +136,7 @@ describe('ImportPreviewStep', () => {
           .map(textOf)
           .find((text) => text.includes(' set for ')),
       blocker: () => document.getElementById('import-blocker'),
-      pick: async (select: HTMLSelectElement, value: string) =>
-        act(() => typeInto(select, value)),
+      pick: async (select: HTMLSelectElement, value: string) => act(() => typeInto(select, value)),
       act,
     };
   }
@@ -162,6 +159,22 @@ describe('ImportPreviewStep', () => {
         'Rows 6 Ready to import 3 Already imported 1 Credits 1 With errors 1',
       );
       expect(textOf(t.element)).toContain('The counts overlap');
+    });
+
+    it('shows the counts as plain figures: the step is a card, so no tile sits in it', async () => {
+      const t = await setup();
+
+      const figures = t.element.querySelector('dl') as HTMLElement;
+      expect(figures.querySelector('.bg-subtle')).toBeNull();
+    });
+
+    it('keeps the long notes (the overlap, the meaning of "all shown rows") in the help', async () => {
+      const t = await setup();
+
+      expect(textOf(t.element)).toContain('How this works');
+      expect(textOf(t.element)).toContain(
+        '"All shown rows" means every row of this filter, on every page.',
+      );
     });
 
     it("shows the server's counts, not the count of the rows it holds, in the locale of the user", async () => {
@@ -571,7 +584,12 @@ describe('ImportPreviewStep', () => {
     it('clears the message when the user tries again, and finishes when it works', async () => {
       const t = await setup();
       await t.click('Import 2 spendings');
-      flushError(http.expectOne('/api/import/commit'), 500, 'internal_error', 'The database is locked');
+      flushError(
+        http.expectOne('/api/import/commit'),
+        500,
+        'internal_error',
+        'The database is locked',
+      );
       await settle(t.fixture);
       expect(t.alerts()).toHaveLength(1);
 
@@ -700,7 +718,12 @@ describe('ImportPreviewStep', () => {
     it('is possible when the import failed', async () => {
       const t = await setup();
       await t.click('Import 2 spendings');
-      flushError(http.expectOne('/api/import/commit'), 400, 'validation_error', 'A quote is never closed');
+      flushError(
+        http.expectOne('/api/import/commit'),
+        400,
+        'validation_error',
+        'A quote is never closed',
+      );
       await settle(t.fixture);
 
       await t.click('Back');
@@ -721,7 +744,9 @@ describe('ImportPreviewStep', () => {
     it('says what went wrong when they cannot be loaded, and loads them again', async () => {
       const t = await setup(ROWS, { budgets: 'error' });
 
-      expect(t.alerts()).toEqual(["Couldn't load your budgets The budgets are unavailable Try again"]);
+      expect(t.alerts()).toEqual([
+        "Couldn't load your budgets The budgets are unavailable Try again",
+      ]);
 
       await t.click('Try again');
       http.expectOne('/api/budgets').flush(BUDGETS);
@@ -786,10 +811,13 @@ describe('ImportPreviewStep', () => {
       ['loading', 'loading'],
       ['failing to load', 'error'],
       ['missing', []],
-    ])('has nothing a screen reader cannot use while the budgets are %s', async (_state, budgets) => {
-      const t = await setup(ROWS, { budgets });
+    ])(
+      'has nothing a screen reader cannot use while the budgets are %s',
+      async (_state, budgets) => {
+        const t = await setup(ROWS, { budgets });
 
-      expect(a11yProblems(t.element)).toEqual([]);
-    });
+        expect(a11yProblems(t.element)).toEqual([]);
+      },
+    );
   });
 });

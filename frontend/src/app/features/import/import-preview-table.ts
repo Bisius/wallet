@@ -11,9 +11,10 @@ import type { ImportPreviewRow, ImportRowErrorCode } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { formatDate, formatMonth } from '../../shared/format';
 import { AppInput } from '../../shared/forms/app-input';
+import { Badge } from '../../shared/ui/badge';
 import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { TableScroll } from '../../shared/ui/table-scroll';
 import { REJECTION_TEXT, ROW_ERROR_TEXT } from './import-text';
 import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.store';
 
@@ -26,33 +27,26 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
  */
 @Component({
   selector: 'app-import-preview-table',
-  imports: [AppInput, Amount, Button, Icon],
+  imports: [Badge, AppInput, Amount, Button, TableScroll],
   template: `
-    <!-- "relative": the sr-only spans of the cells are absolute, and without it they are not clipped by this scroller, so the columns scrolled out of view widen the whole page on a phone. -->
-    <div
-      #region
-      role="region"
-      aria-label="Rows of the file"
-      tabindex="0"
-      class="relative overflow-x-auto rounded-card border border-line"
-    >
-      <table class="w-full min-w-[40rem] border-collapse text-left text-sm">
+    <app-table-scroll label="Rows of the file">
+      <table class="data-table min-w-[40rem]">
         <caption class="sr-only">
           Rows of the file: tick the ones to import and check the budget of each
         </caption>
-        <thead class="bg-subtle">
+        <thead>
           <tr>
-            <th scope="col" class="w-10 px-3 py-2"><span class="sr-only">Import</span></th>
-            <th scope="col" class="px-3 py-2 font-semibold">Date</th>
-            <th scope="col" class="px-3 py-2 font-semibold">Description</th>
-            <th scope="col" class="px-3 py-2 text-right font-semibold">Amount</th>
-            <th scope="col" class="px-3 py-2 font-semibold">Budget</th>
+            <th scope="col" class="w-10"><span class="sr-only">Import</span></th>
+            <th scope="col">Date</th>
+            <th scope="col">Description</th>
+            <th scope="col" class="cell-num">Amount</th>
+            <th scope="col">Budget</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-line">
+        <tbody>
           @for (row of review.pageRows(); track row.line) {
             <tr [class.bg-subtle]="!selectable(row)">
-              <td class="px-3 py-2 align-top">
+              <td class="align-top">
                 <input
                   type="checkbox"
                   class="size-6 accent-accent"
@@ -62,7 +56,7 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
                   (change)="onCheck(row, $event)"
                 />
               </td>
-              <td class="px-3 py-2 align-top whitespace-nowrap">
+              <td class="align-top whitespace-nowrap">
                 @if (row.date !== null) {
                   <span class="block">{{ dateText(row.date) }}</span>
                 } @else {
@@ -70,7 +64,7 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
                 }
                 <span class="block text-xs text-muted">Line {{ row.line }}</span>
               </td>
-              <td class="min-w-48 px-3 py-2 align-top">
+              <td class="min-w-48 align-top">
                 @if (row.description !== '') {
                   <span class="block break-words">{{ row.description }}</span>
                 } @else {
@@ -78,32 +72,22 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
                 }
                 <span class="mt-1 flex flex-wrap gap-1">
                   @if (row.duplicate) {
-                    <span class="badge border-line-strong bg-surface">
-                      <app-icon name="check-circle" />
-                      Already imported
-                    </span>
+                    <app-badge icon="check-circle">Already imported</app-badge>
                   }
                   @if (row.credit) {
-                    <span class="badge border-line-strong bg-surface">
-                      <app-icon name="arrow-down" />
-                      Credit: money in
-                    </span>
+                    <app-badge tone="accent" icon="arrow-down">Credit: money in</app-badge>
                   }
                   @for (code of row.errors; track code) {
-                    <span class="badge border-negative bg-negative-soft">
-                      <app-icon name="alert" />
-                      {{ errorText(row, code) }}
-                    </span>
+                    <app-badge tone="negative" icon="alert">{{ errorText(row, code) }}</app-badge>
                   }
                   @if (rejectedCodes(row.line); as codes) {
-                    <span class="badge border-negative bg-negative-soft">
-                      <app-icon name="ban" />
-                      Refused by the server: {{ rejectedText(codes) }}
-                    </span>
+                    <app-badge tone="negative" icon="ban"
+                      >Refused by the server: {{ rejectedText(codes) }}</app-badge
+                    >
                   }
                 </span>
               </td>
-              <td class="px-3 py-2 text-right align-top whitespace-nowrap">
+              <td class="cell-num align-top whitespace-nowrap">
                 @if (row.amount !== null) {
                   <app-amount [cents]="row.amount" [plain]="true" />
                 } @else {
@@ -111,7 +95,7 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
                   <span class="sr-only">No amount</span>
                 }
               </td>
-              <td class="min-w-44 px-3 py-2 align-top">
+              <td class="min-w-44 align-top">
                 @if (selectable(row)) {
                   @let options = review.optionsFor(row);
                   @let budget = review.budgetFor(row);
@@ -141,12 +125,12 @@ import { isSelectable, PAGE_SIZE, ImportReviewStore } from './import-review.stor
             </tr>
           } @empty {
             <tr>
-              <td colspan="5" class="px-3 py-6 text-center text-muted">No rows match this filter.</td>
+              <td colspan="5" class="py-6 text-center text-muted">No rows match this filter.</td>
             </tr>
           }
         </tbody>
       </table>
-    </div>
+    </app-table-scroll>
 
     <nav aria-label="Pages of rows" class="mt-3 flex flex-wrap items-center justify-between gap-3">
       <p aria-live="polite" class="text-sm text-muted">{{ rangeText() }}</p>
@@ -181,7 +165,7 @@ export class ImportPreviewTable {
   private readonly settings = inject(SettingsStore);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly region = viewChild.required<ElementRef<HTMLElement>>('region');
+  private readonly region = viewChild.required(TableScroll);
 
   protected readonly pageSize = PAGE_SIZE;
   protected readonly selectable = isSelectable;
@@ -206,7 +190,9 @@ export class ImportPreviewTable {
   }
 
   protected monthName(row: ImportPreviewRow): string {
-    return row.date === null ? 'that month' : formatMonth(row.date.slice(0, 7), this.settings.locale());
+    return row.date === null
+      ? 'that month'
+      : formatMonth(row.date.slice(0, 7), this.settings.locale());
   }
 
   /** An error in words, with what the file says where it matters: the date or amount as written. */
@@ -251,9 +237,11 @@ export class ImportPreviewTable {
     afterNextRender(
       () => {
         if (select.isConnected) return;
-        const selects = this.host.nativeElement.querySelectorAll<HTMLElement>('select[data-budget]');
+        const selects =
+          this.host.nativeElement.querySelectorAll<HTMLElement>('select[data-budget]');
         const next = selects[Math.min(Math.max(index, 0), selects.length - 1)];
-        (next ?? this.region().nativeElement).focus();
+        if (next) next.focus();
+        else this.region().focus();
       },
       { injector: this.injector },
     );
@@ -264,7 +252,7 @@ export class ImportPreviewTable {
     this.review.goToPage(this.review.page() + by);
     afterNextRender(
       () => {
-        const region = this.region().nativeElement;
+        const region = this.region();
         region.focus();
         region.scrollIntoView({ block: 'nearest' });
       },

@@ -1,6 +1,7 @@
 import {
   afterNextRender,
   Component,
+  computed,
   DestroyRef,
   DOCUMENT,
   ElementRef,
@@ -11,6 +12,27 @@ import {
 } from '@angular/core';
 
 let nextDialogId = 0;
+
+/** `dialog`: in the middle of the screen. `sheet`: slides up from the bottom edge and takes its width (a phone). */
+export type DialogVariant = 'dialog' | 'sheet';
+
+const SURFACE =
+  'overflow-hidden border border-line bg-surface-raised p-0 text-ink shadow-overlay backdrop:bg-black/60 motion-safe:backdrop:animate-fade-in';
+
+const CONTENT = 'min-h-0 flex-1 scroll-pb-20 overflow-y-auto px-4 pt-4 sm:px-5';
+
+const CONTENT_CLASSES: Record<DialogVariant, string> = {
+  dialog: CONTENT,
+  // Clear of the home indicator of a phone.
+  sheet: `${CONTENT} pb-[env(safe-area-inset-bottom)]`,
+};
+
+const VARIANT_CLASSES: Record<DialogVariant, string> = {
+  dialog: `m-auto w-[min(96vw,36rem)] rounded-card ${SURFACE} motion-safe:animate-dialog-in`,
+  // Margins: the top is `auto` so the sheet sits on the bottom edge, and the UA's `max-width` and
+  // `max-height` (a margin around a centered dialog) are lifted so it spans the screen.
+  sheet: `mx-0 mt-auto mb-0 w-full max-w-none rounded-t-card rounded-b-none border-b-0 overscroll-contain ${SURFACE} motion-safe:animate-sheet-in`,
+};
 
 /**
  * A modal dialog for a form: `<app-dialog heading="New budget" (closed)="close()">…</app-dialog>`.
@@ -31,6 +53,14 @@ let nextDialogId = 0;
  * `dialog-footer` class (see styles.css) to keep them in view at the bottom: the content keeps
  * room for it (`scroll-pb-20`), so a field that takes focus is never left behind the buttons.
  *
+ * It sits on `surface-raised` with the overlay shadow and fades and scales in within 150 ms, only for
+ * people who have not asked for reduced motion (`motion-safe:`). The backdrop fades in too.
+ *
+ * `variant="sheet"` is the same dialog as a bottom sheet for a phone: it sits on the bottom edge, takes
+ * the whole width, slides up (`motion-safe:`), holds the page still behind it (`html` does not scroll
+ * while one is open, see styles.css) and also closes on a tap on the backdrop, since a sheet has no
+ * form to lose. Everything else is the dialog's: focus goes in, Escape closes it, focus goes back.
+ *
  * `closed` is emitted when the browser closes it (Escape). It does not close on a click outside, so a
  * stray tap never throws away a half-filled form, and `locked` keeps Escape from closing it while a
  * save is under way. The content decides what Save and Cancel do.
@@ -41,7 +71,9 @@ let nextDialogId = 0;
     <dialog
       #dialog
       [attr.aria-labelledby]="titleId"
-      class="m-auto w-[min(96vw,36rem)] overflow-hidden rounded-card border border-line bg-surface p-0 text-ink shadow-xl backdrop:bg-black/60"
+      [attr.data-variant]="variant()"
+      [class]="classes()"
+      (click)="onClick($event)"
       (cancel)="onCancel($event)"
       (close)="onClose()"
     >
@@ -52,7 +84,7 @@ let nextDialogId = 0;
         >
           {{ heading() }}
         </h2>
-        <div class="min-h-0 flex-1 scroll-pb-20 overflow-y-auto px-4 pt-4 sm:px-5">
+        <div [class]="contentClasses()">
           <ng-content />
         </div>
       </div>
@@ -66,12 +98,16 @@ export class AppDialog {
 
   /** The dialog's title: it is also its accessible name. */
   readonly heading = input.required<string>();
+  /** `sheet` is the bottom sheet of a phone (see the class comment). */
+  readonly variant = input<DialogVariant>('dialog');
   /** While true Escape does nothing: a save is under way, and closing would lose its outcome. */
   readonly locked = input(false);
   /** The browser closed the dialog (Escape). */
   readonly closed = output<void>();
 
   protected readonly titleId = `dialog-title-${nextDialogId++}`;
+  protected readonly classes = computed(() => VARIANT_CLASSES[this.variant()]);
+  protected readonly contentClasses = computed(() => CONTENT_CLASSES[this.variant()]);
   private destroyed = false;
   /** What had focus when the dialog opened: where focus goes back to. */
   private opener: HTMLElement | null = null;
@@ -122,6 +158,13 @@ export class AppDialog {
       (element) => !element.hasAttribute('disabled') && element.getAttribute('type') !== 'hidden',
     );
     first?.setAttribute('autofocus', '');
+  }
+
+  /** A tap on the backdrop of a sheet. It is a click on the `<dialog>` itself: its content fills the rest. */
+  protected onClick(event: MouseEvent): void {
+    if (this.variant() === 'sheet' && event.target === event.currentTarget) {
+      this.dialog().nativeElement.close();
+    }
   }
 
   protected onCancel(event: Event): void {

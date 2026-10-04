@@ -226,6 +226,36 @@ Done when both endpoints have route tests (happy path, validation, 404, every ru
 - **Accessibility pass (axe)** on every page, plus a mobile viewport check ✅
 - **README "run it at home" guide** (systemd and Docker), and a **backup restore drill** ✅
 
+## Phase 9 · UI refresh (`frontend-engineer`, `test-engineer`) ✅
+
+**Done.** Plan, findings and decisions: [`UI-PLAN.md`](./UI-PLAN.md). Frontend only: no API, schema, shared-contract or money change, so no `finance-domain-reviewer` pass. Every phase U0 to U5 of that plan landed.
+
+- **U0, baselines.** A third Playwright project, `visual` (`npm run e2e:visual`, 188 full-page shots of every page, dialog and open menu: desktop light and dark, 390 px phone), is not part of `npm run e2e`. The baselines are local and gitignored (`e2e/visual-baselines/`); update them on purpose with `-- --update-snapshots` ([`e2e/README.md`](../e2e/README.md)).
+- **U1, foundations.** Inter Variable self-hosted (`@fontsource-variable/inter`, one 48 KB Latin file prefetched by the service worker, the other scripts lazy), `--shadow-card`/`--shadow-overlay`, `--color-surface-raised` (dark mode gets a lighter surface and no shadow), the new radii, a type scale as utilities (`text-page-title`, `text-section-title`, `text-kpi`, `text-stat`, `text-label`), navigation icons, the emoji font stack, 150 ms `motion-safe` dialog and toast motion. No existing color changed, so the chart-series checks stand.
+- **U2, primitives** in `shared/ui/`, each with a spec and an axe check, each replacing every hand-built copy in the same change: `app-page`, `app-section`/`app-async-section`, `app-alert`, `app-badge`, `app-disclosure`, `app-stat-strip` with `div[appStat]`/`dl[appStatGrid]`, `dl[appKeyValues]`, `ul[appList]`/`li[appListRow]`, `article[appEntityCard]`, `app-action-menu` (a native `popover` disclosure, not an ARIA menu), `app-stepper`, `app-period-switcher`, `app-segmented`, `app-table-scroll`, `span[appColorDot]`, and the `data-table`, `form-actions`, `wizard-actions` and `dialog-footer` utilities. A card or row shows at most two actions, every other and every destructive one is in the menu, and a dialog opened from a menu item hands focus back to the menu button.
+- **U3, shell.** A grouped sidebar with icons, a bottom tab bar with a "More" sheet on phones (the chrome above the content went from about 170 px to about 61 px, plus the bar), one sticky top bar with the month (or, on Report, the year) switcher and a global **Add spending** dialog (a floating button on phones; hidden on Spendings, whose inline quick-add is the way to add there). The skip link, focus on the `h1`, `aria-current`, the badge's screen reader text and 44 px targets are kept and checked.
+- **U4, pages.** Dashboard KPI strip and two-column grid from `xl`; Budgets slim strip; Subscriptions strip and reserve stat; Spendings compact quick-add ("More" disclosure), filters toolbar with a count, sticky day headers; Income and Savings with their forms in dialogs, stat strips and the Deposit/Withdraw/Reallocate group; Settings as General, Tags and Data; Report, Import and Onboarding on the shared stepper, footers and strips. Long explanations moved behind "How this works".
+- **U5, guardrails.** `frontend/src/testing/ui-conventions.spec.ts` (runs in `npm test`) reads every template under `features/` and fails on a hand-built pill, alert, `<summary class=`, button-looking link, bordered list, a page whose root is not `<app-page>` (or carries `max-w-`) and text glyph icons, naming the primitive to use. It has no allow-list. The rules are written down under "UI conventions" in [`frontend/.claude/CLAUDE.md`](../frontend/.claude/CLAUDE.md).
+
+**Gate at the end:** `npm run typecheck`, `npm test` (shared 1705, backend 2518, frontend 2315 plus the 12 of the guard), `npm run build` (initial bundle 413 kB, no warnings), `npm run e2e:flows` (86 passed), `npm run e2e:sweep` (53 walks: 51 passed, 2 passed on the retry after `Page crashed`, 14.5 minutes) and `npm run e2e:visual` (188 of 188).
+
+**Where the build differs from the plan.**
+
+- `app-stat`, `app-stat-grid`, `app-key-values`, `app-list` and `app-list-row` are **attribute selectors** (`div[appStat]`, `dl[appStatGrid]`, `ul[appList]`, ...): a custom element between a `dl` and its `dt`/`dd`, or between `ul` and `li`, breaks the structure that axe checks.
+- `app-section` takes `heading`, not `title` (a static `title` attribute becomes a hover tooltip). The Budgets strip shows only Budgeted and Unallocated, as the plan says; Income, Fixed costs and Spent are on the Dashboard (Fixed costs also on Subscriptions). `monthScoped` route data became `period: 'month' | 'year'`, plus `hideAddSpending`.
+- A lone destructive action (Delete on a transfer or a history entry, Undo settlement) is a one-item menu, following "destructive actions always live in the menu". The settle inbox keeps "Done" and "Split…" as two visible buttons: they are the two ways to settle a row, not management actions.
+- The salary dialog's title is always "Change salary" (it said "Change a salary" when the month already had an entry); the explanation of that case is in the form's note.
+- The accent stays blue (decision 4); the "revisit after U4" check was not done.
+
+**Known gaps.**
+
+- Budget emoji still show as empty boxes **on the development machine** (no emoji font installed). The `font-emoji` stack is in place but could not be seen working there.
+- `env(safe-area-inset-bottom)` (`viewport-fit=cover`, tab bar, floating button) is checked only with Chromium's phone emulation, not on an iPhone or in the installed app.
+- `h2` and `h3` section titles look the same size (`AppSection` has one title style), so the Data sub-blocks in Settings read flat.
+- Under jsdom (no CSS) the sidebar and the tab bar are both in the DOM, so specs have to scope to `aside`, `header` or the named navigation. The sweep still crashes a renderer now and then on this small shared machine; the `sweep` project retries once.
+- The visual baselines exist only on the machine that recorded them. Anyone else starts with `npm run e2e:visual -- --update-snapshots` and sees diffs only from then on.
+- Four files fail `prettier --check` and did before this phase (`import-review.store.ts`, `import-wizard.store.ts`, `shared/format.ts`, `import-review-helpers.ts`).
+
 ---
 
 ## How to run a phase with the agents

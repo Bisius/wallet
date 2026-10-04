@@ -8,8 +8,8 @@
       <input appInput formControlName="name" autocomplete="off" [attr.maxlength]="nameMaxLength" />
     </app-field>
 
-    <fieldset class="space-y-4 rounded-card border border-line p-3 sm:p-4">
-      <legend class="px-1 text-sm font-semibold">
+    <fieldset class="space-y-4">
+      <legend class="mb-3 text-sm font-semibold">
         {{ editing() ? 'Amount and mode' : 'Amount' }}
       </legend>
 
@@ -30,25 +30,12 @@
       }
 
       @if (monthNote(); as note) {
-        <p
-          class="flex items-start gap-2 rounded-control p-3 text-sm"
-          [class]="
-            note.tone === 'warning'
-              ? 'border border-warning bg-warning-soft text-ink'
-              : 'bg-subtle text-ink'
-          "
-        >
-          <app-icon [name]="note.tone === 'warning' ? 'alert' : 'info'" class="mt-0.5" />
-          <span>{{ note.text }}</span>
-        </p>
+        <app-alert [tone]="note.tone">{{ note.text }}</app-alert>
       }
 
       @if (editing() && stored(); as budget) {
-        <details class="text-sm">
-          <summary class="cursor-pointer rounded-control py-1 font-medium text-accent-text">
-            Amount history ({{ budget.versions.length }})
-          </summary>
-          <ul class="mt-2 space-y-1 text-muted">
+        <app-disclosure [summary]="'Amount history (' + budget.versions.length + ')'">
+          <ul class="space-y-1 text-sm text-muted">
             @for (version of budget.versions; track version.effectiveMonth) {
               <li>
                 From {{ monthLabel(version.effectiveMonth) }}:
@@ -57,7 +44,7 @@
               </li>
             }
           </ul>
-        </details>
+        </app-disclosure>
       }
     </fieldset>
 
@@ -67,6 +54,7 @@
       <app-field label="Icon" [optional]="true" hint="An emoji shown next to the name.">
         <input
           appInput
+          class="font-emoji"
           formControlName="icon"
           autocomplete="off"
           [attr.maxlength]="iconMaxLength"
@@ -81,7 +69,7 @@
             [attr.aria-pressed]="form.controls.icon.value === suggestion.icon"
             (click)="pickIcon(suggestion.icon)"
           >
-            <span aria-hidden="true">{{ suggestion.icon }}</span>
+            <span aria-hidden="true" class="font-emoji">{{ suggestion.icon }}</span>
           </button>
         }
       </div>
@@ -110,16 +98,10 @@
     </app-field>
 
     @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
+      <app-alert tone="error">{{ error }}</app-alert>
     }
 
-    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+    <div class="dialog-footer">
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

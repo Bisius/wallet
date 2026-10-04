@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect } from './fixtures';
 import { eur, escapeRegExp } from './money';
+import { goToPage } from './nav';
 
 /*
  * Page-object style helpers for the pages that show a month: the dashboard, the budgets, the
@@ -11,12 +12,9 @@ import { eur, escapeRegExp } from './money';
 export type AppPage =
   'Dashboard' | 'Budgets' | 'Spendings' | 'Subscriptions' | 'Income' | 'Savings';
 
-/** Opens a page through the navigation, as a user does. The month selection travels with the link. */
+/** Opens a page through the navigation, as a user does (`goToPage`: it works on a phone too). The month selection travels with the link. */
 export async function openPage(page: Page, name: AppPage): Promise<void> {
-  await page
-    .getByRole('navigation', { name: 'Main' })
-    .getByRole('link', { name: new RegExp(`^${name}`) })
-    .click();
+  await goToPage(page, name);
   await expect(page.getByRole('heading', { name, level: 1 })).toBeVisible();
 }
 
@@ -41,13 +39,18 @@ export function figure(region: Locator, label: string): Locator {
     .first();
 }
 
-/** The "<Month> at a glance" strip of the dashboard and of the budgets page. */
+/**
+ * The "<Month> at a glance" strip: the dashboard's has all five figures, the budgets page's is slim
+ * (`budgeted` and `unallocated`).
+ */
 export function glance(page: Page): Locator {
   return page.getByRole('region', { name: /at a glance$/ });
 }
 
 export interface GlanceFigures {
+  /** Only the dashboard's strip has it. */
   income: number;
+  /** Only the dashboard's strip has it (the subscriptions page has it as its own figure). */
   fixedCosts: number;
   budgeted: number;
   /** Only the dashboard's strip has it. */
@@ -151,15 +154,22 @@ export async function expectBudgetCard(
   await expectUsage(card, name, expected);
 }
 
-/** The "Budget progress" row of one budget on the dashboard. */
+/**
+ * The "Budget progress" row of one budget on the dashboard. A row names its budget in its first
+ * paragraph, after the budget's icon when it has one (the icon is decoration).
+ */
 export function dashboardRow(page: Page, name: string): Locator {
   return page
     .getByRole('region', { name: 'Budget progress' })
     .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name, exact: true }) });
+    .filter({
+      has: page
+        .getByRole('paragraph')
+        .filter({ hasText: new RegExp(`^\\s*(\\S+\\s+)?${escapeRegExp(name)}\\s*$`) }),
+    });
 }
 
-/** What the dashboard's row of a budget says: what is left, what was spent and available, and the bar. */
+/** What the dashboard's row of a budget says: what was spent and available, what is left, and the bar. */
 export async function expectDashboardRow(
   page: Page,
   name: string,
@@ -167,7 +177,7 @@ export async function expectDashboardRow(
 ): Promise<void> {
   const row = dashboardRow(page, name);
   await expect(row, `${name} remaining`).toContainText(
-    new RegExp(`Remaining\\s*${escapeRegExp(eur(expected.remaining))}`),
+    new RegExp(`${escapeRegExp(eur(expected.remaining))}\\s*remaining`),
   );
   await expect(row, `${name} spent and available`).toContainText(
     new RegExp(
@@ -182,8 +192,7 @@ export async function dashboardOrder(page: Page): Promise<(string | null)[]> {
   return page
     .getByRole('region', { name: 'Budget progress' })
     .getByRole('listitem')
-    .getByRole('heading')
-    .evaluateAll((headings) => headings.map((heading) => heading.textContent?.trim() ?? null));
+    .evaluateAll((rows) => rows.map((row) => row.querySelector('p')?.textContent?.trim() ?? null));
 }
 
 /** The card of a subscription on the subscriptions page. */
@@ -227,6 +236,33 @@ export function addForm(page: Page): Locator {
   return page.getByRole('region', { name: 'Add a spending' });
 }
 
+/**
+ * Unfolds "More" of the quick add, where the description, the tags and the Refund switch are. It opens
+ * by itself once one of them has a value, so this leaves it as it is when it is open already.
+ */
+export async function openMore(page: Page): Promise<void> {
+  const more = addForm(page).locator('details', {
+    has: page.locator('summary', { hasText: /^More/ }),
+  });
+  if (await more.evaluate((details: HTMLDetailsElement) => details.open)) return;
+  await more.locator('summary').click();
+  await expect(more).toHaveJSProperty('open', true);
+}
+
+/**
+ * Unfolds the panel under the search box of the spendings list (the months to look in, the budget, the
+ * tag and the range of amounts). The search box is always there, and the panel is folded until the
+ * "Filters" button opens it (or the page arrives with one of its filters on), so a spec that uses
+ * one of them opens it first, with this. It leaves the panel as it is when it is open already.
+ */
+export async function openFilters(page: Page): Promise<void> {
+  const toggle = page
+    .getByRole('search', { name: 'Search and filter spendings' })
+    .getByRole('button', { name: /^Filters/ });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
 /** The list of spendings, and its summary line. */
 export function spendingsList(page: Page): Locator {
   return page.getByRole('region', { name: /^Spendings in / });
@@ -267,6 +303,7 @@ export async function addSpendingViaForm(page: Page, entry: SpendingEntry): Prom
   await form.getByLabel('Amount', { exact: true }).fill(entry.amount);
   await chooseBudget(form, entry.budget);
   if (entry.date !== undefined) await form.getByLabel('Date', { exact: true }).fill(entry.date);
+  if (entry.description !== undefined || entry.refund) await openMore(page);
   if (entry.description !== undefined) {
     await form.getByLabel('Description').fill(entry.description);
   }

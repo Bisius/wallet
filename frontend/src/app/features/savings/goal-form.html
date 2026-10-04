@@ -23,16 +23,10 @@
     <app-color-picker formControlName="color" />
 
     @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
+      <app-alert tone="error">{{ error }}</app-alert>
     }
 
-    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+    <div class="dialog-footer">
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

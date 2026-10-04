@@ -18,6 +18,7 @@ import {
   typeInto,
 } from '../../../testing/dom';
 import { flushError, primeStores, SETTINGS, settle, StubPage } from '../../../testing/harness';
+import { rowAction } from '../../../testing/menu';
 import { IncomePage } from './income-page';
 
 @Component({
@@ -135,9 +136,25 @@ describe('IncomePage', () => {
         typeInto(getByLabel(element, label), value);
         await settle(fixture);
       },
-      press: async (name: string | RegExp) => {
-        getByRole(element, 'button', name).click();
+      /** Opens the "More actions" menu called `menu` and presses its item: `rowAction('More actions for Tax refund', 'Edit')`. */
+      rowAction: (menu: string | RegExp, item: string | RegExp) => rowAction(element, item, menu),
+      press: async (name: string | RegExp, root: ParentNode = element) => {
+        getByRole(root, 'button', name).click();
         await settle(fixture);
+      },
+      /**
+       * The dialog that adds or changes a salary or an income, by its heading. Both of them are opened by
+       * a button and closed by their own: look for it with `queryForm` to see that it is gone.
+       */
+      form: (heading: string) => getByRole(element, 'dialog', heading) as HTMLElement,
+      queryForm: (heading: string) => queryByRole(element, 'dialog', heading),
+      /** Presses a button that opens a dialog the way a person does: the button has the keyboard first. */
+      open: async (name: string | RegExp) => {
+        const opener = getByRole(element, 'button', name);
+        opener.focus();
+        opener.click();
+        await settle(fixture);
+        return opener;
       },
       /** After a change the page loads all three resources again. */
       reload: async (data: Data = {}) => {
@@ -145,7 +162,8 @@ describe('IncomePage', () => {
         await answer(fixture, month, data);
       },
       section: (heading: string | RegExp) => getByRole(element, 'region', heading) as HTMLElement,
-      dialog: () => element.querySelector('dialog') as HTMLDialogElement,
+      /** The confirmation of a delete, which is always in the page. */
+      dialog: () => element.querySelector('app-confirm-dialog dialog') as HTMLDialogElement,
       toasts: () =>
         TestBed.inject(ToastService)
           .toasts()
@@ -285,21 +303,42 @@ describe('IncomePage', () => {
       });
 
       expect(p.text()).toContain('No salary recorded yet');
-      expect(p.text()).toContain('Add your monthly net salary below.');
+      expect(p.text()).toContain('Use Change salary to add your monthly net salary.');
     });
 
     describe('add or change', () => {
+      const SALARY_DIALOG = 'Change salary';
+
+      it('opens from a Change salary button, in a dialog and not in the page', async () => {
+        const p = await open();
+        expect(p.queryForm(SALARY_DIALOG)).toBeNull();
+        // The page has no field of the form: it is not open inside a card any more.
+        expect(queryByRole(p.element, 'textbox', 'Monthly net salary')).toBeNull();
+        expect(p.element.querySelector('form')).toBeNull();
+
+        await p.open('Change salary');
+
+        const dialog = p.form(SALARY_DIALOG);
+        expect((dialog as HTMLDialogElement).open).toBe(true);
+        expect(getByLabel(dialog, 'Applies from')).toBeTruthy();
+        expect(getByLabel(dialog, 'Monthly net salary')).toBeTruthy();
+        // The keyboard starts in the first field.
+        expect(document.activeElement).toBe(getByLabel(dialog, 'Applies from'));
+      });
+
       it('starts on the selected month and says a change applies from then on, leaving earlier months alone', async () => {
         const p = await open();
+        await p.open('Change salary');
 
         expect((getByLabel(p.element, 'Applies from') as HTMLInputElement).value).toBe('2026-10');
-        expect(p.text()).toContain(
+        expect(textOf(p.form(SALARY_DIALOG))).toContain(
           'This salary applies from October 2026 onward. Earlier months are not changed.',
         );
       });
 
       it('follows the month switcher until the user picks another month', async () => {
         const p = await open();
+        await p.open('Change salary');
         await router.navigateByUrl('/income?month=2026-08');
         await settle(p.fixture);
         await answerMonthChange(p.fixture, '2026-08');
@@ -312,15 +351,16 @@ describe('IncomePage', () => {
         expect((getByLabel(p.element, 'Applies from') as HTMLInputElement).value).toBe('2026-11');
       });
 
-      it('saves with PUT /api/salary/:month, then reloads what the page shows', async () => {
+      it('saves with PUT /api/salary/:month, closes, then reloads what the page shows', async () => {
         const p = await open();
+        const opener = await p.open('Change salary');
         await p.type('Applies from', '2026-11');
         await p.type('Monthly net salary', '2900,50');
-        expect(p.text()).toContain(
+        expect(textOf(p.form(SALARY_DIALOG))).toContain(
           'This salary applies from November 2026 onward. Earlier months are not changed.',
         );
 
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
 
         const request = http.expectOne('/api/salary/2026-11');
         expect(request.request.method).toBe('PUT');
@@ -331,44 +371,74 @@ describe('IncomePage', () => {
 
         expect(p.toasts()).toEqual(['Salary saved from November 2026 onward.']);
         expect(textOf(p.section('Salary'))).toContain('From November 2026 €2,900.50 a month');
-        // The form is ready for the next change.
+        // The dialog is gone, and the keyboard is back on the button that opened it.
+        expect(p.queryForm(SALARY_DIALOG)).toBeNull();
+        expect(document.activeElement).toBe(opener);
+        // The next change starts from scratch.
+        await p.open('Change salary');
         expect((getByLabel(p.element, 'Monthly net salary') as HTMLInputElement).value).toBe('');
         expect((getByLabel(p.element, 'Applies from') as HTMLInputElement).value).toBe('2026-10');
       });
 
       it('says when a month already has an entry, which saving replaces', async () => {
         const p = await open();
+        await p.open('Change salary');
         await p.type('Applies from', '2026-09');
 
-        expect(p.text()).toContain(
+        expect(textOf(p.form(SALARY_DIALOG))).toContain(
           'It replaces the €2,700.00 salary that starts in September 2026.',
         );
-        expect(queryByRole(p.element, 'button', 'Save the change')).not.toBeNull();
-        expect(p.text()).toContain('Change a salary');
+        expect(queryByRole(p.form(SALARY_DIALOG), 'button', 'Save the change')).not.toBeNull();
       });
 
-      it('loads an entry into the form with its Change button', async () => {
+      it('loads an entry into the dialog with its Change item', async () => {
         const p = await open();
 
-        await p.press('Change the salary from September 2026');
+        await p.rowAction('More actions for the salary from September 2026', 'Change');
 
-        expect((getByLabel(p.element, 'Applies from') as HTMLInputElement).value).toBe('2026-09');
-        expect((getByLabel(p.element, 'Monthly net salary') as HTMLInputElement).value).toBe(
+        const dialog = p.form(SALARY_DIALOG);
+        expect((getByLabel(dialog, 'Applies from') as HTMLInputElement).value).toBe('2026-09');
+        expect((getByLabel(dialog, 'Monthly net salary') as HTMLInputElement).value).toBe(
           '2700.00',
         );
-        expect(document.activeElement).toBe(getByLabel(p.element, 'Monthly net salary'));
 
         await p.type('Monthly net salary', '2750');
-        await p.press('Save the change');
+        await p.press('Save the change', dialog);
         const request = http.expectOne('/api/salary/2026-09');
         expect(request.request.body).toEqual({ amount: 275000 });
         request.flush({ effectiveMonth: '2026-09', amount: 275000 });
         await p.reload();
+        expect(p.queryForm(SALARY_DIALOG)).toBeNull();
+      });
+
+      it('gives the keyboard back to the menu button of the row that was changed', async () => {
+        const p = await open();
+        await p.rowAction('More actions for the salary from September 2026', 'Change');
+
+        await p.press('Cancel', p.form(SALARY_DIALOG));
+
+        // The menu handed focus to its button before the item opened the dialog: that is where it returns.
+        expect(p.queryForm(SALARY_DIALOG)).toBeNull();
+        expect(document.activeElement).toBe(
+          getByRole(p.element, 'button', 'More actions for the salary from September 2026'),
+        );
+      });
+
+      it('cancels without a request, and gives focus back to the Change salary button', async () => {
+        const p = await open();
+        const opener = await p.open('Change salary');
+        await p.type('Monthly net salary', '3000');
+
+        await p.press('Cancel', p.form(SALARY_DIALOG));
+
+        expect(p.queryForm(SALARY_DIALOG)).toBeNull();
+        expect(document.activeElement).toBe(opener);
+        noRequest(/\/api\/salary\//);
       });
 
       it('keeps an edited entry in the form when the month switcher moves', async () => {
         const p = await open();
-        await p.press('Change the salary from June 2026');
+        await p.rowAction('More actions for the salary from June 2026', 'Change');
         await router.navigateByUrl('/income?month=2026-12');
         await settle(p.fixture);
         await answerMonthChange(p.fixture, '2026-12');
@@ -378,7 +448,8 @@ describe('IncomePage', () => {
 
       it('needs an amount and a month, and does not call the API without them', async () => {
         const p = await open();
-        await p.press('Save salary');
+        await p.open('Change salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
 
         expect(fieldError(getByLabel(p.element, 'Monthly net salary'))).toBe(
           'Monthly net salary is required.',
@@ -387,15 +458,16 @@ describe('IncomePage', () => {
 
         await p.type('Monthly net salary', '2000');
         await p.type('Applies from', '');
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
         expect(fieldError(getByLabel(p.element, 'Applies from'))).toBe('Applies from is required.');
         noRequest(/\/api\/salary\//);
       });
 
       it('does not accept a negative salary', async () => {
         const p = await open();
+        await p.open('Change salary');
         await p.type('Monthly net salary', '-1');
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
 
         expect(fieldError(getByLabel(p.element, 'Monthly net salary'))).toBe(
           'Enter an amount of zero or more.',
@@ -405,9 +477,10 @@ describe('IncomePage', () => {
 
       it('does not accept a month before the start month', async () => {
         const p = await open();
+        await p.open('Change salary');
         await p.type('Monthly net salary', '2000');
         await p.type('Applies from', '2026-05');
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
 
         expect(fieldError(getByLabel(p.element, 'Applies from'))).toBe(
           'Choose June 2026 or later.',
@@ -417,9 +490,10 @@ describe('IncomePage', () => {
 
       it('shows what the API says on the field it names', async () => {
         const p = await open();
+        await p.open('Change salary');
         await p.type('Monthly net salary', '2000');
         await p.type('Applies from', '2026-07');
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
 
         flushError(
           http.expectOne('/api/salary/2026-07'),
@@ -436,13 +510,16 @@ describe('IncomePage', () => {
         expect(fieldError(getByLabel(p.element, 'Applies from'))).toBe(
           'That month is before the start month',
         );
+        // The dialog stays open, with what was typed.
+        expect(p.queryForm(SALARY_DIALOG)).not.toBeNull();
         expect(p.toasts()).toEqual([]);
       });
 
       it('shows an error that belongs to no field in an alert, and keeps what was typed', async () => {
         const p = await open();
+        await p.open('Change salary');
         await p.type('Monthly net salary', '2000');
-        await p.press('Save salary');
+        await p.press('Save salary', p.form(SALARY_DIALOG));
         flushError(
           http.expectOne('/api/salary/2026-10'),
           500,
@@ -451,7 +528,7 @@ describe('IncomePage', () => {
         );
         await settle(p.fixture);
 
-        expect(textOf(getByRole(p.section('Salary'), 'alert'))).toBe(
+        expect(textOf(getByRole(p.form(SALARY_DIALOG), 'alert'))).toBe(
           'Something went wrong on our side',
         );
         expect((getByLabel(p.element, 'Monthly net salary') as HTMLInputElement).value).toBe(
@@ -464,7 +541,7 @@ describe('IncomePage', () => {
       it('asks first, saying what will happen, and does nothing when cancelled', async () => {
         const p = await open();
 
-        await p.press('Delete the salary change from September 2026');
+        await p.rowAction('More actions for the salary from September 2026', 'Delete');
 
         expect(p.dialog().open).toBe(true);
         const dialog = textOf(p.dialog());
@@ -482,7 +559,7 @@ describe('IncomePage', () => {
 
       it('deletes the exact entry once confirmed, then reloads', async () => {
         const p = await open();
-        await p.press('Delete the salary change from September 2026');
+        await p.rowAction('More actions for the salary from September 2026', 'Delete');
         getByRole(p.dialog(), 'button', 'Delete salary change').click();
         await settle(p.fixture);
 
@@ -505,7 +582,7 @@ describe('IncomePage', () => {
 
       it('reports a failure with the message of the API', async () => {
         const p = await open();
-        await p.press('Delete the salary change from June 2026');
+        await p.rowAction('More actions for the salary from June 2026', 'Delete');
         getByRole(p.dialog(), 'button', 'Delete salary change').click();
         await settle(p.fixture);
 
@@ -541,10 +618,15 @@ describe('IncomePage', () => {
     });
 
     describe('add', () => {
-      it('opens a form whose date is today, from the server, inside the selected month', async () => {
+      it('opens a dialog whose date is today, from the server, inside the selected month', async () => {
         const p = await open();
-        await p.press('Add income');
+        expect(p.queryForm('Add income')).toBeNull();
+        // The page has no field of the form: it is not open inside the list.
+        expect(p.element.querySelector('form')).toBeNull();
 
+        await p.open('Add income');
+
+        expect((p.form('Add income') as HTMLDialogElement).open).toBe(true);
         const date = getByLabel(p.element, 'Date') as HTMLInputElement;
         expect(date.value).toBe('2026-10-02');
         expect(date.getAttribute('min')).toBe('2026-10-01');
@@ -554,7 +636,7 @@ describe('IncomePage', () => {
 
       it('uses the nearest day of another month: the last of a past one, the first of a future one', async () => {
         const past = await open('2026-08');
-        await past.press('Add income');
+        await past.open('Add income');
         expect((getByLabel(past.element, 'Date') as HTMLInputElement).value).toBe('2026-08-31');
         past.fixture.destroy();
 
@@ -564,18 +646,18 @@ describe('IncomePage', () => {
         await settle(fixture);
         await answer(fixture, '2026-12');
         const future = page(fixture, '2026-12');
-        await future.press('Add income');
+        await future.open('Add income');
         expect((getByLabel(future.element, 'Date') as HTMLInputElement).value).toBe('2026-12-01');
       });
 
       it('posts the income with the date, integer cents and a trimmed description', async () => {
         const p = await open();
-        await p.press('Add income');
+        const opener = await p.open('Add income');
         await p.type('Description', '  Bonus ');
         await p.type('Amount', '1234,50');
         await p.type('Date', '2026-10-15');
 
-        await p.press('Add income');
+        await p.press('Add income', p.form('Add income'));
 
         const request = http.expectOne('/api/incomes');
         expect(request.request.method).toBe('POST');
@@ -598,27 +680,26 @@ describe('IncomePage', () => {
         });
 
         expect(p.toasts()).toEqual(['Income added.']);
-        expect(queryByRole(p.element, 'button', 'Cancel')).toBeNull(); // the form closed
+        expect(p.queryForm('Add income')).toBeNull(); // the dialog closed
         expect(textOf(p.section('One-off income in October 2026'))).toContain(
           'Bonus Thu, Oct 15, 2026 +€1,234.50',
         );
         expect(textOf(p.section('Income in October 2026'))).toContain('Total income €4,284.50');
-        expect(document.activeElement).toBe(
-          getByRole(p.element, 'heading', 'One-off income in October 2026'),
-        );
+        // The keyboard is back on the button that opened the dialog.
+        expect(document.activeElement).toBe(opener);
       });
 
       it('needs a description, an amount above zero and a date in this month', async () => {
         const p = await open();
-        await p.press('Add income');
-        await p.press('Add income');
+        await p.open('Add income');
+        await p.press('Add income', p.form('Add income'));
         expect(fieldError(getByLabel(p.element, 'Description'))).toBe('Description is required.');
         expect(fieldError(getByLabel(p.element, 'Amount'))).toBe('Amount is required.');
 
         await p.type('Description', 'Gift');
         await p.type('Amount', '0');
         await p.type('Date', '2026-09-30');
-        await p.press('Add income');
+        await p.press('Add income', p.form('Add income'));
 
         expect(fieldError(getByLabel(p.element, 'Amount'))).toBe(
           'Enter an amount greater than zero.',
@@ -629,26 +710,39 @@ describe('IncomePage', () => {
 
       it('limits the description to what the API accepts', async () => {
         const p = await open();
-        await p.press('Add income');
+        await p.open('Add income');
         expect(getByLabel(p.element, 'Description').getAttribute('maxlength')).toBe('200');
       });
 
       it('cancels without a request, and puts focus back on the Add income button', async () => {
         const p = await open();
-        await p.press('Add income');
-        await p.press('Cancel');
+        const opener = await p.open('Add income');
+        await p.press('Cancel', p.form('Add income'));
 
+        expect(p.queryForm('Add income')).toBeNull();
         expect(queryByText(p.element, 'Edit income')).toBeNull();
-        expect(document.activeElement).toBe(getByRole(p.element, 'button', 'Add income'));
+        expect(document.activeElement).toBe(opener);
+        http.expectNone('/api/incomes');
+      });
+
+      it('closes on Escape too, and gives focus back', async () => {
+        const p = await open();
+        const opener = await p.open('Add income');
+
+        (p.form('Add income') as HTMLDialogElement).close();
+        await settle(p.fixture);
+
+        expect(p.queryForm('Add income')).toBeNull();
+        expect(document.activeElement).toBe(opener);
         http.expectNone('/api/incomes');
       });
 
       it('shows what the API says on the field it names', async () => {
         const p = await open();
-        await p.press('Add income');
+        await p.open('Add income');
         await p.type('Description', 'Gift');
         await p.type('Amount', '10');
-        await p.press('Add income');
+        await p.press('Add income', p.form('Add income'));
         flushError(
           http.expectOne('/api/incomes'),
           422,
@@ -668,9 +762,9 @@ describe('IncomePage', () => {
         expect(p.toasts()).toEqual([]);
       });
 
-      it('keeps the date inside the month when the month switcher moves while the form is open', async () => {
+      it('keeps the date inside the month when the month switcher moves while the dialog is open', async () => {
         const p = await open();
-        await p.press('Add income');
+        await p.open('Add income');
         expect((getByLabel(p.element, 'Date') as HTMLInputElement).value).toBe('2026-10-02');
 
         await router.navigateByUrl('/income?month=2026-09');
@@ -683,22 +777,24 @@ describe('IncomePage', () => {
     });
 
     describe('edit', () => {
-      it('edits in place with the values filled in', async () => {
+      it('edits in a dialog with the values filled in', async () => {
         const p = await open();
-        await p.press('Edit Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Edit');
 
+        expect((p.form('Edit income') as HTMLDialogElement).open).toBe(true);
         expect((getByLabel(p.element, 'Description') as HTMLInputElement).value).toBe('Tax refund');
         expect((getByLabel(p.element, 'Amount') as HTMLInputElement).value).toBe('300.00');
         expect((getByLabel(p.element, 'Date') as HTMLInputElement).value).toBe('2026-10-01');
-        expect(p.text()).toContain('Edit income');
+        // The list has no form in it: the row stays a row.
+        expect(p.element.querySelector('ul form')).toBeNull();
       });
 
       it('sends only what changed, with PATCH', async () => {
         const p = await open();
-        await p.press('Edit Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Edit');
         await p.type('Amount', '310');
 
-        await p.press('Save changes');
+        await p.press('Save changes', p.form('Edit income'));
 
         const request = http.expectOne('/api/incomes/1');
         expect(request.request.method).toBe('PATCH');
@@ -712,15 +808,18 @@ describe('IncomePage', () => {
           'Tax refund Thu, Oct 1, 2026 +€310.00',
         );
         // Focus returns to the row that was edited.
-        expect(document.activeElement).toBe(getByRole(p.element, 'button', 'Edit Tax refund'));
+        expect(p.queryForm('Edit income')).toBeNull();
+        expect(document.activeElement).toBe(
+          getByRole(p.element, 'button', 'More actions for Tax refund'),
+        );
       });
 
       it('can change the description and the date', async () => {
         const p = await open();
-        await p.press('Edit Birthday money');
+        await p.rowAction('More actions for Birthday money', 'Edit');
         await p.type('Description', 'Birthday gift');
         await p.type('Date', '2026-10-09');
-        await p.press('Save changes');
+        await p.press('Save changes', p.form('Edit income'));
 
         const request = http.expectOne('/api/incomes/2');
         expect(request.request.body).toEqual({ date: '2026-10-09', description: 'Birthday gift' });
@@ -730,43 +829,44 @@ describe('IncomePage', () => {
 
       it('sends nothing when nothing changed', async () => {
         const p = await open();
-        await p.press('Edit Tax refund');
-        await p.press('Save changes');
+        await p.rowAction('More actions for Tax refund', 'Edit');
+        await p.press('Save changes', p.form('Edit income'));
 
         noRequest(/\/api\/incomes\/\d+/);
-        expect(queryByText(p.element, 'Edit income')).toBeNull();
-        expect(document.activeElement).toBe(getByRole(p.element, 'button', 'Edit Tax refund'));
+        expect(p.queryForm('Edit income')).toBeNull();
+        expect(document.activeElement).toBe(
+          getByRole(p.element, 'button', 'More actions for Tax refund'),
+        );
       });
 
       it('cancels an edit without sending anything', async () => {
         const p = await open();
-        await p.press('Edit Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Edit');
         await p.type('Amount', '5');
-        await p.press('Cancel');
+        await p.press('Cancel', p.form('Edit income'));
 
         noRequest(/\/api\/incomes\/\d+/);
+        expect(p.queryForm('Edit income')).toBeNull();
         expect(p.text()).toContain('+€300.00');
       });
 
-      it('edits one income at a time, and opening the add form closes an edit', async () => {
+      it('has one dialog at a time: the edit and the add each open their own', async () => {
         const p = await open();
-        await p.press('Edit Tax refund');
-        await p.press('Edit Birthday money');
+        await p.rowAction('More actions for Tax refund', 'Edit');
         expect(p.element.querySelectorAll('app-income-form')).toHaveLength(1);
-        expect((getByLabel(p.element, 'Description') as HTMLInputElement).value).toBe(
-          'Birthday money',
-        );
+        await p.press('Cancel', p.form('Edit income'));
 
-        await p.press('Add income');
+        await p.open('Add income');
         expect(p.element.querySelectorAll('app-income-form')).toHaveLength(1);
         expect((getByLabel(p.element, 'Description') as HTMLInputElement).value).toBe('');
+        expect(p.queryForm('Edit income')).toBeNull();
       });
     });
 
     describe('delete', () => {
       it('asks first, naming the income, and does nothing when cancelled', async () => {
         const p = await open();
-        await p.press('Delete Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Delete');
 
         const dialog = textOf(p.dialog());
         expect(dialog).toContain('Delete this income?');
@@ -782,7 +882,7 @@ describe('IncomePage', () => {
 
       it('deletes once confirmed, then reloads', async () => {
         const p = await open();
-        await p.press('Delete Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Delete');
         getByRole(p.dialog(), 'button', 'Delete income').click();
         await settle(p.fixture);
 
@@ -804,7 +904,7 @@ describe('IncomePage', () => {
 
       it('reports a failure with the message of the API', async () => {
         const p = await open();
-        await p.press('Delete Tax refund');
+        await p.rowAction('More actions for Tax refund', 'Delete');
         getByRole(p.dialog(), 'button', 'Delete income').click();
         await settle(p.fixture);
         flushError(http.expectOne('/api/incomes/1'), 404, 'not_found', 'Income 1 not found');

@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <title>Wallet</title>
     <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- viewport-fit=cover lets the page use the whole screen of a phone with a notch or a home bar, which
+         makes env(safe-area-inset-bottom) real: the bottom tab bar keeps clear of the home indicator.
+         Zooming stays on (no user-scalable, no maximum-scale). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <!-- One tag, no media query: a query would follow the operating system and ignore the theme chosen
          in Settings. theme-init.js sets the colour of the effective theme before the first paint and

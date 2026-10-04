@@ -2,7 +2,6 @@ import {
   afterNextRender,
   Component,
   computed,
-  ElementRef,
   inject,
   Injector,
   output,
@@ -16,11 +15,15 @@ import { formatDate, formatMonth } from '../../shared/format';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
 import { formatMoney } from '../../shared/money.pipe';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
+import { Alert } from '../../shared/ui/alert';
 import { Amount } from '../../shared/ui/amount';
+import { AsyncSection } from '../../shared/ui/async-section';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
-import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { EmptyState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SavingsData, UNASSIGNED_LABEL } from './savings-data';
 import { type PlaceFilter, SavingsApi } from './savings.api';
@@ -65,7 +68,20 @@ const KIND_CHOICES: readonly { value: SavingsTransactionKind | ''; label: string
  */
 @Component({
   selector: 'app-transaction-history',
-  imports: [Amount, AppInput, Button, EmptyState, ErrorState, Field, Icon, LoadingState],
+  imports: [
+    ActionMenu,
+    Alert,
+    Amount,
+    AppInput,
+    AppList,
+    AsyncSection,
+    Button,
+    EmptyState,
+    Field,
+    Icon,
+    ListRow,
+    MenuItem,
+  ],
   templateUrl: './transaction-history.html',
   host: { class: 'block' },
 })
@@ -77,7 +93,7 @@ export class TransactionHistory {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly section = viewChild(AsyncSection);
 
   /** The user wants to change the opening balance (its entry offers it). */
   readonly editOpening = output<void>();
@@ -177,6 +193,6 @@ export class TransactionHistory {
   }
 
   private focusHeading(): void {
-    afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => this.section()?.focusHeading(), { injector: this.injector });
   }
 }

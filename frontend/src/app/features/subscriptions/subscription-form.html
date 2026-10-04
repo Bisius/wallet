@@ -9,13 +9,13 @@
     </app-field>
 
     @if (editing()) {
-      <p class="rounded-control bg-subtle p-3 text-sm text-ink">
+      <app-alert tone="info">
         <span class="font-medium">{{
           frequencyLabels[subscription()?.frequency ?? 'monthly']
         }}</span>
         subscription. The frequency can't be changed: cancel this one and add a new one instead. To
         change what it costs, use Change price.
-      </p>
+      </app-alert>
     } @else {
       <div class="grid gap-4 sm:grid-cols-2">
         <app-field label="Frequency">
@@ -44,15 +44,7 @@
           <app-month-input formControlName="startMonth" [min]="firstMonth()" />
         </app-field>
         @if (startNote(); as note) {
-          <p
-            class="mt-2 flex items-start gap-2 rounded-control p-3 text-sm text-ink"
-            [class]="
-              note.tone === 'warning' ? 'border border-warning bg-warning-soft' : 'bg-subtle'
-            "
-          >
-            <app-icon [name]="note.tone === 'warning' ? 'alert' : 'info'" class="mt-0.5" />
-            <span>{{ note.text }}</span>
-          </p>
+          <app-alert class="mt-2" [tone]="note.tone">{{ note.text }}</app-alert>
         }
       </div>
     }
@@ -69,16 +61,10 @@
     </app-field>
 
     @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
+      <app-alert tone="error">{{ error }}</app-alert>
     }
 
-    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+    <div class="dialog-footer">
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

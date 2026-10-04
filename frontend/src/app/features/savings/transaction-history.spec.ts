@@ -18,6 +18,7 @@ import {
   transactionsPage,
 } from '../../../testing/fixtures';
 import { flushError, settle } from '../../../testing/harness';
+import { menuItemNames, rowAction } from '../../../testing/menu';
 import { openSavingsPage } from '../../../testing/savings-harness';
 
 const HOLIDAY = goalDto({ id: 1, name: 'Holiday', balance: 35000 });
@@ -74,8 +75,11 @@ describe('the history', () => {
     entries(p).find((li) =>
       typeof text === 'string' ? textOf(li).includes(text) : text.test(textOf(li)),
     )!;
+  /** The buttons an entry shows: what is in its menu is not one of them, `menuItemNames` lists that. */
   const buttons = (li: Element) =>
-    queryAllByRole(li as HTMLElement, 'button').map((b) => b.getAttribute('aria-label'));
+    queryAllByRole(li as HTMLElement, 'button')
+      .filter((b) => !b.closest('[popover]'))
+      .map((b) => b.getAttribute('aria-label'));
   const url = (query: string) => `/api/savings/transactions?${query}`;
   const choose = async (p: Page, label: string, value: string) => {
     typeInto(getByLabel<HTMLSelectElement>(section(p), label), value);
@@ -167,23 +171,27 @@ describe('the history', () => {
     it('lets the user delete a deposit, a withdrawal and a reallocation', async () => {
       const p = await open();
 
+      // Deleting is destructive, so it is in the menu of the entry, which names the entry.
       expect(buttons(entry(p, 'Deposit to Holiday'))).toEqual([
-        'Delete Deposit to Holiday, Oct 2, 2026',
+        'More actions for Deposit to Holiday, Oct 2, 2026',
       ]);
+      expect(menuItemNames(entry(p, 'Deposit to Holiday'))).toEqual(['Delete']);
       expect(buttons(entry(p, 'Withdrawal from'))).toEqual([
-        'Delete Withdrawal from Unassigned savings, Oct 1, 2026',
+        'More actions for Withdrawal from Unassigned savings, Oct 1, 2026',
       ]);
+      expect(menuItemNames(entry(p, 'Withdrawal from'))).toEqual(['Delete']);
       expect(buttons(entry(p, 'Moved €40.00'))).toEqual([
-        'Delete Moved €40.00 from Holiday to Unassigned savings, Sep 30, 2026',
+        'More actions for Moved €40.00 from Holiday to Unassigned savings, Sep 30, 2026',
       ]);
+      expect(menuItemNames(entry(p, 'Moved €40.00'))).toEqual(['Delete']);
     });
 
     it('never offers to delete a settlement or the opening balance: they have their own actions', async () => {
       const p = await open();
 
       const settlement = entry(p, 'Settled August 2026');
-      expect(buttons(settlement)).toEqual(['Undo Settled August 2026']);
-      expect(textOf(settlement)).toContain('Undo settlement');
+      expect(buttons(settlement)).toEqual(['More actions for Settled August 2026']);
+      expect(menuItemNames(settlement)).toEqual(['Undo settlement']);
       expect(textOf(settlement)).not.toContain('Delete');
       const opening = entry(p, 'Opening balance');
       expect(buttons(opening)).toEqual(['Edit opening balance']);
@@ -225,7 +233,7 @@ describe('the history', () => {
     it('asks first, saying what it does', async () => {
       const p = await open();
 
-      await p.press(/^Delete Deposit to Holiday/);
+      await rowAction(entry(p, 'Deposit to Holiday'), 'Delete');
       await settle(p.fixture);
 
       const dialog = p.confirmDialog();
@@ -239,7 +247,7 @@ describe('the history', () => {
 
     it('deletes a deposit and loads everything again', async () => {
       const p = await open();
-      await p.press(/^Delete Deposit to Holiday/);
+      await rowAction(entry(p, 'Deposit to Holiday'), 'Delete');
 
       await p.confirm('Delete entry');
       const request = http.expectOne('/api/savings/transactions/30');
@@ -254,7 +262,7 @@ describe('the history', () => {
 
     it('deletes a reallocation by one of its rows: the API removes both', async () => {
       const p = await open();
-      await p.press(/^Delete Moved €40.00/);
+      await rowAction(entry(p, 'Moved €40.00'), 'Delete');
       await settle(p.fixture);
       expect(textOf(p.confirmDialog())).toContain('Both of its entries are removed');
 
@@ -267,17 +275,21 @@ describe('the history', () => {
 
     it('does nothing when the user cancels', async () => {
       const p = await open();
-      await p.press(/^Delete Withdrawal from/);
+      await rowAction(entry(p, 'Withdrawal from'), 'Delete');
 
       await p.confirm('Cancel');
 
       http.expectNone('/api/savings/transactions/29');
       expect(entries(p)).toHaveLength(5);
+      // The question was asked from the menu of the entry, and focus goes back to its button.
+      expect(document.activeElement).toBe(
+        getByRole(entry(p, 'Withdrawal from'), 'button', /^More actions/),
+      );
     });
 
     it('says what the API said when it refuses (not_deletable)', async () => {
       const p = await open();
-      await p.press(/^Delete Deposit to Holiday/);
+      await rowAction(entry(p, 'Deposit to Holiday'), 'Delete');
       await p.confirm('Delete entry');
 
       flushError(
@@ -295,7 +307,7 @@ describe('the history', () => {
 
     it('says the entry was already gone when the API cannot find it', async () => {
       const p = await open();
-      await p.press(/^Delete Deposit to Holiday/);
+      await rowAction(entry(p, 'Deposit to Holiday'), 'Delete');
       await p.confirm('Delete entry');
 
       flushError(http.expectOne('/api/savings/transactions/30'), 404, 'not_found', 'No such row');
@@ -308,7 +320,7 @@ describe('the history', () => {
   describe('undoing a settlement', () => {
     it('asks first, then removes the settlements of the month and brings it back to the inbox', async () => {
       const p = await open();
-      await p.press('Undo Settled August 2026');
+      await rowAction(entry(p, 'Settled August 2026'), 'Undo settlement');
       await settle(p.fixture);
 
       const dialog = p.confirmDialog();
@@ -349,7 +361,7 @@ describe('the history', () => {
 
     it('does nothing when the user cancels', async () => {
       const p = await open();
-      await p.press('Undo Settled August 2026');
+      await rowAction(entry(p, 'Settled August 2026'), 'Undo settlement');
 
       await p.confirm('Cancel');
 
@@ -420,7 +432,7 @@ describe('the history', () => {
       await settle(p.fixture);
       expect(getByLabel<HTMLSelectElement>(section(p), 'Filter by goal').value).toBe('1');
 
-      await p.press('Delete Holiday', getByRole(p.element, 'article', 'Holiday'));
+      await p.menuAction('More actions for Holiday', 'Delete');
       await p.confirm('Delete goal');
       http.expectOne('/api/goals/1').flush(null, { status: 204, statusText: 'No Content' });
       await settle(p.fixture);

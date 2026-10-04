@@ -5,13 +5,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router, RouterOutlet, type Routes } from '@angular/router';
 import { importCommitSchema, type ImportPreviewRow } from '@wallet/shared';
 import { a11yProblems } from '../../../testing/a11y';
-import {
-  getByLabel,
-  getByRole,
-  queryAllByRole,
-  textOf,
-  typeInto,
-} from '../../../testing/dom';
+import { getByLabel, getByRole, queryAllByRole, textOf, typeInto } from '../../../testing/dom';
 import {
   budgetDto,
   importMapping,
@@ -38,7 +32,8 @@ import { ImportWizardStore, type WizardStep } from './import-wizard.store';
 const GROCERIES = budgetDto({ id: 1, name: 'Groceries', startMonth: '2026-06' });
 const BUDGETS = [GROCERIES];
 
-const CSV = 'Date;Amount;Description\n2026-10-01;-3.50;Coffee\n2026-10-02;-12.30;Lunch\n2026-10-03;2500.00;Salary\n';
+const CSV =
+  'Date;Amount;Description\n2026-10-01;-3.50;Coffee\n2026-10-02;-12.30;Lunch\n2026-10-03;2500.00;Salary\n';
 const COFFEE = previewRow({ line: 2, description: 'Coffee', suggestedBudgetId: 1 });
 const LUNCH = previewRow({
   line: 3,
@@ -179,11 +174,57 @@ describe('ImportPage, with the stores of the test', () => {
       const t = await arrive('file');
 
       expect(getByRole(t.element, 'heading', 'Import CSV').tagName).toBe('H1');
-      expect(textOf(t.element)).toContain(
-        "Bring in spendings from your bank's CSV file. You check every row before anything is stored.",
+      expect(textOf(t.element)).toContain("Bring in spendings from your bank's CSV file.");
+      expect(getByRole(t.element, 'link', 'Back to spendings').getAttribute('href')).toBe(
+        '/spendings',
       );
-      expect(getByRole(t.element, 'link', 'Back to spendings').getAttribute('href')).toBe('/spendings');
     });
+
+    it.each<[WizardStep, string]>([
+      ['file', 'max-w-3xl'],
+      ['mapping', 'max-w-6xl'],
+      ['preview', 'max-w-6xl'],
+      ['done', 'max-w-3xl'],
+    ])(
+      'is as wide as the %s step needs: a column to choose a file or read the result, wide for the columns and the rows',
+      async (step, width) => {
+        const t = await arrive(step);
+
+        const page = t.element.querySelector('app-page') as HTMLElement;
+        expect(page.classList).toContain(width);
+      },
+    );
+
+    it('changes its width with the step, without losing its place', async () => {
+      const t = await arrive('preview');
+      const page = () => t.element.querySelector('app-page') as HTMLElement;
+      expect(page().classList).toContain('max-w-6xl');
+
+      await t.press('Back');
+      await t.press('Back');
+
+      expect(page().classList).toContain('max-w-3xl');
+      expect(getByRole(t.element, 'heading', 'Import CSV').tagName).toBe('H1');
+    });
+
+    it.each<[WizardStep, string[]]>([
+      ['file', ['Next: choose the columns']],
+      ['mapping', ['Back', 'Next: review the rows']],
+      ['preview', ['Back', 'Import 1 spending']],
+      ['done', ['Import another file', 'Go to spendings']],
+    ])(
+      'ends the %s step with the same row of actions: the way back first, the main action last',
+      async (step, names) => {
+        const t = await arrive(step);
+
+        const footers = t.element.querySelectorAll('.wizard-actions');
+        expect(footers).toHaveLength(1);
+        const actions = Array.from(footers[0].querySelectorAll('button, a')).map((element) =>
+          textOf(element),
+        );
+        expect(actions).toEqual(names);
+      },
+    );
 
     it.each<WizardStep>(['file', 'mapping', 'preview', 'done'])(
       'has nothing a screen reader cannot use at the %s step',
@@ -197,12 +238,22 @@ describe('ImportPage, with the stores of the test', () => {
 
   describe('the steps', () => {
     it.each<[WizardStep, number, string[], (string | null)[]]>([
-      ['file', 1, ['File', 'Columns', 'Review', 'Done'], ['step', null, null, null]],
-      ['mapping', 2, ['File (done)', 'Columns', 'Review', 'Done'], [null, 'step', null, null]],
+      [
+        'file',
+        1,
+        ['File', 'Columns (upcoming)', 'Review (upcoming)', 'Done (upcoming)'],
+        ['step', null, null, null],
+      ],
+      [
+        'mapping',
+        2,
+        ['File (done)', 'Columns', 'Review (upcoming)', 'Done (upcoming)'],
+        [null, 'step', null, null],
+      ],
       [
         'preview',
         3,
-        ['File (done)', 'Columns (done)', 'Review', 'Done'],
+        ['File (done)', 'Columns (done)', 'Review', 'Done (upcoming)'],
         [null, null, 'step', null],
       ],
       [
@@ -230,7 +281,7 @@ describe('ImportPage, with the stores of the test', () => {
       await t.press('Back');
       expect(stepHeadings(t.element)).toEqual([HEADINGS.file]);
       expect(stepper(t.element)).toEqual({
-        labels: ['File', 'Columns', 'Review', 'Done'],
+        labels: ['File', 'Columns (upcoming)', 'Review (upcoming)', 'Done (upcoming)'],
         current: ['step', null, null, null],
       });
     });
@@ -409,7 +460,12 @@ describe('ImportPage, with the stores of the test', () => {
       const t = await arrive('file');
       const loading = t.wizard.loadFile(csvFile(CSV));
       await settle(t.fixture);
-      flushError(http.expectOne('/api/import/parse'), 400, 'validation_error', 'A quote is never closed on line 3');
+      flushError(
+        http.expectOne('/api/import/parse'),
+        400,
+        'validation_error',
+        'A quote is never closed on line 3',
+      );
       await loading;
       await settle(t.fixture);
       expect(textOf(getByRole(t.element, 'alert'))).toContain('A quote is never closed on line 3');
@@ -648,7 +704,9 @@ describe('ImportPage, as the router shows it', () => {
       await settle(t.fixture);
       expect(stepHeadings(t.element)).toEqual([HEADINGS.file]);
       expect(textOf(t.element)).not.toContain('march.csv');
-      expect((getByRole(t.element, 'button', 'Next: choose the columns') as HTMLButtonElement).disabled).toBe(true);
+      expect(
+        (getByRole(t.element, 'button', 'Next: choose the columns') as HTMLButtonElement).disabled,
+      ).toBe(true);
       expect(dialogOf(t.element).open).toBe(false);
     });
   });

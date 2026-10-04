@@ -2,16 +2,19 @@ import type { Page } from '@playwright/test';
 import { expect, failedResponse, test } from '../support/fixtures';
 import {
   expectReachableTarget,
+  measureBars,
   measureDialog,
   measureLayout,
   type LayoutReport,
 } from '../support/layout';
+import { moreButton, tabBar } from '../support/nav';
 import {
   SCREENS,
   type Stop,
   type ThemeName,
   emptyStops,
   expectTheme,
+  onScreen,
   onboardingStops,
   openPage,
   richStops,
@@ -74,6 +77,11 @@ async function expectPhoneLayout(page: Page, stop: Stop, label: string): Promise
     expect
       .soft(await measureDialog(page), `${label}: the dialog does not fit the screen`)
       .toEqual([]);
+  } else if (!stop.menu) {
+    // The tab bar and the floating button are fixed over the end of the page: it has to leave room.
+    // (An open menu closes when the page scrolls, so the stops that show one are left out.)
+    const bars = await measureBars(page);
+    expect.soft(bars.covered, `${label}: the bars cover the end of the page`).toEqual([]);
   }
   const primary = stop.primary?.(page);
   if (primary) {
@@ -106,7 +114,7 @@ for (const theme of THEMES) {
       }`, async ({ page, wallet }) => {
         test.setTimeout(WALK_TIMEOUT_MS);
         await seedWallet(wallet.api, { dataset, theme });
-        const stops = dataset === 'empty' ? emptyStops() : richStops();
+        const stops = dataset === 'empty' ? emptyStops() : onScreen(richStops(), 'phone');
 
         await openPage(page, '/dashboard', 'Dashboard');
         await expectTheme(page, theme);
@@ -145,9 +153,140 @@ test.describe('the narrowest phone, 320 px (WCAG 1.4.10 Reflow)', () => {
     test.setTimeout(WALK_TIMEOUT_MS);
     await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
     await openPage(page, '/dashboard', 'Dashboard');
-    await walk(page, richStops(), async (stop) => {
+    await walk(page, onScreen(richStops(), 'phone'), async (stop) => {
       await expectPhoneLayout(page, stop, `${stop.name} | light | 320 px | rich`);
     });
+  });
+});
+
+test.describe('the shell on a phone: one short top bar, a tab bar, a floating button', () => {
+  test.use({ ...SCREENS.phone, colorScheme: 'light' });
+
+  test('the chrome is a bar of about 60 px on top and a tab bar below, with the button above it', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    await openPage(page, '/dashboard', 'Dashboard');
+
+    const bars = await measureBars(page);
+    const screen = SCREENS.phone.viewport;
+    // It was about 170 px above the content (the brand row, a strip of links, the month bar).
+    expect(bars.topBarHeight, 'the top bar').toBeLessThanOrEqual(64);
+    expect(bars.topBarTopWhenScrolled, 'the top bar sticks to the top of the window').toBe(0);
+    expect(bars.tabBar, 'a tab bar').not.toBeNull();
+    const tabs = bars.tabBar ?? { top: 0, height: 0 };
+    expect(tabs.height, 'tabs are at least 56 px tall').toBeGreaterThanOrEqual(56);
+    expect(tabs.top + tabs.height, 'the tab bar is fixed to the bottom edge').toBeCloseTo(
+      screen.height,
+      0,
+    );
+    const fab = bars.fab ?? { top: 0, height: 0 };
+    expect(fab.height, 'the floating button is 56 px').toBe(56);
+    expect(fab.top + fab.height, 'the button floats above the tab bar').toBeLessThan(tabs.top);
+
+    // Each tab is a target a thumb finds: 44 px or more both ways.
+    for (const control of [...(await tabBar(page).getByRole('link').all()), moreButton(page)]) {
+      const box = await control.boundingBox();
+      expect(Math.min(box?.width ?? 0, box?.height ?? 0)).toBeGreaterThanOrEqual(44);
+    }
+
+    // A focused control is scrolled clear of the bars: the window leaves room for all of them.
+    const padding = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        top: parseFloat(style.scrollPaddingTop),
+        bottom: parseFloat(style.scrollPaddingBottom),
+      };
+    });
+    expect(padding.top, 'scroll padding above').toBeGreaterThanOrEqual(bars.topBarHeight);
+    expect(padding.bottom, 'scroll padding below').toBeGreaterThanOrEqual(screen.height - fab.top);
+  });
+
+  test('the check for the bars sees content that is under them when there is some', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    await openPage(page, '/dashboard', 'Dashboard');
+    expect((await measureBars(page)).covered, 'a clean page').toEqual([]);
+
+    // Take away the room that the page leaves under its content: the end of it is under the bars.
+    await page.evaluate(() => {
+      const main = document.querySelector('main');
+      if (main) main.style.paddingBottom = '0';
+    });
+    const covered = (await measureBars(page)).covered;
+    expect(covered.join('\n')).toContain('under the bar that starts at');
+  });
+
+  test('a toast sits above the tab bar and the button, so neither is covered', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    await openPage(page, '/settings', 'Settings');
+    await page.getByRole('button', { name: 'Back up now' }).click();
+    const toast = page
+      .getByRole('status')
+      .filter({ hasText: /backup/i })
+      .last();
+    await expect(toast).toBeVisible();
+
+    const bars = await measureBars(page);
+    const box = await toast.boundingBox();
+    expect(box, 'the toast has a box').not.toBeNull();
+    const limit = Math.min(bars.tabBar?.top ?? Infinity, bars.fab?.top ?? Infinity);
+    expect((box?.y ?? 0) + (box?.height ?? 0), 'the toast ends above the bars').toBeLessThanOrEqual(
+      limit,
+    );
+  });
+
+  test('the bars never make the page scroll sideways, whichever period the page has', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    for (const [path, heading] of [
+      ['/dashboard', 'Dashboard'],
+      ['/report', 'Yearly report'],
+      ['/savings', 'Savings'],
+    ] as const) {
+      await openPage(page, path, heading);
+      const layout = await measureLayout(page);
+      expect(layout.overflow, `${path}: the page scrolls sideways`).toEqual([]);
+      expect(layout.unreachable, `${path}: controls outside the screen`).toEqual([]);
+    }
+  });
+});
+
+test.describe('the narrowest phone: the top bar may take two rows, and fits', () => {
+  test.use({
+    viewport: { width: 320, height: 568 },
+    isMobile: true,
+    hasTouch: true,
+    colorScheme: 'light',
+  });
+
+  test('the brand and the switcher do not overflow, and the window keeps room for the two rows', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    for (const [path, heading] of [
+      ['/dashboard', 'Dashboard'],
+      ['/report', 'Yearly report'],
+    ] as const) {
+      await openPage(page, path, heading);
+      const layout = await measureLayout(page);
+      expect(layout.overflow, `${path}: the page scrolls sideways`).toEqual([]);
+      const bars = await measureBars(page);
+      expect(bars.topBarHeight, `${path}: the top bar`).toBeLessThanOrEqual(100);
+      const top = await page.evaluate(() =>
+        parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop),
+      );
+      expect(top, `${path}: scroll padding above`).toBeGreaterThanOrEqual(bars.topBarHeight);
+    }
   });
 });
 

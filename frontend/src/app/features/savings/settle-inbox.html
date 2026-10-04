@@ -1,11 +1,14 @@
-<section aria-labelledby="inbox-heading" class="card space-y-4">
-  <div>
-    <h2 #heading id="inbox-heading" tabindex="-1" class="text-lg font-semibold">Move to savings</h2>
-    <p class="mt-1 text-sm text-muted">
-      Months that have closed with money left over, or short. Move the money in your bank, then mark
-      the month done here.
+<app-section heading="Move to savings" focusable>
+  @if (entries().length > 0) {
+    <p sectionDescription class="mt-1 text-sm text-muted">
+      {{ entries().length }} {{ entries().length === 1 ? 'month' : 'months' }} to settle. In total:
+      <span class="font-medium text-ink">{{ totalPhrase() }}.</span>
     </p>
-  </div>
+  }
+  <p sectionHelp>
+    Months that have closed with money left over, or short. Move the money in your bank, then mark
+    the month done here.
+  </p>
 
   @if (entries().length === 0) {
     <app-empty-state
@@ -13,139 +16,101 @@
       description="Nothing to move to savings right now. A month shows up here once it has closed with money left over, or short."
     />
   } @else {
-    <p class="text-sm text-muted">
-      {{ entries().length }} {{ entries().length === 1 ? 'month' : 'months' }} to settle. In total:
-      <span class="font-medium text-ink">{{ totalPhrase() }}.</span>
-    </p>
-
-    <ul class="divide-y divide-line rounded-card border border-line">
+    <ul appList>
       @for (entry of entries(); track entry.month) {
-        <li class="space-y-3 p-3 sm:p-4">
-          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-x-4">
-            <div class="min-w-0 flex-1">
-              <p class="font-semibold">
-                {{ monthLabel(entry.month) }}:
-                @if (entry.direction === 'move') {
-                  move <app-amount [cents]="abs(entry.outstanding)" />
-                  {{ entry.adjustment ? 'more ' : '' }}to savings
-                } @else {
-                  take <app-amount [cents]="abs(entry.outstanding)" />
-                  {{ entry.adjustment ? 'more ' : '' }}from savings
-                }
-              </p>
-              @if (entry.adjustment) {
-                <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
-                  <span
-                    class="inline-flex items-center gap-1 rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium text-ink"
-                  >
-                    <app-icon name="info" />
-                    Correction
-                  </span>
-                  <span>
-                    You settled this month before. Later changes to it moved what it is due, so this
-                    corrects that earlier settlement.
-                  </span>
-                </p>
-              }
-            </div>
-            <div class="grid grid-cols-2 gap-2 sm:flex sm:shrink-0">
-              <button
-                appButton
-                [loading]="busy() === entry.month"
-                [disabled]="busy() !== null"
-                [attr.aria-label]="'Mark ' + monthLabel(entry.month) + ' as done'"
-                (click)="done(entry)"
-              >
-                Done
-              </button>
-              <button
-                appButton
-                variant="secondary"
-                [disabled]="busy() !== null"
-                [attr.aria-label]="'Split ' + monthLabel(entry.month) + ' across goals'"
-                (click)="openSplit(entry)"
-              >
-                Split…
-              </button>
-            </div>
-          </div>
+        <li appListRow>
+          <span rowTitle>
+            {{ monthLabel(entry.month) }}:
+            @if (entry.direction === 'move') {
+              move <app-amount [cents]="abs(entry.outstanding)" />
+              {{ entry.adjustment ? 'more ' : '' }}to savings
+            } @else {
+              take <app-amount [cents]="abs(entry.outstanding)" />
+              {{ entry.adjustment ? 'more ' : '' }}from savings
+            }
+          </span>
+          <!-- Both are ways to settle the month, not things to do to a record: they stay on the row. -->
+          <button
+            rowActions
+            appButton
+            [loading]="busy() === entry.month"
+            [disabled]="busy() !== null"
+            [attr.aria-label]="'Mark ' + monthLabel(entry.month) + ' as done'"
+            (click)="done(entry)"
+          >
+            Done
+          </button>
+          <button
+            rowActions
+            appButton
+            variant="secondary"
+            [disabled]="busy() !== null"
+            [attr.aria-label]="'Split ' + monthLabel(entry.month) + ' across goals'"
+            (click)="openSplit(entry)"
+          >
+            Split…
+          </button>
 
-          @if (notices()[entry.month]; as notice) {
-            <p
-              role="alert"
-              class="flex items-start gap-2 rounded-control border border-warning bg-warning-soft p-3 text-sm text-ink"
-            >
-              <app-icon name="alert" class="mt-0.5 text-warning" />
-              <span>{{ notice }}</span>
-            </p>
+          @if (entry.adjustment) {
+            <app-alert tone="info" title="Correction">
+              You settled this month before. Later changes to it moved what it is due, so this
+              corrects that earlier settlement.
+            </app-alert>
           }
 
-          <details class="text-sm">
-            <summary class="cursor-pointer rounded-control py-1 font-medium text-accent-text">
-              See the breakdown<span class="sr-only"> for {{ monthLabel(entry.month) }}</span>
-            </summary>
-            <p class="mt-2 text-muted">
+          @if (notices()[entry.month]; as notice) {
+            <app-alert tone="warning" live="alert">{{ notice }}</app-alert>
+          }
+
+          <app-disclosure summary="See the breakdown">
+            <span class="sr-only" disclosureSummary> for {{ monthLabel(entry.month) }}</span>
+            <p class="text-sm text-muted">
               Positive amounts go to savings. Negative amounts are taken from it.
             </p>
-            <dl class="mt-2 divide-y divide-line rounded-control border border-line">
-              <div class="flex items-start justify-between gap-4 p-2.5">
-                <dt>
-                  Unallocated income
-                  <span class="block text-muted">
-                    What the month earned beyond its fixed costs and budgets.
-                  </span>
-                </dt>
-                <dd class="shrink-0">
-                  <app-amount [cents]="entry.breakdown.unallocated" [signed]="true" />
-                </dd>
+            <dl appKeyValues class="mt-2">
+              <div
+                appKeyValue
+                label="Unallocated income"
+                description="What the month earned beyond its fixed costs and budgets."
+              >
+                <app-amount [cents]="entry.breakdown.unallocated" [signed]="true" />
               </div>
-              <div class="flex items-start justify-between gap-4 p-2.5">
-                <dt>
-                  Budgets settled
-                  <span class="block text-muted">
-                    What budgets without rollover had left, or overspent, at the end of the month.
-                  </span>
-                </dt>
-                <dd class="shrink-0">
-                  <app-amount [cents]="entry.breakdown.budgetsSettled" [signed]="true" />
-                </dd>
+              <div
+                appKeyValue
+                label="Budgets settled"
+                description="What budgets without rollover had left, or overspent, at the end of the month."
+              >
+                <app-amount [cents]="entry.breakdown.budgetsSettled" [signed]="true" />
               </div>
-              <div class="flex items-start justify-between gap-4 p-2.5">
-                <dt>
-                  Reserves released
-                  <span class="block text-muted">
-                    Yearly subscription money that was set aside and is no longer needed.
-                  </span>
-                </dt>
-                <dd class="shrink-0">
-                  <app-amount [cents]="entry.breakdown.reservesReleased" [signed]="true" />
-                </dd>
+              <div
+                appKeyValue
+                label="Reserves released"
+                description="Yearly subscription money that was set aside and is no longer needed."
+              >
+                <app-amount [cents]="entry.breakdown.reservesReleased" [signed]="true" />
               </div>
-              <div class="flex items-start justify-between gap-4 p-2.5 font-semibold">
-                <dt>Due for the month</dt>
-                <dd class="shrink-0"><app-amount [cents]="entry.savingsDue" [signed]="true" /></dd>
+              <div appKeyValue label="Due for the month" strong>
+                <app-amount [cents]="entry.savingsDue" [signed]="true" />
               </div>
               @if (entry.adjustment || entry.settled !== 0) {
-                <div class="flex items-start justify-between gap-4 p-2.5">
-                  <dt>Already settled</dt>
-                  <dd class="shrink-0">
-                    <app-amount [cents]="entry.settled" [signed]="true" />
-                  </dd>
+                <div appKeyValue label="Already settled">
+                  <app-amount [cents]="entry.settled" [signed]="true" />
                 </div>
               }
-              <div class="flex items-start justify-between gap-4 p-2.5 font-semibold">
-                <dt>{{ entry.direction === 'move' ? 'To move now' : 'To take now' }}</dt>
-                <dd class="shrink-0">
-                  <app-amount [cents]="entry.outstanding" [signed]="true" />
-                </dd>
+              <div
+                appKeyValue
+                [label]="entry.direction === 'move' ? 'To move now' : 'To take now'"
+                strong
+              >
+                <app-amount [cents]="entry.outstanding" [signed]="true" />
               </div>
             </dl>
-          </details>
+          </app-disclosure>
         </li>
       }
     </ul>
   }
-</section>
+</app-section>
 
 @if (splitEntry(); as entry) {
   <app-settle-split-dialog

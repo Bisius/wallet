@@ -1,7 +1,7 @@
 import { Component, computed, input, output } from '@angular/core';
 import { parseApiError } from '../../core/api-error';
+import { Alert } from './alert';
 import { Button } from './button';
-import { Icon } from './icon';
 
 /** Shown while data loads. A polite live region, so screen readers hear that something is loading. */
 @Component({
@@ -44,24 +44,21 @@ export class EmptyState {
 
 /**
  * Shown when a request failed. It tells the user what the API said (the `message` of the `ApiError`
- * body), or what the HTTP status means. It is announced as an alert.
+ * body), or what the HTTP status means. It is announced as an alert. It is an `app-alert` with the
+ * message of the error and, unless `retryable` is off, a "Try again" button.
  */
 @Component({
   selector: 'app-error-state',
-  imports: [Button, Icon],
+  imports: [Alert, Button],
   template: `
-    <div role="alert" class="rounded-card border border-negative bg-negative-soft p-4 text-ink">
-      <p class="flex items-center gap-2 font-semibold text-negative">
-        <app-icon name="alert" />
-        {{ title() }}
-      </p>
-      <p class="mt-1 text-sm">{{ message() }}</p>
+    <app-alert tone="error" [title]="title()">
+      {{ message() }}
       @if (retryable()) {
-        <button appButton variant="secondary" size="sm" class="mt-3" (click)="retry.emit()">
+        <button alertAction appButton variant="secondary" size="sm" (click)="retry.emit()">
           Try again
         </button>
       }
-    </div>
+    </app-alert>
   `,
   host: { class: 'block' },
 })

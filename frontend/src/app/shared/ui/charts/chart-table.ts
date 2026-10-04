@@ -16,31 +16,28 @@ export interface ChartTableRow {
 @Component({
   selector: 'app-chart-table',
   template: `
-    <div
-      [class]="visible() ? 'overflow-x-auto rounded-card border border-line' : 'sr-only'"
-      [attr.id]="tableId()"
-    >
-      <table class="w-full border-collapse text-left text-sm">
+    <div [class]="visible() ? 'table-scroll' : 'sr-only'" [attr.id]="tableId()">
+      <table class="data-table">
         <caption [class]="visible() ? 'px-3 py-2 text-left font-medium' : 'sr-only'">
           {{
             caption()
           }}
         </caption>
-        <thead class="bg-subtle">
+        <thead>
           <tr>
             @for (column of columns(); track $index) {
-              <th scope="col" class="px-3 py-2 font-semibold" [class.text-right]="$index > 0">
+              <th scope="col" [class.cell-num]="$index > 0">
                 {{ column }}
               </th>
             }
           </tr>
         </thead>
-        <tbody class="divide-y divide-line">
+        <tbody>
           @for (row of rows(); track $index) {
             <tr>
-              <th scope="row" class="px-3 py-2 font-medium whitespace-nowrap">{{ row.header }}</th>
+              <th scope="row" class="whitespace-nowrap">{{ row.header }}</th>
               @for (cell of row.cells; track $index) {
-                <td class="px-3 py-2 text-right tabular-nums">{{ cell }}</td>
+                <td class="cell-num">{{ cell }}</td>
               }
             </tr>
           }

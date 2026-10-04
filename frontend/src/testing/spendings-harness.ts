@@ -11,6 +11,7 @@ import { ToastService } from '../app/shared/ui/toast.service';
 import { getByLabel, getByRole, queryByRole, textOf, typeInto } from './dom';
 import { budgetLine, monthView, spendingDto, spendingsPage as pageOf } from './fixtures';
 import { primeStores, settle } from './harness';
+import { rowAction } from './menu';
 
 /** The Spendings page with the shell's confirm dialog and toasts, as the app has them. */
 @Component({
@@ -139,7 +140,8 @@ export function spendingsPageHelpers(
     /** The list of spendings, with its heading and the result line. */
     list: () => getByRole(element, 'region', /Spendings in/),
     /** The result line under the list heading: a live region. */
-    result: () => element.querySelector<HTMLElement>('#spendings-list-heading + p[aria-live]')!,
+    result: () =>
+      getByRole(element, 'region', /Spendings in/).querySelector<HTMLElement>('h2 + p[aria-live]')!,
     form: () => element.querySelector('section app-spending-form') as HTMLElement,
     dialog: () => queryByRole(element, 'dialog', 'Edit spending') as HTMLElement | null,
     confirmDialog: () => element.querySelector('app-confirm-dialog dialog') as HTMLDialogElement,
@@ -149,6 +151,36 @@ export function spendingsPageHelpers(
       getByRole(root, 'button', name).click();
       await settle(fixture);
     },
+    /**
+     * Unfolds "More" in the quick add (description, tags, Refund), as a person does with its summary. It
+     * stays as it is when it is open already.
+     */
+    openMore: async (root: ParentNode = element) => {
+      const summary = Array.from(root.querySelectorAll('summary')).find((candidate) =>
+        textOf(candidate).startsWith('More'),
+      );
+      if (!summary) throw new Error('There is no "More" disclosure to open');
+      const details = summary.parentElement as HTMLDetailsElement;
+      if (!details.open) summary.click();
+      await settle(fixture);
+      if (!details.open) throw new Error('"More" did not open');
+    },
+    /** The "Filters" button of the toolbar, whatever its name says about the count ("Filters, 2 active"). */
+    filtersButton: () => getByRole(getByRole(element, 'search'), 'button', /^Filters/),
+    /** Unfolds the panel under the toolbar (budget, tag, amounts, months). It stays open when it is. */
+    openFilters: async () => {
+      const button = getByRole(getByRole(element, 'search'), 'button', /^Filters/);
+      if (button.getAttribute('aria-expanded') !== 'true') {
+        button.click();
+        await settle(fixture);
+      }
+    },
+    /**
+     * Opens the "More actions" menu of a row, which a spec names the way the row is named to a screen
+     * reader (`'Coffee, €3.50'`), and presses its item: `await p.rowAction('Coffee, €3.50', 'Delete')`.
+     */
+    rowAction: (row: string, item: string | RegExp) =>
+      rowAction(element, item, `More actions for ${row}`),
     type: async (label: string | RegExp, value: string, root: ParentNode = element) => {
       typeInto(getByLabel(root, label), value);
       await settle(fixture);

@@ -91,7 +91,9 @@ describe('ImportFileStep', () => {
 
       expect(textOf(getByRole(t.element, 'heading'))).toBe("Choose your bank's file");
       const text = textOf(t.section());
-      expect(text).toContain('A .csv or .txt file with one row per transaction, up to 10 MB and 10,000 rows.');
+      expect(text).toContain('A .csv or .txt file with one row per transaction.');
+      // The limits and where the file goes are in the help, which is part of the step.
+      expect(text).toContain('Up to 10 MB and 10,000 rows.');
       expect(text).toContain('It is read in your browser and sent to your own Wallet server.');
       expect(text).toContain('Nothing is stored until you confirm the last step.');
     });
@@ -149,7 +151,9 @@ describe('ImportFileStep', () => {
 
       await t.load(csvFile(SAMPLE_CSV), parseResponse({ recordCount: 1201, columnCount: 7 }));
 
-      expect(textOf(t.section())).toContain('Rows found 1201 (the first one may be a header) Columns 7');
+      expect(textOf(t.section())).toContain(
+        'Rows found 1201 (the first one may be a header) Columns 7',
+      );
     });
 
     it.each([
@@ -236,10 +240,14 @@ describe('ImportFileStep', () => {
     it('says a file that is not valid UTF-8 was read as windows-1252, and what to do if accents look wrong', async () => {
       const t = await setup();
 
-      await t.choose(csvFile(latin1('Date;Amount;Description\n2026-10-01;-3,50;Café\n'), 'old.csv'));
+      await t.choose(
+        csvFile(latin1('Date;Amount;Description\n2026-10-01;-3,50;Café\n'), 'old.csv'),
+      );
       // The server is sent the text as windows-1252 reads it.
       const request = http.expectOne('/api/import/parse');
-      expect(request.request.body).toEqual({ csv: 'Date;Amount;Description\n2026-10-01;-3,50;Café\n' });
+      expect(request.request.body).toEqual({
+        csv: 'Date;Amount;Description\n2026-10-01;-3,50;Café\n',
+      });
       request.flush(parseResponse());
       await settle(t.fixture);
 

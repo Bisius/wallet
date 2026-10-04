@@ -1,16 +1,13 @@
-<section aria-labelledby="goals-heading" class="space-y-4">
-  <div class="flex flex-wrap items-end justify-between gap-3">
-    <div>
-      <h2 #heading id="goals-heading" tabindex="-1" class="text-lg font-semibold">Goals</h2>
-      <p class="mt-1 text-sm text-muted">
-        Things you are saving for. Money you put into a goal counts towards its target.
-      </p>
-    </div>
-    <button appButton variant="secondary" (click)="openCreate()">
-      <app-icon name="plus" />
-      New goal
-    </button>
-  </div>
+<app-section
+  variant="plain"
+  heading="Goals"
+  description="Things you are saving for. Money you put in counts towards the target."
+  focusable
+>
+  <button sectionAction appButton variant="secondary" (click)="openCreate()">
+    <app-icon name="plus" />
+    New goal
+  </button>
 
   @if (goals().length === 0) {
     <app-empty-state
@@ -24,9 +21,10 @@
     </app-empty-state>
   } @else {
     @if (inUse().length === 0) {
-      <p class="rounded-card border border-dashed border-line-strong p-4 text-sm text-muted">
-        All your goals are archived. Create a new goal, or bring one back below.
-      </p>
+      <app-empty-state
+        title="All your goals are archived"
+        description="Create a new goal, or bring one back below."
+      />
     } @else {
       <ul class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
         @for (goal of inUse(); track goal.id) {
@@ -46,11 +44,8 @@
     }
 
     @if (archived().length > 0) {
-      <details class="card">
-        <summary class="cursor-pointer rounded-control text-lg font-semibold">
-          Archived goals ({{ archived().length }})
-        </summary>
-        <p class="mt-2 text-sm text-muted">
+      <app-disclosure size="section" [summary]="'Archived goals (' + archived().length + ')'">
+        <p class="text-sm text-muted">
           An archived goal keeps its balance but takes no new money. You can still take out what it
           holds. Unarchive it to use it again, or delete it to move its balance to unassigned
           savings.
@@ -70,10 +65,10 @@
             </li>
           }
         </ul>
-      </details>
+      </app-disclosure>
     }
   }
-</section>
+</app-section>
 
 @if (form(); as dialog) {
   <app-goal-form

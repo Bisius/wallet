@@ -130,9 +130,33 @@ describe('SpendingsPage: search and filters', () => {
       expect(p.value('Maximum amount', p.bar())).toBe('');
       expect(scopeRadio(p, 'October 2026').checked).toBe(true);
       expect(scopeRadio(p, 'All months').checked).toBe(false);
-      expect(textOf(p.bar())).not.toContain('in use');
       expect(queryByRole(p.bar(), 'button', 'Clear filters')).toBeNull();
+      // No count: the name of the button is just "Filters".
       expect(getByRole(p.bar(), 'button', 'Filters')).toBeTruthy();
+    });
+
+    it('is a toolbar: the search is always there, and the rest is in a panel the Filters button opens', async () => {
+      const p = await openSpendingsPage(http, { tags: TAGS });
+
+      const panel = document.getElementById(p.filtersButton().getAttribute('aria-controls')!)!;
+      expect(panel.contains(search(p))).toBe(false);
+      expect(p.bar().contains(search(p))).toBe(true);
+      for (const label of [
+        'Filter by budget',
+        'Filter by tag',
+        'Minimum amount',
+        'Maximum amount',
+      ]) {
+        expect(panel.contains(getByLabel(p.bar(), label)), label).toBe(true);
+      }
+      expect(panel.contains(getByRole(p.bar(), 'group', 'Show spendings from'))).toBe(true);
+    });
+
+    it('says what the search is for with its placeholder, and names it "Search" for a screen reader', async () => {
+      const p = await openSpendingsPage(http);
+
+      expect(search(p).getAttribute('placeholder')).toBe('Description or notes');
+      expect(search(p).type).toBe('search');
     });
 
     it("offers the month's budgets, and all the tags", async () => {
@@ -192,7 +216,7 @@ describe('SpendingsPage: search and filters', () => {
       );
     });
 
-    it('counts the filters in use, on the button that opens them and next to the title', async () => {
+    it('counts the filters in use, in the name of the button that opens them, and shows the count on it', async () => {
       const p = await openSpendingsPage(http, {
         url: '/spendings?q=coffee&tagId=2&minAmount=0&scope=all',
         firstPage: { tagId: 2, q: 'coffee', minAmount: 0 },
@@ -200,8 +224,10 @@ describe('SpendingsPage: search and filters', () => {
         budgets: BUDGETS,
       });
 
-      expect(getByRole(p.bar(), 'button', 'Filters (4)')).toBeTruthy();
-      expect(textOf(p.bar())).toContain('Search and filters · 4 in use');
+      const button = getByRole(p.bar(), 'button', 'Filters, 4 active');
+      // The number is drawn too, and hidden from a screen reader, which has it in the name.
+      expect(button.textContent).toContain('4');
+      expect(button.querySelector('app-badge[aria-hidden="true"]')?.textContent).toContain('4');
     });
 
     it('keeps the panel closed on a small screen when it arrives without filters', async () => {
@@ -215,14 +241,45 @@ describe('SpendingsPage: search and filters', () => {
 
     it('opens the panel when it arrives with filters, so they can be seen', async () => {
       const p = await openSpendingsPage(http, {
+        url: '/spendings?tagId=2',
+        firstPage: { month: '2026-10', tagId: 2 },
+        tags: TAGS,
+      });
+
+      const toggle = getByRole(p.bar(), 'button', 'Filters, 1 active');
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      const panel = document.getElementById(toggle.getAttribute('aria-controls')!)!;
+      expect(panel.classList.contains('hidden')).toBe(false);
+    });
+
+    it('leaves the panel closed when the only filter is the search, which is on screen anyway, and still counts it', async () => {
+      const p = await openSpendingsPage(http, {
         url: '/spendings?q=tea',
         firstPage: { month: '2026-10', q: 'tea' },
       });
 
-      const toggle = getByRole(p.bar(), 'button', 'Filters (1)');
-      expect(toggle.getAttribute('aria-expanded')).toBe('true');
-      const panel = document.getElementById(toggle.getAttribute('aria-controls')!)!;
-      expect(panel.classList.contains('hidden')).toBe(false);
+      const toggle = getByRole(p.bar(), 'button', 'Filters, 1 active');
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(search(p).value).toBe('tea');
+    });
+
+    it('keeps the button, with its count, and the panel as they are when the panel is closed again', async () => {
+      const p = await openSpendingsPage(http, {
+        url: '/spendings?tagId=2',
+        firstPage: { month: '2026-10', tagId: 2 },
+        tags: TAGS,
+      });
+
+      getByRole(p.bar(), 'button', 'Filters, 1 active').click();
+      await settle(p.fixture);
+
+      const toggle = getByRole(p.bar(), 'button', 'Filters, 1 active');
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+      expect(document.getElementById(toggle.getAttribute('aria-controls')!)!.classList).toContain(
+        'hidden',
+      );
+      // What is in a closed panel is still in force.
+      expect(p.value('Filter by tag', p.bar())).toBe('2');
     });
 
     it('opens and closes the panel with the Filters button', async () => {
@@ -254,7 +311,7 @@ describe('SpendingsPage: search and filters', () => {
       expect(p.value('Minimum amount', p.bar())).toBe('');
       expect(scopeRadio(p, 'October 2026').checked).toBe(true);
       expect(p.text()).toContain('Coffee');
-      expect(textOf(p.bar())).not.toContain('in use');
+      expect(queryByRole(p.bar(), 'button', /active$/)).toBeNull();
     });
 
     it('ignores only the garbage when the URL also has good filters', async () => {
@@ -527,7 +584,7 @@ describe('SpendingsPage: search and filters', () => {
 
       expect(p.params()).toEqual({ tagId: '2' });
       await p.answer({ month: '2026-10', tagId: 2 }, spendingsPage([LUNCH]));
-      expect(getByRole(p.bar(), 'button', 'Filters (1)')).toBeTruthy();
+      expect(getByRole(p.bar(), 'button', 'Filters, 1 active')).toBeTruthy();
     });
 
     it('go together: every filter is one parameter of the same request', async () => {
@@ -539,7 +596,7 @@ describe('SpendingsPage: search and filters', () => {
       await p.answer({ month: '2026-10', budgetId: 1, tagId: 1 });
 
       expect(p.params()).toEqual({ budgetId: '1', tagId: '1' });
-      expect(getByRole(p.bar(), 'button', 'Filters (2)')).toBeTruthy();
+      expect(getByRole(p.bar(), 'button', 'Filters, 2 active')).toBeTruthy();
     });
 
     it('go back to "all" when the first choice is picked again', async () => {
@@ -576,7 +633,7 @@ describe('SpendingsPage: search and filters', () => {
           textOf(o),
         ),
       ).toEqual(['All budgets', 'Groceries', 'Fun', 'Old gym']);
-      expect(getByRole(p.bar(), 'button', 'Filters (1)')).toBeTruthy();
+      expect(getByRole(p.bar(), 'button', 'Filters, 1 active')).toBeTruthy();
       expect(scopeRadio(p, 'All months').checked).toBe(true);
     });
 
@@ -652,8 +709,10 @@ describe('SpendingsPage: search and filters', () => {
       });
 
       expect(getByRole(p.list(), 'button', 'Edit Coffee, €3.50, Oct 2, 2026')).toBeTruthy();
-      expect(getByRole(p.list(), 'button', 'Delete Coffee, €3.50, Sep 2, 2026')).toBeTruthy();
-      await p.press('Delete Coffee, €3.50, Sep 2, 2026', p.list());
+      expect(
+        getByRole(p.list(), 'button', 'More actions for Coffee, €3.50, Sep 2, 2026'),
+      ).toBeTruthy();
+      await p.rowAction('Coffee, €3.50, Sep 2, 2026', 'Delete');
       // The question says the date once.
       expect(textOf(p.confirmDialog())).toContain(
         'Coffee, €3.50 on Wed, Sep 2, 2026 will be removed from Groceries.',
@@ -1005,7 +1064,7 @@ describe('SpendingsPage: search and filters', () => {
       const p = await openSeptember();
       const savings = await withOverview(p);
 
-      await p.press('Delete Late bill, €15.00', p.list());
+      await p.rowAction('Late bill, €15.00', 'Delete');
       await p.press('Delete spending', p.confirmDialog());
       http.expectOne('/api/spendings/30').flush(null, { status: 204, statusText: 'No Content' });
       await settle(p.fixture);
@@ -1145,7 +1204,7 @@ describe('SpendingsPage: search and filters', () => {
       expect(p.value('Maximum amount', p.bar())).toBe('');
       expect(scopeRadio(p, 'September 2026').checked).toBe(true);
       expect(queryByRole(p.bar(), 'button', 'Clear filters')).toBeNull();
-      expect(textOf(p.bar())).not.toContain('in use');
+      expect(queryByRole(p.bar(), 'button', /active$/)).toBeNull();
     });
 
     it('puts the keyboard on the list heading, because the button that was pressed is gone', async () => {

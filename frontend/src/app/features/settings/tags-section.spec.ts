@@ -19,6 +19,7 @@ import {
 import { tagDto } from '../../../testing/fixtures';
 import { TagsStore } from '../../core/tags.store';
 import { flushError, primeStores, settle } from '../../../testing/harness';
+import { menuItemNames, rowAction } from '../../../testing/menu';
 import { TagsSection } from './tags-section';
 
 @Component({
@@ -71,6 +72,9 @@ describe('TagsSection', () => {
         getByRole(root, 'button', name).click();
         await settle(fixture);
       },
+      /** Opens the menu of a tag's row and presses its item: `rowAction('Travel', 'Delete')`. */
+      rowAction: (tag: string, item: string | RegExp) =>
+        rowAction(element, item, `More actions for tag ${tag}`),
       type: async (label: string | RegExp, value: string) => {
         typeInto(getByLabel(formDialog()!, label), value);
         await settle(fixture);
@@ -128,9 +132,18 @@ describe('TagsSection', () => {
     it('names its buttons after the tag', async () => {
       const t = await setup();
 
-      for (const name of ['Edit tag Groceries', 'Delete tag Groceries', 'Edit tag Travel']) {
+      // The name of the tag edits it, and the rest is in the menu of its row.
+      for (const name of [
+        'Edit tag Groceries',
+        'More actions for tag Groceries',
+        'Edit tag Travel',
+      ]) {
         expect(getByRole(t.section(), 'button', name), name).toBeTruthy();
       }
+      expect(menuItemNames(t.section(), 'More actions for tag Groceries')).toEqual([
+        'Edit',
+        'Delete',
+      ]);
     });
 
     it('says there are no tags yet', async () => {
@@ -348,13 +361,26 @@ describe('TagsSection', () => {
       expect(t.formDialog()).toBeNull();
       http.expectNone('/api/tags/2');
     });
+
+    it('opens from the menu of the row too, and gives focus back to the menu button', async () => {
+      const t = await setup();
+      const menu = getByRole(t.section(), 'button', 'More actions for tag Travel');
+      menu.focus();
+
+      await t.rowAction('Travel', 'Edit');
+      expect(t.formDialog()).not.toBeNull();
+      await t.press('Cancel', t.formDialog()!);
+
+      expect(t.formDialog()).toBeNull();
+      expect(document.activeElement).toBe(menu);
+    });
   });
 
   describe('deleting', () => {
     it('asks first, says how many spendings lose the tag and that they stay, and does nothing when cancelled', async () => {
       const t = await setup();
 
-      await t.press('Delete tag Groceries');
+      await t.rowAction('Groceries', 'Delete');
 
       const text = textOf(t.confirmDialog());
       expect(text).toContain('Delete the tag "Groceries"?');
@@ -367,7 +393,7 @@ describe('TagsSection', () => {
 
     it('speaks of one spending in the singular', async () => {
       const t = await setup();
-      await t.press('Delete tag Travel');
+      await t.rowAction('Travel', 'Delete');
 
       expect(textOf(t.confirmDialog())).toContain(
         '"Travel" is on 1 spending. It loses the tag and stays exactly as it is: no amount, date or budget changes.',
@@ -376,7 +402,7 @@ describe('TagsSection', () => {
 
     it('says a tag on no spending changes nothing else', async () => {
       const t = await setup();
-      await t.press('Delete tag Ideas');
+      await t.rowAction('Ideas', 'Delete');
 
       expect(textOf(t.confirmDialog())).toContain(
         '"Ideas" is not on any spending, so nothing else changes.',
@@ -385,7 +411,7 @@ describe('TagsSection', () => {
 
     it('deletes once confirmed, loads the tags again and puts focus on the heading', async () => {
       const t = await setup();
-      await t.press('Delete tag Travel');
+      await t.rowAction('Travel', 'Delete');
       await t.press('Delete tag', t.confirmDialog());
 
       const request = http.expectOne('/api/tags/2');
@@ -400,7 +426,7 @@ describe('TagsSection', () => {
 
     it('says a tag that was already gone is gone, and loads the tags again', async () => {
       const t = await setup();
-      await t.press('Delete tag Travel');
+      await t.rowAction('Travel', 'Delete');
       await t.press('Delete tag', t.confirmDialog());
 
       flushError(http.expectOne('/api/tags/2'), 404, 'not_found', 'Tag not found');
@@ -412,7 +438,7 @@ describe('TagsSection', () => {
 
     it("reports another failure with the API's words", async () => {
       const t = await setup();
-      await t.press('Delete tag Travel');
+      await t.rowAction('Travel', 'Delete');
       await t.press('Delete tag', t.confirmDialog());
 
       flushError(http.expectOne('/api/tags/2'), 500, 'internal_error', 'Something broke');
@@ -420,8 +446,10 @@ describe('TagsSection', () => {
 
       expect(t.toasts()).toEqual(["Couldn't delete the tag. Something broke"]);
       expect(t.rows()).toHaveLength(3);
-      // The tag is still there, so focus goes back to its button and not to the heading.
-      expect(document.activeElement).toBe(getByRole(t.section(), 'button', 'Delete tag Travel'));
+      // The tag is still there, so focus goes back to the button of its menu and not to the heading.
+      expect(document.activeElement).toBe(
+        getByRole(t.section(), 'button', 'More actions for tag Travel'),
+      );
     });
   });
 });

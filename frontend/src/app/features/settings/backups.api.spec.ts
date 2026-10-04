@@ -42,6 +42,8 @@ describe('BackupsApi', () => {
   });
 
   it('downloadUrl: /api/backups/:name', () => {
-    expect(api.downloadUrl('wallet-20261003-142530.db')).toBe('/api/backups/wallet-20261003-142530.db');
+    expect(api.downloadUrl('wallet-20261003-142530.db')).toBe(
+      '/api/backups/wallet-20261003-142530.db',
+    );
   });
 });

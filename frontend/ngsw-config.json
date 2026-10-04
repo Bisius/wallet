@@ -10,6 +10,14 @@
       }
     },
     {
+      "name": "fonts",
+      "installMode": "prefetch",
+      "updateMode": "prefetch",
+      "resources": {
+        "files": ["/media/inter-latin-wght-normal-*.woff2"]
+      }
+    },
+    {
       "name": "assets",
       "installMode": "lazy",
       "updateMode": "prefetch",

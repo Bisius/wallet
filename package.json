@@ -21,6 +21,7 @@
     "e2e": "npm run e2e -w @wallet/e2e --",
     "e2e:flows": "npm run e2e:flows -w @wallet/e2e --",
     "e2e:sweep": "npm run e2e:sweep -w @wallet/e2e --",
+    "e2e:visual": "npm run e2e:visual -w @wallet/e2e --",
     "format": "prettier --write .",
     "db:generate": "npm run db:generate -w @wallet/backend --",
     "db:migrate": "npm run db:migrate -w @wallet/backend"

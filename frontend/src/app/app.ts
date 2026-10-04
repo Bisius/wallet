@@ -14,37 +14,49 @@ import {
   NavigationEnd,
   NavigationError,
   Router,
-  RouterLink,
-  RouterLinkActive,
   RouterOutlet,
 } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { activeRouteData, type AppRouteData } from './core/route-data';
 import { SavingsStore } from './core/savings.store';
-import { SelectedMonth } from './core/selected-month';
 import { ThemeService } from './core/theme.service';
-import { ApiStatusIndicator } from './shared/ui/api-status-indicator';
+import { AddSpending, AddSpendingFab } from './shell/add-spending';
+import { AddSpendingDialog } from './shell/add-spending-dialog';
+import { Sidebar } from './shell/sidebar';
+import { TabBar } from './shell/tab-bar';
+import { TopBar } from './shell/top-bar';
 import { ConfirmDialog } from './shared/ui/confirm-dialog';
-import { MonthSwitcher } from './shared/ui/month-switcher';
 import { LoadingState } from './shared/ui/states';
 import { ToastContainer } from './shared/ui/toast-container';
 import { UpdateNotice } from './shared/ui/update-notice';
 
-interface NavItem {
-  path: string;
-  label: string;
-  /** Shows how many months wait to be moved to savings, next to the label. */
-  savingsBadge?: boolean;
-}
+/** The padding of the page, which every page has. */
+const MAIN = 'flex-1 p-4 md:p-8';
+/**
+ * Below `md` the tab bar is fixed over the bottom of the window, and the floating "Add spending" button
+ * over that: the page leaves room for both under its last content (`--tab-bar-height` and `--fab-zone`,
+ * styles.css), and for the home indicator of a phone. A page without the button needs less.
+ */
+const MAIN_WITH_BAR_AND_BUTTON =
+  'pb-[calc(var(--tab-bar-height)+var(--fab-zone)+env(safe-area-inset-bottom))]';
+const MAIN_WITH_BAR = 'pb-[calc(var(--tab-bar-height)+1rem+env(safe-area-inset-bottom))]';
 
+/**
+ * The app shell: the skip link, the sidebar (wide screens) or the tab bar (phones), the sticky top
+ * bar with the period switcher and "Add spending", and the `main` that the router fills.
+ *
+ * What the shell shows follows the route's `data` (`AppRouteData`): which period switcher the page
+ * has, whether it is a focus layout, whether it has its own way to add a spending.
+ */
 @Component({
   selector: 'app-root',
   imports: [
     RouterOutlet,
-    RouterLink,
-    RouterLinkActive,
-    MonthSwitcher,
-    ApiStatusIndicator,
+    Sidebar,
+    TopBar,
+    TabBar,
+    AddSpendingFab,
+    AddSpendingDialog,
     ToastContainer,
     ConfirmDialog,
     LoadingState,
@@ -56,23 +68,9 @@ export class App {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
   private readonly main = viewChild.required<ElementRef<HTMLElement>>('main');
-
-  protected readonly selectedMonth = inject(SelectedMonth);
   private readonly savings = inject(SavingsStore);
 
-  /** The closed months waiting to be moved to savings: the badge on the Savings link. */
-  protected readonly outstandingMonths = this.savings.outstandingCount;
-
-  protected readonly nav: NavItem[] = [
-    { path: '/dashboard', label: 'Dashboard' },
-    { path: '/budgets', label: 'Budgets' },
-    { path: '/spendings', label: 'Spendings' },
-    { path: '/subscriptions', label: 'Subscriptions' },
-    { path: '/income', label: 'Income' },
-    { path: '/savings', label: 'Savings', savingsBadge: true },
-    { path: '/report', label: 'Report' },
-    { path: '/settings', label: 'Settings' },
-  ];
+  protected readonly addSpending = inject(AddSpending);
 
   /** True until the first navigation has finished (the guards are still loading the settings). */
   protected readonly starting = signal(true);
@@ -84,8 +82,19 @@ export class App {
     ),
     { initialValue: {} as AppRouteData },
   );
-  protected readonly showMonthSwitcher = computed(() => this.routeData().monthScoped === true);
+  protected readonly period = computed(() => this.routeData().period);
   protected readonly focusLayout = computed(() => this.routeData().focusLayout === true);
+  /**
+   * The global "Add spending" is offered once the app is up (before that it is not known whether this
+   * is the onboarding), except in a focus layout and on a page with its own form.
+   */
+  protected readonly showAddSpending = computed(
+    () => !this.starting() && !this.focusLayout() && this.routeData().hideAddSpending !== true,
+  );
+  protected readonly mainClass = computed(() => {
+    if (this.focusLayout()) return MAIN;
+    return `${MAIN} ${this.showAddSpending() ? MAIN_WITH_BAR_AND_BUTTON : MAIN_WITH_BAR}`;
+  });
 
   private lastPath: string | null = null;
 

@@ -25,9 +25,9 @@ import { MonthInput } from '../../shared/forms/month-input';
 import { appliesFromNote, type MonthNote } from '../../shared/forms/month-notes';
 import { positiveAmount } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SubscriptionsApi } from './subscriptions.api';
 
@@ -39,7 +39,16 @@ import { SubscriptionsApi } from './subscriptions.api';
  */
 @Component({
   selector: 'app-price-form',
-  imports: [ReactiveFormsModule, AppDialog, Field, MoneyInput, MonthInput, Button, Icon, MoneyPipe],
+  imports: [
+    ReactiveFormsModule,
+    AppDialog,
+    Field,
+    MoneyInput,
+    MonthInput,
+    Alert,
+    Button,
+    MoneyPipe,
+  ],
   templateUrl: './price-form.html',
   host: { class: 'block' },
 })

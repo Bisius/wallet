@@ -8,6 +8,7 @@
     "e2e": "playwright test",
     "e2e:flows": "playwright test --project=flows",
     "e2e:sweep": "playwright test --project=sweep",
+    "e2e:visual": "PW_VISUAL=1 playwright test --project=visual",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

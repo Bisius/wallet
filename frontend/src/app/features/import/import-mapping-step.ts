@@ -12,8 +12,12 @@ import {
 } from '@wallet/shared';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { Toggle } from '../../shared/forms/toggle';
+import { AppSection } from '../../shared/ui/section';
+import { Badge } from '../../shared/ui/badge';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { TableScroll } from '../../shared/ui/table-scroll';
 import { DATE_FORMAT_EXAMPLES, DELIMITER_LABELS, SIGN_LABELS } from './import-text';
 import { ImportProfilePicker } from './import-profile-picker';
 import { ImportProfileSave } from './import-profile-save';
@@ -47,29 +51,27 @@ const shorten = (text: string): string =>
  */
 @Component({
   selector: 'app-import-mapping-step',
-  imports: [Field, AppInput, Button, Icon, ImportProfilePicker, ImportProfileSave],
+  imports: [
+    AppSection,
+    Badge,
+    Alert,
+    Field,
+    AppInput,
+    Button,
+    TableScroll,
+    Toggle,
+    ImportProfilePicker,
+    ImportProfileSave,
+  ],
   template: `
-    <section aria-labelledby="import-mapping-heading" class="card space-y-5">
-      <h2
-        #heading
-        id="import-mapping-heading"
-        tabindex="-1"
-        class="text-xl font-semibold tracking-tight"
-      >
-        How is the file laid out?
-      </h2>
-
+    <app-section heading="How is the file laid out?" focusable>
       <app-import-profile-picker />
 
       <div aria-live="polite">
         @if (wizard.readError(); as error) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
+          <app-alert tone="error"
+            ><strong class="font-semibold">Couldn't read the file.</strong> {{ error }}</app-alert
           >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span><strong class="font-semibold">Couldn't read the file.</strong> {{ error }}</span>
-          </p>
         }
       </div>
 
@@ -86,64 +88,62 @@ const shorten = (text: string): string =>
             }
           </select>
         </app-field>
-
-        <div class="sm:pt-7">
-          <label class="flex cursor-pointer items-start gap-3">
-            <input
-              type="checkbox"
-              class="mt-0.5 size-6 shrink-0 accent-accent"
-              [checked]="draft().hasHeader"
-              (change)="onHeader($event)"
-            />
-            <span class="min-w-0">
-              <span class="block text-sm font-medium">First row is a header</span>
-              <span class="block text-sm text-muted"
-                >Column names, not a transaction. Turn it off if the first row is data.</span
-              >
-            </span>
-          </label>
-        </div>
       </div>
+
+      <app-toggle
+        kind="checkbox"
+        label="First row is a header"
+        hint="Column names, not a transaction. Turn it off if the first row is data."
+        [checked]="draft().hasHeader"
+        (checkedChange)="onHeader($event)"
+      />
 
       @if (wizard.parsing()) {
         <p role="status" class="text-sm text-muted">Reading the file again…</p>
       }
 
-      <div class="grid gap-4 sm:grid-cols-3">
-        <app-field label="Date column">
-          <select appInput (change)="onColumn('dateColumn', $event)">
-            <option value="" [selected]="draft().dateColumn === null">Choose a column</option>
-            @for (column of columns(); track column.index) {
-              <option [value]="column.index" [selected]="column.index === draft().dateColumn">
-                {{ column.label }}
+      <div class="space-y-2">
+        <div class="grid gap-4 sm:grid-cols-3">
+          <app-field label="Date column">
+            <select appInput (change)="onColumn('dateColumn', $event)">
+              <option value="" [selected]="draft().dateColumn === null">Choose a column</option>
+              @for (column of columns(); track column.index) {
+                <option [value]="column.index" [selected]="column.index === draft().dateColumn">
+                  {{ column.label }}
+                </option>
+              }
+            </select>
+          </app-field>
+          <app-field label="Amount column">
+            <select appInput (change)="onColumn('amountColumn', $event)">
+              <option value="" [selected]="draft().amountColumn === null">Choose a column</option>
+              @for (column of columns(); track column.index) {
+                <option [value]="column.index" [selected]="column.index === draft().amountColumn">
+                  {{ column.label }}
+                </option>
+              }
+            </select>
+          </app-field>
+          <app-field label="Description column">
+            <select appInput (change)="onColumn('descriptionColumn', $event)">
+              <option value="" [selected]="draft().descriptionColumn === null">
+                Choose a column
               </option>
-            }
-          </select>
-        </app-field>
-        <app-field label="Amount column">
-          <select appInput (change)="onColumn('amountColumn', $event)">
-            <option value="" [selected]="draft().amountColumn === null">Choose a column</option>
-            @for (column of columns(); track column.index) {
-              <option [value]="column.index" [selected]="column.index === draft().amountColumn">
-                {{ column.label }}
-              </option>
-            }
-          </select>
-        </app-field>
-        <app-field label="Description column">
-          <select appInput (change)="onColumn('descriptionColumn', $event)">
-            <option value="" [selected]="draft().descriptionColumn === null">Choose a column</option>
-            @for (column of columns(); track column.index) {
-              <option [value]="column.index" [selected]="column.index === draft().descriptionColumn">
-                {{ column.label }}
-              </option>
-            }
-          </select>
-        </app-field>
+              @for (column of columns(); track column.index) {
+                <option
+                  [value]="column.index"
+                  [selected]="column.index === draft().descriptionColumn"
+                >
+                  {{ column.label }}
+                </option>
+              }
+            </select>
+          </app-field>
+        </div>
+        <p class="text-sm text-muted">
+          One amount column: a file with separate debit and credit columns is not supported yet.
+        </p>
       </div>
-      <p class="-mt-2 text-sm text-muted">
-        One amount column: a file with separate debit and credit columns is not supported yet.
-      </p>
 
       <div class="grid gap-4 sm:grid-cols-2">
         <app-field label="Date format" [hint]="dateHint()">
@@ -164,9 +164,6 @@ const shorten = (text: string): string =>
             }
           </select>
         </app-field>
-      </div>
-
-      <div>
         <app-field label="Sign of an expense" [hint]="signHint()">
           <select appInput (change)="onSign($event)">
             @for (convention of signConventions; track convention) {
@@ -179,81 +176,66 @@ const shorten = (text: string): string =>
       </div>
 
       @if (wizard.parse(); as parse) {
-        <div
-          role="region"
-          aria-label="The first rows of the file"
-          tabindex="0"
-          class="overflow-x-auto rounded-card border border-line"
-        >
-          <table class="w-full min-w-[32rem] border-collapse text-left text-sm">
-            <caption class="sr-only">
-              The first rows of the file, with the columns you chose marked in the header
-            </caption>
-            <thead class="bg-subtle">
-              <tr>
-                @for (column of columns(); track column.index) {
-                  <th scope="col" class="px-3 py-2 align-bottom font-semibold">
-                    <span class="block">{{ column.label }}</span>
-                    @if (roleOf(column.index); as role) {
-                      <span
-                        class="mt-1 inline-block rounded-full border border-accent px-2 py-0.5 text-xs font-medium text-accent-text"
-                        >{{ role }}</span
-                      >
-                    }
-                  </th>
-                }
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-line">
-              @for (row of sampleRows(); track $index) {
+        <div class="space-y-2">
+          <app-table-scroll label="The first rows of the file">
+            <table class="data-table min-w-[32rem]">
+              <caption class="sr-only">
+                The first rows of the file, with the columns you chose marked in the header
+              </caption>
+              <thead>
                 <tr>
                   @for (column of columns(); track column.index) {
-                    <td class="max-w-[16rem] truncate px-3 py-2">{{ row[column.index] ?? '' }}</td>
+                    <th scope="col" class="align-bottom">
+                      <span class="block">{{ column.label }}</span>
+                      @if (roleOf(column.index); as role) {
+                        <app-badge class="mt-1" tone="accent">{{ role }}</app-badge>
+                      }
+                    </th>
                   }
                 </tr>
-              }
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                @for (row of sampleRows(); track $index) {
+                  <tr>
+                    @for (column of columns(); track column.index) {
+                      <td class="max-w-64 truncate">{{ row[column.index] ?? '' }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </app-table-scroll>
+          <p class="text-sm text-muted">{{ dataRowsText() }}</p>
         </div>
-        <p class="-mt-3 text-sm text-muted">
-          {{ dataRowsText() }}
-        </p>
       }
 
       <app-import-profile-save />
 
       <div aria-live="polite" class="space-y-2">
         @if (wizard.tooManyRows()) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-          >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span>
-              This file has {{ wizard.dataRows() }} rows. The importer takes at most {{ maxRows }} per
-              file: split it and import the parts one by one.
-            </span>
-          </p>
+          <app-alert tone="error">
+            This file has {{ wizard.dataRows() }} rows. The importer takes at most {{ maxRows }} per
+            file: split it and import the parts one by one.
+          </app-alert>
         }
         @if (review.previewError(); as error) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-          >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span>
-              <strong class="font-semibold">Couldn't check the rows.</strong> {{ error }}
-              Nothing was imported.
-            </span>
-          </p>
+          <app-alert tone="error">
+            <strong class="font-semibold">Couldn't check the rows.</strong> {{ error }}
+            Nothing was imported.
+          </app-alert>
         }
       </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-        <button appButton variant="secondary" [disabled]="review.previewing()" (click)="wizard.back()">
+      <div class="wizard-actions">
+        <button
+          appButton
+          variant="secondary"
+          [disabled]="review.previewing()"
+          (click)="wizard.back()"
+        >
           Back
         </button>
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center justify-end gap-3">
           @if (wizard.mappingProblem(); as problem) {
             <p id="mapping-problem" class="text-sm text-muted">{{ problem }}</p>
           }
@@ -268,7 +250,7 @@ const shorten = (text: string): string =>
           </button>
         </div>
       </div>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -307,11 +289,15 @@ export class ImportMappingStep {
     return names.map((name, index) => {
       if (hasHeader) {
         const repeated = name !== '' && names.filter((other) => other === name).length > 1;
-        const label = name === '' ? `Column ${index + 1}` : repeated ? `${name} (column ${index + 1})` : name;
+        const label =
+          name === '' ? `Column ${index + 1}` : repeated ? `${name} (column ${index + 1})` : name;
         return { index, label };
       }
       const cell = (sample?.[index] ?? '').trim();
-      return { index, label: cell === '' ? `Column ${index + 1}` : `Column ${index + 1}: ${shorten(cell)}` };
+      return {
+        index,
+        label: cell === '' ? `Column ${index + 1}` : `Column ${index + 1}: ${shorten(cell)}`,
+      };
     });
   });
 
@@ -360,17 +346,22 @@ export class ImportMappingStep {
     void this.wizard.setDelimiter((event.target as HTMLSelectElement).value as CsvDelimiter);
   }
 
-  protected onHeader(event: Event): void {
-    this.wizard.patchMapping({ hasHeader: (event.target as HTMLInputElement).checked });
+  protected onHeader(hasHeader: boolean): void {
+    this.wizard.patchMapping({ hasHeader });
   }
 
   protected onColumn(key: ColumnKey, event: Event): void {
     const value = (event.target as HTMLSelectElement).value;
-    this.wizard.patchMapping({ [key]: value === '' ? null : Number(value) } as Pick<MappingDraft, ColumnKey>);
+    this.wizard.patchMapping({ [key]: value === '' ? null : Number(value) } as Pick<
+      MappingDraft,
+      ColumnKey
+    >);
   }
 
   protected onDateFormat(event: Event): void {
-    this.wizard.patchMapping({ dateFormat: (event.target as HTMLSelectElement).value as ImportDateFormat });
+    this.wizard.patchMapping({
+      dateFormat: (event.target as HTMLSelectElement).value as ImportDateFormat,
+    });
   }
 
   protected onDecimal(event: Event): void {

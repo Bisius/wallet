@@ -48,6 +48,9 @@ describe('the Move to savings inbox', () => {
   const inbox = (p: Awaited<ReturnType<typeof open>>) => p.region('Move to savings');
   const rows = (p: Awaited<ReturnType<typeof open>>) =>
     queryAllByRole(inbox(p), 'listitem').filter((li) => li.parentElement?.tagName === 'UL');
+  /** The breakdown of the first row (the section has a "How this works" disclosure of its own). */
+  const breakdown = (p: Awaited<ReturnType<typeof open>>) =>
+    rows(p)[0].querySelector('details') as HTMLDetailsElement;
 
   describe('the rows', () => {
     it('says all months are settled when nothing is outstanding', async () => {
@@ -70,6 +73,19 @@ describe('the Move to savings inbox', () => {
         expect.stringContaining('September 2026: take €85.00 from savings'),
       ]);
       expect(textOf(inbox(p))).toContain('2 months to settle. In total: move €227.40 to savings.');
+    });
+
+    it('keeps the long explanation behind "How this works", and the line under the title short', async () => {
+      const p = await open(savingsDto({ outstanding: [AUGUST] }));
+
+      const help = inbox(p).querySelector('details') as HTMLDetailsElement;
+      expect(textOf(help.querySelector('summary') as Element)).toBe('How this works');
+      expect(help.open).toBe(false);
+      expect(textOf(help)).toContain('Move the money in your bank, then mark the month done here.');
+      // The line under the title says how many months there are, and what they come to.
+      expect(textOf(inbox(p).querySelector('h2 + p') as Element)).toBe(
+        '1 month to settle. In total: move €312.40 to savings.',
+      );
     });
 
     it('says what the months come to when they cancel each other out', async () => {
@@ -107,6 +123,10 @@ describe('the Move to savings inbox', () => {
       expect(more).toContain('August 2026: move €12.40 more to savings');
       expect(more).toContain('Correction');
       expect(more).toContain('You settled this month before');
+      // It is a message of the row (an alert with a title), not a label among its details.
+      expect(textOf(rows(p)[0].querySelector('app-alert') as Element)).toMatch(
+        /^Correction You settled this month before/,
+      );
       expect(back).toContain('September 2026: take €10.00 more from savings');
       expect(back).toContain('Correction');
     });
@@ -119,7 +139,7 @@ describe('the Move to savings inbox', () => {
 
     it('keeps the breakdown folded away, with what the month is made of when it is opened', async () => {
       const p = await open(savingsDto({ outstanding: [AUGUST] }));
-      const details = inbox(p).querySelector('details') as HTMLDetailsElement;
+      const details = breakdown(p);
 
       expect(details.open).toBe(false);
       expect(textOf(details.querySelector('summary') as Element)).toBe(
@@ -148,7 +168,7 @@ describe('the Move to savings inbox', () => {
         }),
       );
 
-      const text = textOf(inbox(p).querySelector('details') as Element);
+      const text = textOf(breakdown(p));
       expect(text).toMatch(/Unallocated income .*-€100\.00/);
       expect(text).toMatch(/Budgets settled .*\+€15\.00/);
       expect(text).toContain('Due for the month -€85.00');

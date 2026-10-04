@@ -7,6 +7,7 @@ import { a11yProblems } from '../../../testing/a11y';
 import { getByRole, queryAllByRole, queryByRole, textOf } from '../../../testing/dom';
 import { reportMonth, yearlyReport } from '../../../testing/fixtures';
 import { flushError, primeStores, settle, StubPage } from '../../../testing/harness';
+import { SelectedYear } from './selected-year';
 import { YearlyReportPage } from './yearly-report-page';
 
 const URL_2026 = '/api/reports/yearly/2026';
@@ -85,12 +86,13 @@ describe('YearlyReportPage', () => {
       element,
       text: () => textOf(element),
       glance: () => region(/at a glance/),
+      income: () => region('Income'),
+      saved: () => region('Saved, due to savings'),
       fixed: () => region('Fixed costs'),
       budgets: () => region('Spent per budget'),
       months: () => region('Month by month'),
       /** The page's own table of the months (the chart has its own, for assistive technology). */
       monthTable: () => getByRole(region('Month by month'), 'region', 'Figures per month'),
-      button: (name: string | RegExp) => getByRole(element, 'button', name),
     };
   }
 
@@ -101,14 +103,28 @@ describe('YearlyReportPage', () => {
       expect(textOf(getByRole(p.element, 'heading', 'Yearly report'))).toBe('Yearly report');
       expect(
         Array.from(p.element.querySelectorAll('h2')).map((heading) => textOf(heading)),
-      ).toEqual(['2026 at a glance', 'Fixed costs', 'Spent per budget', 'Month by month']);
+      ).toEqual([
+        '2026 at a glance',
+        'Income',
+        'Saved, due to savings',
+        'Fixed costs',
+        'Spent per budget',
+        'Month by month',
+      ]);
     });
 
     it('opens the current year, as the server says, and asks for nothing else', async () => {
       // `http.verify()` fails the test on any other request.
       const p = await open();
 
-      expect(textOf(getByRole(p.element, 'group', 'Year'))).toContain('2026');
+      expect(p.text()).toContain('2026 at a glance');
+    });
+
+    it('has no year switcher of its own: it is in the top bar of the shell', async () => {
+      const p = await open();
+
+      expect(queryByRole(p.element, 'group', 'Year')).toBeNull();
+      expect(p.element.querySelector('app-year-switcher')).toBeNull();
     });
 
     it('does not ask for a report before today is known, and says why when it cannot be known', async () => {
@@ -119,7 +135,6 @@ describe('YearlyReportPage', () => {
       const p = page(fixture);
 
       expect(textOf(getByRole(p.element, 'alert'))).toContain("Couldn't load today's date");
-      expect(queryByRole(p.element, 'group', 'Year')).toBeNull();
     });
 
     it('has nothing wrong with its markup', async () => {
@@ -144,7 +159,6 @@ describe('YearlyReportPage', () => {
     it('opens the year the URL names', async () => {
       const p = await open(yearlyReport({ year: 2027 }), '?year=2027');
 
-      expect(textOf(getByRole(p.element, 'group', 'Year'))).toContain('2027');
       expect(p.text()).toContain('2027 at a glance');
     });
 
@@ -154,53 +168,23 @@ describe('YearlyReportPage', () => {
       expect(p.text()).toContain('2026 at a glance');
     });
 
-    it('moves to the previous and next year by putting it in the URL', async () => {
+    it('follows the address when the year is changed (the switcher of the shell does that)', async () => {
       const p = await open();
 
-      p.button('Next year, 2027').click();
+      await TestBed.inject(SelectedYear).select(2027);
       await settle(p.fixture);
       expect(router.url).toBe('/report?year=2027');
       http.expectOne('/api/reports/yearly/2027').flush(yearlyReport({ year: 2027 }));
       await settle(p.fixture);
       expect(p.text()).toContain('2027 at a glance');
 
-      p.button('Previous year, 2026').click();
+      await TestBed.inject(SelectedYear).select(2026);
       await settle(p.fixture);
       // The current year is the default: it needs no parameter.
       expect(router.url).toBe('/report');
       http.expectOne(URL_2026).flush(REPORT);
       await settle(p.fixture);
       expect(p.text()).toContain('2026 at a glance');
-    });
-
-    it('keeps other query parameters, such as the selected month', async () => {
-      const p = await open(REPORT, '?month=2026-08');
-
-      p.button('Previous year, not available').click();
-      p.button('Next year, 2027').click();
-      await settle(p.fixture);
-
-      expect(router.url).toContain('month=2026-08');
-      expect(router.url).toContain('year=2027');
-      http.expectOne('/api/reports/yearly/2027').flush(yearlyReport({ year: 2027 }));
-    });
-
-    it('does not offer a year before the start month', async () => {
-      // Wallet started tracking in June 2026.
-      const p = await open();
-
-      const previous = p.button('Previous year, not available');
-      previous.click();
-      await settle(p.fixture);
-      expect(router.url).toBe('/report');
-    });
-
-    it('does not offer a year beyond ten years ahead of the current month', async () => {
-      // October 2026 plus 120 months is October 2036.
-      const p = await open(yearlyReport({ year: 2036 }), '?year=2036');
-
-      expect(p.button('Next year, not available').getAttribute('aria-disabled')).toBe('true');
-      expect(p.button('Previous year, 2035')).toBeTruthy();
     });
   });
 
@@ -216,10 +200,30 @@ describe('YearlyReportPage', () => {
       expect(text).toContain('Saved +€9,876.00 Due to savings');
     });
 
+    it('is a flat strip on the page, with income, spent and saved large and the other two medium', async () => {
+      const p = await open();
+
+      // No card around it, and no tile inside a card.
+      expect(p.glance().closest('.card')).toBeNull();
+      expect(p.glance().querySelector('.card')).toBeNull();
+      const sizeOf = (label: string) => {
+        const term = Array.from(p.glance().querySelectorAll('dt')).find(
+          (dt) => textOf(dt) === label,
+        ) as Element;
+        return Array.from((term.parentElement as Element).querySelectorAll('dd')).some((dd) =>
+          dd.classList.contains('text-kpi'),
+        )
+          ? 'large'
+          : 'medium';
+      };
+      expect(['Income', 'Spent', 'Saved'].map(sizeOf)).toEqual(['large', 'large', 'large']);
+      expect(['Fixed costs', 'Budgeted'].map(sizeOf)).toEqual(['medium', 'medium']);
+    });
+
     it('splits the income into salary, extra income and the total', async () => {
       const p = await open();
 
-      const income = getByRole(p.glance(), 'region', 'Income');
+      const income = p.income();
       expect(textOf(income)).toContain('Salary €30,000.00');
       expect(textOf(income)).toContain('Extra income €1,500.00');
       expect(textOf(income)).toContain('Total income €31,500.00');
@@ -228,7 +232,7 @@ describe('YearlyReportPage', () => {
     it('explains saved as due to savings, and shows what it is made of', async () => {
       const p = await open();
 
-      const saved = getByRole(p.glance(), 'region', 'Saved, due to savings');
+      const saved = p.saved();
       const text = textOf(saved);
       expect(text).toContain('whether or not you have settled it yet');
       expect(text).toContain('Left unallocated +€9,000.00');
@@ -266,7 +270,7 @@ describe('YearlyReportPage', () => {
         }),
       );
 
-      expect(textOf(p.glance())).toContain('include 1 projected month:');
+      expect(textOf(p.glance())).toContain('include 1 projected month.');
     });
   });
 
@@ -277,6 +281,18 @@ describe('YearlyReportPage', () => {
       const rows = Array.from(p.fixed().querySelectorAll('tbody tr')).map((row) => textOf(row));
       expect(rows).toEqual(['Streaming Monthly €700.00 €700.00', 'Domain Yearly €120.00 €0.00']);
       expect(textOf(p.fixed().querySelector('tfoot') as Element)).toBe('Total €2,400.00 €1,800.00');
+    });
+
+    it('marks the colour of a subscription with a dot beside its name, not a stripe', async () => {
+      const p = await open();
+
+      const dots = Array.from(
+        p.fixed().querySelectorAll<HTMLElement>('tbody th span.rounded-full'),
+      );
+      expect(dots).toHaveLength(2);
+      expect(dots[0].style.backgroundColor).toBe('rgb(37, 99, 235)');
+      expect(dots.every((dot) => dot.getAttribute('aria-hidden') === 'true')).toBe(true);
+      expect(p.fixed().querySelector('[class*="border-l-"]')).toBeNull();
     });
 
     it('is a table with headers, in a scrollable region a keyboard can reach', async () => {
@@ -418,8 +434,6 @@ describe('YearlyReportPage', () => {
       const alert = getByRole(p.element, 'alert');
       expect(textOf(alert)).toContain("Couldn't load the report for 2026");
       expect(textOf(alert)).toContain('The ledger is down');
-      // The year can still be changed while the report is failing.
-      expect(p.button('Next year, 2027')).toBeTruthy();
 
       getByRole(p.element, 'button', 'Try again').click();
       await settle(p.fixture);
@@ -459,12 +473,12 @@ describe('YearlyReportPage', () => {
       expect(p.text()).toContain('further ahead than Wallet plans');
     });
 
-    it('moves on from the empty state with the year switcher', async () => {
+    it('moves on from the empty state when the year changes', async () => {
       const p = await create('?year=2025');
       flushError(http.expectOne('/api/reports/yearly/2025'), 404, 'not_found', 'Nothing');
       await settle(p.fixture);
 
-      p.button('Next year, 2026').click();
+      await TestBed.inject(SelectedYear).select(2026);
       await settle(p.fixture);
       http.expectOne(URL_2026).flush(REPORT);
       await settle(p.fixture);

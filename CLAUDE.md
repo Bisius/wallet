@@ -20,6 +20,7 @@ Personal finance manager: salary, extra income, monthly/yearly subscriptions, bu
 - `npm test` · `npm run typecheck`: all workspaces. Run a single package with `-w @wallet/backend`.
 - `npm run build && NODE_ENV=production npm start`: one process on :3400 serving the API and the UI
 - `npm run e2e`: Playwright against the production build (run `npm run build` first; needs a Chromium, see `e2e/README.md`). It is not part of `npm test`, which needs no browser.
+- `npm run e2e:visual`: full-page screenshots of every page against local baselines (`e2e/visual-baselines/`, gitignored). `npm run e2e` does not run it. Update on purpose with `-- --update-snapshots` and look at the diff first (see `e2e/README.md`).
 - `npm run db:generate -- --name <change>`: create a migration after editing `backend/src/db/schema.ts`. Migrations apply automatically on startup.
 
 ## Rules

@@ -1,51 +1,24 @@
-<article
-  [attr.aria-labelledby]="nameId()"
-  class="card flex h-full flex-col gap-4 border-l-4"
-  [style.border-left-color]="line().color"
->
-  <header class="flex items-start gap-3">
-    @if (line().icon) {
-      <span
-        aria-hidden="true"
-        class="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-xl"
-        >{{ line().icon }}</span
-      >
+<article appEntityCard [heading]="line().name" [color]="line().color" [icon]="line().icon">
+  <ng-container entityBadges>
+    @if (line().incremental) {
+      <app-badge>Incremental</app-badge>
     }
-    <div class="min-w-0 flex-1">
-      <h3 [id]="nameId()" class="font-semibold break-words">{{ line().name }}</h3>
-      <p class="mt-1 flex flex-wrap gap-1.5">
-        @if (line().incremental) {
-          <span [class]="badge">Incremental</span>
-        }
-        @if (endLabel(); as end) {
-          <span [class]="badge">{{ end }}</span>
-        } @else if (line().endsThisMonth) {
-          <span [class]="badge">Last month</span>
-        }
-        @if (startsLabel(); as starts) {
-          <span [class]="badge">{{ starts }}</span>
-        }
-      </p>
-    </div>
-  </header>
+    @if (endLabel(); as end) {
+      <app-badge>{{ end }}</app-badge>
+    } @else if (line().endsThisMonth) {
+      <app-badge>Last month</app-badge>
+    }
+    @if (startsLabel(); as starts) {
+      <app-badge tone="accent">{{ starts }}</app-badge>
+    }
+  </ng-container>
 
-  <dl class="flex flex-wrap gap-x-6 gap-y-2">
-    <div>
-      <dt class="text-xs text-muted">Available</dt>
-      <dd class="font-semibold"><app-amount [cents]="line().available" /></dd>
-    </div>
-    <div>
-      <dt class="text-xs text-muted">Spent</dt>
-      <dd class="font-semibold"><app-amount [cents]="line().spent" /></dd>
-    </div>
-    <div>
-      <dt class="text-xs text-muted">Remaining</dt>
-      <dd class="font-semibold"><app-amount [cents]="line().remaining" /></dd>
-    </div>
-  </dl>
+  <div appStat label="Available" [cents]="line().available"></div>
+  <div appStat label="Spent" [cents]="line().spent"></div>
+  <div appStat label="Remaining" [cents]="line().remaining"></div>
 
   @if (line().transfersNet !== 0) {
-    <p class="text-sm text-muted">
+    <p class="text-muted">
       {{ line().transfersNet > 0 ? 'Net moved in this month:' : 'Net moved out this month:' }}
       <app-amount [cents]="line().transfersNet" [signed]="true" [plain]="true" />
       (already part of Available)
@@ -55,7 +28,7 @@
   <app-budget-usage [line]="line()" />
 
   @if (line().incremental) {
-    <p class="text-sm text-muted">
+    <p class="text-muted">
       @if (line().carriedIn === 0) {
         Nothing carried in from {{ previousMonthLabel() }}.
       } @else {
@@ -65,7 +38,7 @@
     </p>
   }
 
-  <div class="space-y-0.5 text-sm text-muted">
+  <div class="space-y-0.5 text-muted">
     @for (item of outcome(); track item.kind) {
       <p>
         @switch (item.kind) {
@@ -95,14 +68,13 @@
     }
   </div>
 
-  @if (budget()) {
-    <div class="mt-auto flex flex-wrap items-center gap-1 border-t border-line pt-3">
+  <ng-container entityActions>
+    @if (budget()) {
       <button
         appButton
-        variant="ghost"
+        variant="secondary"
         size="sm"
         [attr.aria-label]="'Edit ' + line().name"
-        [attr.data-action]="'edit-' + line().id"
         (click)="edit.emit()"
       >
         <app-icon name="pencil" />
@@ -110,65 +82,36 @@
       </button>
       <button
         appButton
-        variant="ghost"
+        variant="secondary"
         size="sm"
         [attr.aria-label]="'Move money from ' + line().name"
-        [attr.data-action]="'move-money-' + line().id"
         (click)="moveMoney.emit()"
       >
         <app-icon name="arrows-left-right" />
         Move money
       </button>
-      @if (canArchive()) {
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          [attr.aria-label]="'Archive ' + line().name"
-          (click)="archive.emit()"
-        >
-          <app-icon name="archive" />
-          Archive
-        </button>
-      }
-      @if (!budget()?.hasHistory) {
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          [attr.aria-label]="'Delete ' + line().name"
-          (click)="remove.emit()"
-        >
-          <app-icon name="trash" />
-          Delete
-        </button>
-      }
-      <span class="ml-auto flex gap-1">
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          class="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
-          [attr.aria-label]="'Move ' + line().name + ' up'"
-          [attr.aria-disabled]="!canMoveUp() || busy()"
-          [attr.data-action]="'up-' + line().id"
-          (click)="move('up')"
-        >
+      <app-action-menu [label]="'More actions for ' + line().name">
+        @if (canArchive()) {
+          <button appMenuItem (click)="archive.emit()">
+            <app-icon name="archive" />
+            Archive
+          </button>
+        }
+        <button appMenuItem [disabled]="!canMoveUp() || busy()" (click)="move('up')">
           <app-icon name="arrow-up" />
+          Move up
         </button>
-        <button
-          appButton
-          variant="ghost"
-          size="sm"
-          class="aria-disabled:cursor-not-allowed aria-disabled:opacity-40"
-          [attr.aria-label]="'Move ' + line().name + ' down'"
-          [attr.aria-disabled]="!canMoveDown() || busy()"
-          [attr.data-action]="'down-' + line().id"
-          (click)="move('down')"
-        >
+        <button appMenuItem [disabled]="!canMoveDown() || busy()" (click)="move('down')">
           <app-icon name="arrow-down" />
+          Move down
         </button>
-      </span>
-    </div>
-  }
+        @if (!budget()?.hasHistory) {
+          <button appMenuItem destructive (click)="remove.emit()">
+            <app-icon name="trash" />
+            Delete
+          </button>
+        }
+      </app-action-menu>
+    }
+  </ng-container>
 </article>

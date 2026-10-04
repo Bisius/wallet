@@ -52,7 +52,8 @@ export interface RejectedRow {
 /** The budgets that are active in a month: the only ones a spending of that month may belong to. */
 export function budgetsActiveIn(budgets: readonly BudgetDto[], month: MonthKey): BudgetDto[] {
   return budgets.filter(
-    (budget) => budget.startMonth <= month && (budget.endMonth === null || month <= budget.endMonth),
+    (budget) =>
+      budget.startMonth <= month && (budget.endMonth === null || month <= budget.endMonth),
   );
 }
 
@@ -61,7 +62,8 @@ export function isSelectable(row: ImportPreviewRow): boolean {
   return row.errors.length === 0 && !row.duplicate;
 }
 
-const monthOf = (date: IsoDate | null): MonthKey | null => (date === null ? null : date.slice(0, 7));
+const monthOf = (date: IsoDate | null): MonthKey | null =>
+  date === null ? null : date.slice(0, 7);
 
 /** Reads the rows of a 422 `import_rows_rejected` (`ImportRowsRejectedDetails`), ignoring what is malformed. */
 function rejectedRows(details: unknown): RejectedRow[] {
@@ -70,7 +72,9 @@ function rejectedRows(details: unknown): RejectedRow[] {
   return (rows as unknown[]).flatMap((row) => {
     const { line, errors } = (row ?? {}) as { line?: unknown; errors?: unknown };
     if (typeof line !== 'number' || !Array.isArray(errors)) return [];
-    return [{ line, codes: (errors as unknown[]).filter((c): c is string => typeof c === 'string') }];
+    return [
+      { line, codes: (errors as unknown[]).filter((c): c is string => typeof c === 'string') },
+    ];
   });
 }
 
@@ -138,7 +142,8 @@ export class ImportReviewStore {
     const options = new Map<MonthKey, readonly BudgetDto[]>();
     for (const row of this.rows()) {
       const month = monthOf(row.date);
-      if (month !== null && !options.has(month)) options.set(month, budgetsActiveIn(budgets, month));
+      if (month !== null && !options.has(month))
+        options.set(month, budgetsActiveIn(budgets, month));
     }
     return options;
   });
@@ -219,7 +224,9 @@ export class ImportReviewStore {
     return filter === 'all' ? this.rows() : this.rows().filter((row) => this.matches(filter, row));
   });
 
-  readonly pageCount = computed(() => Math.max(1, Math.ceil(this.filteredRows().length / PAGE_SIZE)));
+  readonly pageCount = computed(() =>
+    Math.max(1, Math.ceil(this.filteredRows().length / PAGE_SIZE)),
+  );
   /** The page shown, from 0: never past the last one, even when the filter just got shorter. */
   readonly page = computed(() => Math.min(this.requestedPage(), this.pageCount() - 1));
   readonly pageRows = computed(() =>
@@ -467,7 +474,8 @@ export class ImportReviewStore {
       this.wizard.goTo('done');
     } catch (error) {
       const parsed = parseApiError(error);
-      const refused = parsed.code === 'import_rows_rejected' ? rejectedRows(apiErrorDetails(error)) : [];
+      const refused =
+        parsed.code === 'import_rows_rejected' ? rejectedRows(apiErrorDetails(error)) : [];
       if (refused.length > 0) {
         this.rejected.set(refused);
         await this.refreshAfterRejection();

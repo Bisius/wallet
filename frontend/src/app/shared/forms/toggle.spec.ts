@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { getByLabel, getByRole, getByText } from '../../../testing/dom';
 import { render, settle } from '../../../testing/harness';
@@ -10,11 +10,13 @@ import { Toggle } from './toggle';
   template: `
     <app-toggle [formControl]="incremental" label="Incremental" hint="Leftovers carry over." />
     <app-toggle [formControl]="agree" kind="checkbox" label="I agree" />
+    <app-toggle kind="checkbox" label="First row is a header" [(checked)]="header" />
   `,
 })
 class ToggleHost {
   readonly incremental = new FormControl(false, { nonNullable: true });
   readonly agree = new FormControl(true, { nonNullable: true });
+  readonly header = signal(true);
 }
 
 describe('Toggle', () => {
@@ -66,6 +68,20 @@ describe('Toggle', () => {
     host.incremental.disable();
     await settle(fixture);
     expect((getByRole(element, 'switch') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('works without a form too, two-way, for a choice that lives in a signal', async () => {
+    const { fixture, element, host } = await setup();
+    const header = () => getByLabel(element, 'First row is a header');
+    expect(header().checked).toBe(true);
+
+    header().click();
+    await settle(fixture);
+    expect(host.header()).toBe(false);
+
+    host.header.set(true);
+    await settle(fixture);
+    expect(header().checked).toBe(true);
   });
 
   it('can be a plain checkbox', async () => {

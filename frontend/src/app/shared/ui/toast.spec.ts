@@ -14,6 +14,20 @@ describe('toasts', () => {
     return { fixture, toasts, element };
   }
 
+  it('sits at the bottom of the window, above the tab bar of a phone when told there is one', async () => {
+    const { fixture, element } = await setup();
+    const box = () => element.querySelector('.fixed') as HTMLElement;
+    expect(box().className).toContain('bottom-0');
+    expect(box().className).not.toContain('--tab-bar-height');
+
+    fixture.componentRef.setInput('aboveTabBar', true);
+    await settle(fixture);
+
+    // Below `md`, above the tab bar and the floating button over it; from `md` up, as before.
+    expect(box().className).toContain('max-md:pb-[calc(var(--tab-bar-height)+var(--fab-zone)');
+    expect(box().className).toContain('pb-[max(1rem,env(safe-area-inset-bottom))]');
+  });
+
   it('always has both live regions in the page, so what is added to them is announced', async () => {
     const { element } = await setup();
 

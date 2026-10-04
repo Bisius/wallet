@@ -38,9 +38,9 @@ import { MoneyInput } from '../../shared/forms/money-input';
 import { MonthInput } from '../../shared/forms/month-input';
 import { defaultStartMonth, type MonthNote, startsNote } from '../../shared/forms/month-notes';
 import { positiveAmount } from '../../shared/forms/validators';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SubscriptionsApi } from './subscriptions.api';
 
@@ -69,8 +69,8 @@ const FREQUENCY_LABELS: Record<SubscriptionFrequency, string> = {
     MoneyInput,
     MonthInput,
     ColorPicker,
+    Alert,
     Button,
-    Icon,
   ],
   templateUrl: './subscription-form.html',
   host: { class: 'block' },

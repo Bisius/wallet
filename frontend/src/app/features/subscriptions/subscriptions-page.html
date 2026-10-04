@@ -1,15 +1,15 @@
-<app-page-header
-  title="Subscriptions"
-  [subtitle]="monthLabel() ? 'Monthly and yearly recurring costs, for ' + monthLabel() + '.' : ''"
->
-  <button appButton (click)="dialog.set({ kind: 'form', subscription: undefined })">
-    <app-icon name="plus" />
-    Add subscription
-  </button>
-</app-page-header>
+<app-page width="wide">
+  <app-page-header
+    title="Subscriptions"
+    [subtitle]="monthLabel() ? 'Monthly and yearly recurring costs, for ' + monthLabel() + '.' : ''"
+  >
+    <button appButton (click)="dialog.set({ kind: 'form', subscription: undefined })">
+      <app-icon name="plus" />
+      Add subscription
+    </button>
+  </app-page-header>
 
-@if (month(); as month) {
-  <div class="space-y-6">
+  @if (month(); as month) {
     @switch (viewState()) {
       @case ('loading') {
         <app-loading-state label="Loading this month's fixed costs…" />
@@ -23,19 +23,22 @@
       }
       @default {
         @if (monthView(); as snapshot) {
-          <section aria-labelledby="fixed-costs-heading" class="card space-y-2">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="fixed-costs-heading" class="text-lg font-semibold">
-                Fixed costs in {{ monthLabel() }}
-              </h2>
-              <app-month-status [status]="snapshot.status" />
-            </div>
-            <p class="text-2xl font-semibold"><app-amount [cents]="snapshot.fixedCosts" /></p>
-            <p class="text-sm text-muted">
-              What your subscriptions take off the top of this month's income. For a yearly one it
-              is the share set aside this month for its renewal, not the whole price.
+          <app-stat-strip [heading]="'Fixed costs in ' + monthLabel()">
+            <app-month-status stripStatus [status]="snapshot.status" />
+            <dl appStatGrid [columns]="2">
+              <div
+                appStat
+                size="lg"
+                label="Fixed costs"
+                [cents]="snapshot.fixedCosts"
+                hint="What your subscriptions take off the top of this month's income."
+              ></div>
+            </dl>
+            <p sectionHelp>
+              For a yearly subscription it is the share set aside this month for its renewal, not
+              the whole price.
             </p>
-          </section>
+          </app-stat-strip>
         }
       }
     }
@@ -65,13 +68,11 @@
             </app-empty-state>
           }
           @for (section of sections(); track section.status) {
-            <section [attr.aria-labelledby]="'subscriptions-' + section.status" class="space-y-3">
-              <div>
-                <h2 [id]="'subscriptions-' + section.status" class="text-lg font-semibold">
-                  {{ section.title }} ({{ section.items.length }})
-                </h2>
-                <p class="text-sm text-muted">{{ section.description }}</p>
-              </div>
+            <app-section
+              variant="plain"
+              [heading]="section.title + ' (' + section.items.length + ')'"
+              [description]="section.description"
+            >
               <ul class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 @for (subscription of section.items; track subscription.id) {
                   <li>
@@ -87,13 +88,13 @@
                   </li>
                 }
               </ul>
-            </section>
+            </app-section>
           }
         }
       }
     }
-  </div>
-}
+  }
+</app-page>
 
 @if (dialog(); as open) {
   @if (month(); as month) {

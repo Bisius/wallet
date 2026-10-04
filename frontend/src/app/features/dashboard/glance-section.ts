@@ -4,9 +4,10 @@ import { BudgetSummary } from '../budgets/budget-summary';
 import { DashboardData } from './dashboard-data';
 
 /**
- * This month at a glance: income, fixed costs, budgeted, spent and unallocated, the status of the
- * month in words (closed, current, projection) and the over-allocation warning. It is the Budgets
- * page's own strip (`BudgetSummary`) with the spent total added, so the two never disagree.
+ * This month at a glance: income, spent and unallocated as the big figures, fixed costs and budgeted
+ * beside them, the status of the month in words (closed, current, projection) and the
+ * over-allocation warning. It is the same strip the Budgets page shows (`BudgetSummary`), with every
+ * figure, so the two never disagree.
  */
 @Component({
   selector: 'app-glance-section',
@@ -25,7 +26,7 @@ import { DashboardData } from './dashboard-data';
       }
       @default {
         @if (data.monthView(); as view) {
-          <app-budget-summary [view]="view" [monthLabel]="data.monthLabel()" [showSpent]="true" />
+          <app-budget-summary [view]="view" [monthLabel]="data.monthLabel()" layout="full" />
         }
       }
     }

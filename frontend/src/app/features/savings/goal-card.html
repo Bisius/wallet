@@ -1,34 +1,13 @@
-<article
-  [attr.aria-labelledby]="nameId()"
-  class="card flex h-full flex-col gap-4 border-l-4"
-  [style.border-left-color]="goal().color"
->
-  <header class="flex items-start justify-between gap-3">
-    <h3 [id]="nameId()" class="min-w-0 font-semibold break-words">{{ goal().name }}</h3>
-    <span [class]="chipClasses()">
-      @if (chip().icon; as icon) {
-        <app-icon [name]="icon" />
-      }
-      {{ chip().label }}
-    </span>
-  </header>
+<article appEntityCard [heading]="goal().name" [color]="goal().color">
+  <ng-container entityBadges>
+    <app-badge [tone]="chip().tone" [icon]="chip().icon">{{ chip().label }}</app-badge>
+  </ng-container>
 
-  <dl class="flex flex-wrap gap-x-6 gap-y-2">
-    <div>
-      <dt class="text-xs text-muted">Saved</dt>
-      <dd class="font-semibold"><app-amount [cents]="goal().balance" plain /></dd>
-    </div>
-    <div>
-      <dt class="text-xs text-muted">Target</dt>
-      <dd class="font-semibold tabular-nums">{{ goal().targetAmount | money }}</dd>
-    </div>
-    @if (!goal().reached) {
-      <div>
-        <dt class="text-xs text-muted">Still to save</dt>
-        <dd class="font-semibold"><app-amount [cents]="goal().remaining" /></dd>
-      </div>
-    }
-  </dl>
+  <div appStat label="Saved" [cents]="goal().balance" plain></div>
+  <div appStat label="Target" [cents]="goal().targetAmount"></div>
+  @if (!goal().reached) {
+    <div appStat label="Still to save" [cents]="goal().remaining"></div>
+  }
 
   <div class="space-y-1.5">
     <app-progress-bar
@@ -37,17 +16,17 @@
       [tone]="tone()"
       [valueText]="progressText()"
     />
-    <p class="text-sm text-muted">{{ goal().progressPercent }}% of the target</p>
+    <p class="text-muted">{{ goal().progressPercent }}% of the target</p>
   </div>
 
   @if (goal().balance < 0) {
-    <p class="flex items-start gap-1.5 text-sm text-muted">
+    <p class="flex items-start gap-1.5 text-muted">
       <app-icon name="info" class="mt-0.5" />
       <span>Below zero: more was taken out of this goal than it held.</span>
     </p>
   }
 
-  <div class="space-y-1 text-sm">
+  <div class="space-y-1">
     @switch (goal().status) {
       @case ('reached') {
         <p class="font-medium text-ink">Target reached.</p>
@@ -89,7 +68,7 @@
     }
   </div>
 
-  <div class="mt-auto flex flex-wrap items-center gap-1 border-t border-line pt-3">
+  <ng-container entityActions>
     @if (!goal().archived) {
       <button
         appButton
@@ -103,65 +82,31 @@
         Deposit
       </button>
     }
-    @if (!goal().archived || canGiveMoney()) {
-      <button
-        appButton
-        variant="secondary"
-        size="sm"
-        [disabled]="busy()"
-        [attr.aria-label]="'Withdraw from ' + goal().name"
-        (click)="withdraw.emit()"
-      >
-        <app-icon name="arrow-down" />
-        Withdraw
+    <app-action-menu [label]="'More actions for ' + goal().name">
+      @if (!goal().archived || canGiveMoney()) {
+        <button appMenuItem [disabled]="busy()" (click)="withdraw.emit()">
+          <app-icon name="arrow-down" />
+          Withdraw
+        </button>
+      }
+      @if (canGiveMoney()) {
+        <button appMenuItem [disabled]="busy()" (click)="reallocate.emit()">
+          <app-icon name="arrows-left-right" />
+          Reallocate
+        </button>
+      }
+      <button appMenuItem [disabled]="busy()" (click)="edit.emit()">
+        <app-icon name="pencil" />
+        Edit
       </button>
-    }
-    @if (canGiveMoney()) {
-      <button
-        appButton
-        variant="secondary"
-        size="sm"
-        [disabled]="busy()"
-        [attr.aria-label]="'Reallocate money from ' + goal().name"
-        (click)="reallocate.emit()"
-      >
-        <app-icon name="arrows-left-right" />
-        Reallocate
+      <button appMenuItem [disabled]="busy()" (click)="toggleArchive.emit()">
+        <app-icon name="archive" />
+        {{ goal().archived ? 'Unarchive' : 'Archive' }}
       </button>
-    }
-    <button
-      appButton
-      variant="ghost"
-      size="sm"
-      [disabled]="busy()"
-      [attr.aria-label]="'Edit ' + goal().name"
-      [attr.data-action]="'edit-' + goal().id"
-      (click)="edit.emit()"
-    >
-      <app-icon name="pencil" />
-      Edit
-    </button>
-    <button
-      appButton
-      variant="ghost"
-      size="sm"
-      [disabled]="busy()"
-      [attr.aria-label]="(goal().archived ? 'Unarchive ' : 'Archive ') + goal().name"
-      (click)="toggleArchive.emit()"
-    >
-      <app-icon name="archive" />
-      {{ goal().archived ? 'Unarchive' : 'Archive' }}
-    </button>
-    <button
-      appButton
-      variant="ghost"
-      size="sm"
-      [disabled]="busy()"
-      [attr.aria-label]="'Delete ' + goal().name"
-      (click)="remove.emit()"
-    >
-      <app-icon name="trash" />
-      Delete
-    </button>
-  </div>
+      <button appMenuItem destructive [disabled]="busy()" (click)="remove.emit()">
+        <app-icon name="trash" />
+        Delete
+      </button>
+    </app-action-menu>
+  </ng-container>
 </article>

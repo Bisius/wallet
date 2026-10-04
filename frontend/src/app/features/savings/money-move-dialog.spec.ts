@@ -3,16 +3,10 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { SavingsDto } from '@wallet/shared';
-import {
-  fieldError,
-  getByLabel,
-  getByRole,
-  queryAllByRole,
-  textOf,
-  typeInto,
-} from '../../../testing/dom';
+import { fieldError, getByLabel, getByRole, textOf, typeInto } from '../../../testing/dom';
 import { goalDto, savingsDto } from '../../../testing/fixtures';
 import { flushError, settle } from '../../../testing/harness';
+import { menuItemNames } from '../../../testing/menu';
 import { openSavingsPage } from '../../../testing/savings-harness';
 
 const HOLIDAY = goalDto({ id: 1, name: 'Holiday', balance: 35000, targetAmount: 100000 });
@@ -612,7 +606,7 @@ describe('moving money by hand', () => {
     it('starts on that goal', async () => {
       const p = await open();
 
-      await p.press('Withdraw from Holiday', getByRole(p.element, 'article', 'Holiday'));
+      await p.menuAction('More actions for Holiday', 'Withdraw');
 
       expect(p.value('Withdraw from', dialog(p))).toBe('1');
       expect(textOf(dialog(p))).toContain('Holiday holds €350.00.');
@@ -621,7 +615,7 @@ describe('moving money by hand', () => {
     it('is offered for an archived goal that still holds money, and starts on it', async () => {
       const p = await open();
 
-      await p.press('Withdraw from Old laptop', getByRole(p.element, 'article', 'Old laptop'));
+      await p.menuAction('More actions for Old laptop', 'Withdraw');
 
       expect(p.value('Withdraw from', dialog(p))).toBe('3');
       expect(textOf(dialog(p))).toContain('Old laptop (archived) holds €50.00.');
@@ -630,10 +624,7 @@ describe('moving money by hand', () => {
     it('moves the money of an archived goal with Reallocate, starting from it', async () => {
       const p = await open();
 
-      await p.press(
-        'Reallocate money from Old laptop',
-        getByRole(p.element, 'article', 'Old laptop'),
-      );
+      await p.menuAction('More actions for Old laptop', 'Reallocate');
 
       expect(textOf(getByRole(dialog(p), 'heading', 'Reallocate'))).toBe('Reallocate');
       expect(p.value('Move from', dialog(p))).toBe('3');
@@ -643,11 +634,11 @@ describe('moving money by hand', () => {
     it('is not offered for an archived goal that holds nothing', async () => {
       const p = await open(savingsDto({ goals: [{ ...OLD, balance: 0 }] }));
 
-      expect(
-        queryAllByRole(getByRole(p.element, 'article', 'Old laptop'), 'button').map((b) =>
-          b.getAttribute('aria-label'),
-        ),
-      ).toEqual(['Edit Old laptop', 'Unarchive Old laptop', 'Delete Old laptop']);
+      expect(menuItemNames(getByRole(p.element, 'article', 'Old laptop'))).toEqual([
+        'Edit',
+        'Unarchive',
+        'Delete',
+      ]);
     });
   });
 });

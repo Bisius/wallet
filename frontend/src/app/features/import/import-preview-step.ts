@@ -4,9 +4,12 @@ import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
+import { Alert } from '../../shared/ui/alert';
 import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { Stat } from '../../shared/ui/stat';
+import { StatGrid } from '../../shared/ui/stat-grid';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { REJECTION_TEXT } from './import-text';
 import { ImportPreviewTable } from './import-preview-table';
@@ -22,50 +25,49 @@ import { ImportWizardStore } from './import-wizard.store';
  */
 @Component({
   selector: 'app-import-preview-step',
-  imports: [Field, AppInput, Amount, Button, Icon, EmptyState, ErrorState, LoadingState, RouterLink, ImportPreviewTable],
+  imports: [
+    AppSection,
+    SectionHelp,
+    Alert,
+    Field,
+    AppInput,
+    Amount,
+    Button,
+    Stat,
+    StatGrid,
+    EmptyState,
+    ErrorState,
+    LoadingState,
+    RouterLink,
+    ImportPreviewTable,
+  ],
   template: `
-    <section aria-labelledby="import-review-heading" class="card space-y-4">
-      <div>
-        <h2
-          #heading
-          id="import-review-heading"
-          tabindex="-1"
-          class="text-xl font-semibold tracking-tight"
-        >
-          Review the rows
-        </h2>
-        <p class="mt-1 text-sm text-muted">
-          Tick the rows to import and check the budget of each. Nothing is stored until you press
-          Import.
-        </p>
-      </div>
+    <app-section
+      heading="Review the rows"
+      description="Tick the rows to import and check the budget of each. Nothing is stored until you press Import."
+      focusable
+    >
+      <p sectionHelp>
+        The counts overlap: a row can be a credit and a duplicate at once. A credit is a row on the
+        other side of your sign setting, usually a salary or a transfer in. It stays unticked unless
+        you tick it, and then it is stored as a refund that lowers its budget's spending.
+      </p>
+      <p sectionHelp>
+        "All shown rows" means every row of this filter, on every page. Duplicates and rows with
+        errors can't be ticked, and credits are only ticked when you show Credits.
+      </p>
 
-      @if (review.summary(); as summary) {
-        <dl class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+      @if (review.summary()) {
+        <dl appStatGrid [columns]="5">
           @for (stat of stats(); track stat.label) {
-            <div class="rounded-control border border-line bg-subtle p-2">
-              <dt class="text-muted">{{ stat.label }}</dt>
-              <dd class="text-lg font-semibold tabular-nums">{{ stat.value }}</dd>
-            </div>
+            <div appStat variant="plain" [label]="stat.label">{{ stat.value }}</div>
           }
         </dl>
-        <p class="text-sm text-muted">
-          The counts overlap: a row can be a credit and a duplicate at once. A credit is a row on the
-          other side of your sign setting, usually a salary or a transfer in. It stays unticked unless
-          you tick it, and then it is stored as a refund that lowers its budget's spending.
-        </p>
       }
 
       @if (review.rejected().length > 0) {
-        <div
-          role="alert"
-          class="rounded-card border border-negative bg-negative-soft p-4 text-sm text-ink"
-        >
-          <p class="flex items-center gap-2 font-semibold text-negative">
-            <app-icon name="alert" />
-            Nothing was imported
-          </p>
-          <p class="mt-1">
+        <app-alert tone="error" title="Nothing was imported">
+          <p>
             The server refused {{ review.rejected().length }}
             {{ review.rejected().length === 1 ? 'row' : 'rows' }}, so it stored none of them. The
             table below is up to date: fix them or untick them, then import again.
@@ -75,19 +77,12 @@ import { ImportWizardStore } from './import-wizard.store';
               <li>Line {{ row.line }}: {{ rejectionText(row.codes) }}</li>
             }
           </ul>
-        </div>
+        </app-alert>
       }
 
       @if (review.commitFailure(); as failure) {
-        <div
-          role="alert"
-          class="rounded-card border border-negative bg-negative-soft p-4 text-sm text-ink"
-        >
-          <p class="flex items-center gap-2 font-semibold text-negative">
-            <app-icon name="alert" />
-            Nothing was imported
-          </p>
-          <p class="mt-1">{{ failure.message }}</p>
+        <app-alert tone="error" title="Nothing was imported">
+          <p>{{ failure.message }}</p>
           <p class="mt-1">
             @if (failure.status === 413 || failure.status === 400) {
               Go back to change the file or the columns, then try again.
@@ -95,7 +90,7 @@ import { ImportWizardStore } from './import-wizard.store';
               Nothing was stored, so you can try again.
             }
           </p>
-        </div>
+        </app-alert>
       }
 
       @switch (review.budgetsState()) {
@@ -115,16 +110,11 @@ import { ImportWizardStore } from './import-wizard.store';
               title="You have no budgets yet"
               description="A spending belongs to a budget. Create one, then import the file."
             >
-              <a
-                routerLink="/budgets"
-                class="inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover"
-              >
-                Go to budgets
-              </a>
+              <a appLinkButton variant="primary" routerLink="/budgets">Go to budgets</a>
             </app-empty-state>
           } @else {
-            <div role="group" aria-label="Choose rows" class="space-y-3">
-              <div class="grid gap-3 sm:grid-cols-[minmax(0,16rem)_1fr] sm:items-end">
+            <div role="group" aria-label="Choose rows" class="space-y-4">
+              <div class="grid gap-4 sm:grid-cols-[minmax(0,16rem)_1fr] sm:items-end">
                 <app-field label="Show">
                   <select appInput (change)="onFilter($event)">
                     @for (option of filters(); track option.id) {
@@ -138,17 +128,18 @@ import { ImportWizardStore } from './import-wizard.store';
                   <button appButton variant="secondary" size="sm" (click)="review.selectMatching()">
                     Tick all shown rows
                   </button>
-                  <button appButton variant="secondary" size="sm" (click)="review.unselectMatching()">
+                  <button
+                    appButton
+                    variant="secondary"
+                    size="sm"
+                    (click)="review.unselectMatching()"
+                  >
                     Untick all shown rows
                   </button>
                 </div>
               </div>
-              <p class="text-sm text-muted">
-                "All shown rows" means every row of this filter, on every page. Duplicates and rows with errors
-                can't be ticked, and credits are only ticked when you show Credits.
-              </p>
 
-              <div class="grid gap-3 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end">
+              <div class="grid gap-4 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end">
                 <app-field label="Budget for the ticked rows">
                   <select appInput (change)="onBulkBudget($event)">
                     <option value="" [selected]="bulkBudget() === null">Choose a budget</option>
@@ -170,11 +161,11 @@ import { ImportWizardStore } from './import-wizard.store';
                   </button>
                 </div>
               </div>
-              <p role="status" class="text-sm empty:hidden">
+              <div role="status" class="empty:hidden">
                 @if (review.bulkNotice(); as notice) {
-                  <span class="block rounded-control bg-subtle p-3 text-ink">{{ notice }}</span>
+                  <app-alert tone="info">{{ notice }}</app-alert>
                 }
-              </p>
+              </div>
             </div>
 
             <app-import-preview-table />
@@ -187,13 +178,20 @@ import { ImportWizardStore } from './import-wizard.store';
         {{ review.selectedCount() === 1 ? 'row' : 'rows' }} selected of {{ total() }}.
         @if (review.selectedCount() > 0) {
           Together
-          <span class="font-semibold"><app-amount [cents]="review.selectedTotal()" [plain]="true" /></span>
+          <span class="font-semibold"
+            ><app-amount [cents]="review.selectedTotal()" [plain]="true"
+          /></span>
           (refunds and credits are subtracted).
         }
       </p>
 
-      <div class="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-        <button appButton variant="secondary" [disabled]="review.committing()" (click)="wizard.back()">
+      <div class="wizard-actions">
+        <button
+          appButton
+          variant="secondary"
+          [disabled]="review.committing()"
+          (click)="wizard.back()"
+        >
           Back
         </button>
         <div class="flex flex-wrap items-center justify-end gap-3">
@@ -219,7 +217,7 @@ import { ImportWizardStore } from './import-wizard.store';
           </button>
         </div>
       </div>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -233,7 +231,9 @@ export class ImportPreviewStep {
 
   private readonly number = computed(() => new Intl.NumberFormat(this.settings.locale()));
 
-  protected readonly total = computed(() => this.number().format(this.review.summary()?.total ?? 0));
+  protected readonly total = computed(() =>
+    this.number().format(this.review.summary()?.total ?? 0),
+  );
 
   /** The counts of the summary, as the server gave them. */
   protected readonly stats = computed(() => {

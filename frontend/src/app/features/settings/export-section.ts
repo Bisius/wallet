@@ -8,6 +8,8 @@ import { Field } from '../../shared/forms/field';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
 import { LinkButton } from '../../shared/ui/link-button';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
 import { exportFileName, exportUrl } from './export-url';
 
 interface ExportChoice {
@@ -20,17 +22,17 @@ const CHOICES: readonly ExportChoice[] = [
   {
     kind: 'spendings',
     title: 'Spendings',
-    description: 'Date, amount, budget, description, notes and tags. Refunds are negative.',
+    description: 'Date, amount, budget, notes and tags.',
   },
   {
     kind: 'incomes',
     title: 'Incomes',
-    description: 'The extra incomes you added. Your salary is not in this file.',
+    description: 'The extra incomes you added.',
   },
   {
     kind: 'savings',
     title: 'Savings',
-    description: 'Every savings transaction: settlements, deposits, withdrawals and reallocations.',
+    description: 'Every savings transaction.',
   },
 ];
 
@@ -64,21 +66,45 @@ function rangeProblem(range: { from: string; to: string }): {
  * optional date range they share. Each download is a plain `<a download>`: the browser fetches the
  * file itself, so nothing here reads or builds it. An empty box is no limit; a range that ends before
  * it starts turns the links off and says why.
+ *
+ * It is a block of the "Data" section of the settings, so its heading is a level 3 one (still a named
+ * region). Each row says "Download" and names the file for assistive technology ("Download
+ * spendings CSV"): the row's title already says which. On a phone the button goes under the
+ * description (`actionsBelow`) instead of squeezing it. What each file holds, in full, is in the
+ * section's help.
  */
 @Component({
   selector: 'app-export-section',
-  imports: [ReactiveFormsModule, Field, AppInput, Button, Icon, LinkButton],
+  imports: [
+    ReactiveFormsModule,
+    AppList,
+    AppSection,
+    Field,
+    AppInput,
+    Button,
+    Icon,
+    LinkButton,
+    ListRow,
+    SectionHelp,
+  ],
   template: `
-    <section aria-labelledby="export-heading" class="card space-y-4">
-      <div>
-        <h2 id="export-heading" class="text-lg font-semibold">Export</h2>
-        <p class="mt-1 text-sm text-muted">
-          Download your records as CSV files that a spreadsheet opens. An export is for reading, not
-          a backup: it holds these records only, not your budgets, subscriptions or settings.
-        </p>
-      </div>
+    <app-section
+      level="3"
+      landmark
+      heading="Export"
+      description="Download your records as CSV files that a spreadsheet opens."
+    >
+      <p sectionHelp>
+        An export is for reading, not a backup: it holds these records only, not your budgets,
+        subscriptions or settings.
+      </p>
+      <p sectionHelp>
+        Spendings: date, amount, budget, description, notes and tags. Refunds are negative. Incomes:
+        the extra incomes you added. Your salary is not in this file. Savings: every savings
+        transaction: settlements, deposits, withdrawals and reallocations.
+      </p>
 
-      <form [formGroup]="range" class="grid gap-3 sm:grid-cols-2" novalidate>
+      <form [formGroup]="range" class="grid gap-4 sm:grid-cols-2" novalidate>
         <app-field label="From" optional hint="First day included. Empty: from the start.">
           <input appInput type="date" formControlName="from" />
         </app-field>
@@ -92,32 +118,40 @@ function rangeProblem(range: { from: string; to: string }): {
         </app-field>
       </form>
 
-      <ul class="divide-y divide-line rounded-card border border-line">
+      <ul appList>
         @for (choice of choices; track choice.kind) {
-          <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 p-3">
-            <div class="min-w-0 flex-1">
-              <p class="font-medium">{{ choice.title }}</p>
-              <p class="text-sm text-muted">{{ choice.description }}</p>
-            </div>
+          <li appListRow actionsBelow>
+            <span rowTitle>{{ choice.title }}</span>
+            <p rowMeta>{{ choice.description }}</p>
             @if (query(); as current) {
               <a
+                rowActions
                 appLinkButton
+                size="sm"
                 [href]="url(choice.kind, current)"
                 [attr.download]="fileName(choice.kind, current)"
+                [attr.aria-label]="downloadName(choice)"
               >
                 <app-icon name="download" />
-                Download {{ choice.title.toLowerCase() }} CSV
+                Download
               </a>
             } @else {
-              <button appButton variant="secondary" disabled>
+              <button
+                rowActions
+                appButton
+                variant="secondary"
+                size="sm"
+                disabled
+                [attr.aria-label]="downloadName(choice)"
+              >
                 <app-icon name="download" />
-                Download {{ choice.title.toLowerCase() }} CSV
+                Download
               </button>
             }
           </li>
         }
       </ul>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -149,5 +183,10 @@ export class ExportSection {
 
   protected fileName(kind: ExportKind, range: ExportQuery): string {
     return exportFileName(kind, range);
+  }
+
+  /** What the link is, for a screen reader: the visible word is only "Download". */
+  protected downloadName(choice: ExportChoice): string {
+    return `Download ${choice.title.toLowerCase()} CSV`;
   }
 }

@@ -12,12 +12,14 @@ import {
   fieldError,
   getByLabel,
   getByRole,
+  queryAllByRole,
   queryByRole,
   textOf,
   typeInto,
 } from '../../../testing/dom';
 import { budgetLine, monthView, spendingDto, spendingsPage } from '../../../testing/fixtures';
 import { flushError, primeStores, settle, StubPage } from '../../../testing/harness';
+import { menuItemNames, rowAction } from '../../../testing/menu';
 import { LAST_BUDGET_KEY } from './last-budget.store';
 import { SpendingsPage as SpendingsPageComponent } from './spendings-page';
 
@@ -127,6 +129,16 @@ describe('SpendingsPage', () => {
         getByRole(root, 'button', name).click();
         await settle(fixture);
       },
+      /** Presses an item of the "More actions" menu of a row: `rowAction('Lunch, €12.50', 'Delete')`. */
+      rowAction: (row: string, item: string | RegExp) =>
+        rowAction(element, item, `More actions for ${row}`),
+      /** Unfolds "More" of the quick add (description, tags, Refund), as a person does with its summary. */
+      openMore: async () => {
+        const details = helpers.form().querySelector('details') as HTMLDetailsElement;
+        if (!details.open) (details.querySelector('summary') as HTMLElement).click();
+        await settle(fixture);
+        expect(details.open).toBe(true);
+      },
       type: async (label: string | RegExp, value: string, root: ParentNode = helpers.form()) => {
         typeInto(getByLabel(root, label), value);
         await settle(fixture);
@@ -160,6 +172,83 @@ describe('SpendingsPage', () => {
         expect(getByLabel(p.form(), label), label).toBeTruthy();
       }
       expect(p.value('Amount')).toBe('');
+    });
+
+    describe('is compact', () => {
+      const more = (p: Awaited<ReturnType<typeof open>>) =>
+        p.form().querySelector('details') as HTMLDetailsElement;
+
+      it('puts the amount, the budget and the date up front, and the description, the tags and Refund under "More"', async () => {
+        const p = await open();
+
+        const details = more(p);
+        expect(textOf(details.querySelector('summary') as Element)).toContain('More');
+        expect(details.open).toBe(false);
+        for (const label of ['Amount', 'Budget', 'Date']) {
+          expect(details.contains(getByLabel(p.form(), label)), label).toBe(false);
+        }
+        for (const label of ['Description (optional)', 'Tags (optional)', 'Refund']) {
+          expect(details.contains(getByLabel(p.form(), label)), label).toBe(true);
+        }
+      });
+
+      it('says to a screen reader what "More" holds', async () => {
+        const p = await open();
+
+        expect(textOf(more(p).querySelector('summary') as Element)).toContain(
+          'description, tags and refund',
+        );
+      });
+
+      it('opens by itself when the description has a value', async () => {
+        const p = await open();
+        expect(more(p).open).toBe(false);
+
+        await p.type('Description (optional)', 'Tea');
+
+        expect(more(p).open).toBe(true);
+      });
+
+      it('opens by itself when Refund is turned on, so the switch that changes the button is in sight', async () => {
+        const p = await open();
+
+        await p.flip('Refund');
+
+        expect(more(p).open).toBe(true);
+        expect(getByRole(p.form(), 'button', 'Add refund')).toBeTruthy();
+      });
+
+      it('opens by itself, and puts the cursor in the field, when what is in it is not valid', async () => {
+        const p = await open();
+        await p.type('Amount', '5');
+        await p.type('Description (optional)', 'x'.repeat(201));
+        // The person folded it again: a problem in it unfolds it.
+        (more(p).querySelector('summary') as HTMLElement).click();
+        await settle(p.fixture);
+        expect(more(p).open).toBe(false);
+
+        await p.press('Add spending');
+
+        expect(more(p).open).toBe(true);
+        expect(fieldError(getByLabel(p.form(), 'Description (optional)'))).not.toBe('');
+        expect(document.activeElement).toBe(getByLabel(p.form(), 'Description (optional)'));
+        noRequest(/\/api\/spendings$/);
+      });
+
+      it('stays as the person left it after an entry is added', async () => {
+        const p = await open();
+        await p.openMore();
+        await p.type('Amount', '5');
+
+        await p.press('Add spending');
+        http
+          .expectOne('/api/spendings')
+          .flush(spendingDto({ id: 4, amount: 500 }), { status: 201, statusText: 'Created' });
+        await p.reload();
+
+        expect(more(p).open).toBe(true);
+        expect(document.activeElement).toBe(getByLabel(p.form(), 'Amount'));
+      });
     });
 
     it("starts on today's date from the server, inside the shown month", async () => {
@@ -301,6 +390,7 @@ describe('SpendingsPage', () => {
     it('posts the spending with the date, the budget and integer cents', async () => {
       const p = await open();
       await p.type('Amount', '12,50');
+      await p.openMore();
       await p.type('Description (optional)', '  Coffee beans ');
 
       await p.press('Add spending');
@@ -435,6 +525,7 @@ describe('SpendingsPage', () => {
     it('is ready for the next entry: amount and description cleared, budget and date kept, cursor on the amount', async () => {
       const p = await open();
       await p.type('Amount', '5');
+      await p.openMore();
       await p.type('Description (optional)', 'Tea');
       await p.type('Budget', '2');
       await p.type('Date', '2026-10-09');
@@ -498,6 +589,7 @@ describe('SpendingsPage', () => {
       it('is a switch: the person types a plain amount, and the request carries it negative', async () => {
         const p = await open();
         await p.type('Amount', '45');
+        await p.openMore();
         await p.flip('Refund');
         expect(textOf(getByRole(p.form(), 'button', 'Add refund'))).toBe('Add refund');
 
@@ -516,6 +608,7 @@ describe('SpendingsPage', () => {
       it('is confirmed as a refund', async () => {
         const p = await open();
         await p.type('Amount', '45');
+        await p.openMore();
         await p.flip('Refund');
         await p.press('Add refund');
         http
@@ -990,6 +1083,8 @@ describe('SpendingsPage', () => {
       expect(p.value('Description (optional)', dialog)).toBe('Lunch');
       expect((getByLabel(dialog, 'Refund') as HTMLInputElement).checked).toBe(false);
       expect(getByLabel(dialog, 'Notes (optional)')).toBeTruthy();
+      // The dialog shows every field: nothing of it is folded behind "More".
+      expect(dialog.querySelector('details')).toBeNull();
     });
 
     it('shows a refund as a plain amount with the Refund switch on', async () => {
@@ -1094,12 +1189,49 @@ describe('SpendingsPage', () => {
       expect(document.activeElement).toBe(edit);
       noRequest(/\/api\/spendings\/2/);
     });
+
+    it('opens from the menu of the row too, and gives focus back to the menu button', async () => {
+      const p = await open();
+      const menu = getByRole(p.element, 'button', 'More actions for Lunch, €12.50');
+      menu.focus();
+
+      await p.rowAction('Lunch, €12.50', 'Edit');
+      expect(p.dialog()).not.toBeNull();
+      await p.press('Cancel', p.dialog() as HTMLElement);
+
+      expect(p.dialog()).toBeNull();
+      expect(document.activeElement).toBe(menu);
+    });
+  });
+
+  describe('the actions of a row', () => {
+    it('are the title, which edits, and one menu: no Edit and Delete buttons beside every amount', async () => {
+      const p = await open();
+
+      const row = getByRole(p.element, 'listitem', /Lunch/);
+      expect(
+        queryAllByRole(row, 'button')
+          .filter((button) => !button.closest('[popover]'))
+          .map((button) => button.getAttribute('aria-label')),
+      ).toEqual(['Edit Lunch, €12.50', 'More actions for Lunch, €12.50']);
+      expect(menuItemNames(row)).toEqual(['Edit', 'Delete']);
+    });
+
+    it('keep the amount of a refund green and its minus sign', async () => {
+      const p = await open();
+
+      const amount = getByRole(p.element, 'listitem', /Shoes/).querySelector(
+        'app-amount span',
+      ) as HTMLElement;
+      expect(amount.textContent).toBe('-€45.00');
+      expect(amount.className).toContain('text-positive');
+    });
   });
 
   describe('delete', () => {
     it('asks first, and does nothing when cancelled', async () => {
       const p = await open();
-      await p.press('Delete Lunch, €12.50');
+      await p.rowAction('Lunch, €12.50', 'Delete');
 
       const text = textOf(p.confirmDialog());
       expect(text).toContain('Delete this spending?');
@@ -1110,7 +1242,7 @@ describe('SpendingsPage', () => {
 
     it('deletes once confirmed, then reloads and puts focus on the list heading', async () => {
       const p = await open();
-      await p.press('Delete Lunch, €12.50');
+      await p.rowAction('Lunch, €12.50', 'Delete');
       await p.press('Delete spending', p.confirmDialog());
 
       const request = http.expectOne('/api/spendings/2');
@@ -1127,7 +1259,7 @@ describe('SpendingsPage', () => {
 
     it('reports a failure with the message of the API', async () => {
       const p = await open();
-      await p.press('Delete Lunch, €12.50');
+      await p.rowAction('Lunch, €12.50', 'Delete');
       await p.press('Delete spending', p.confirmDialog());
       flushError(http.expectOne('/api/spendings/2'), 404, 'not_found', 'Spending not found');
       await settle(p.fixture);

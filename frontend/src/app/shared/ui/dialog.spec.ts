@@ -51,6 +51,114 @@ class AutofocusHost {
   readonly open = signal(false);
 }
 
+@Component({
+  selector: 'app-sheet-host',
+  imports: [AppDialog],
+  template: `
+    <button type="button" id="opener" (click)="open.set(true)">More</button>
+    @if (open()) {
+      <app-dialog heading="More" variant="sheet" (closed)="open.set(false)">
+        <a href="/income" id="first">Income</a>
+        <a href="/report">Report</a>
+      </app-dialog>
+    }
+  `,
+})
+class SheetHost {
+  readonly open = signal(false);
+}
+
+describe('AppDialog as a sheet', () => {
+  async function setup() {
+    const fixture = await render(SheetHost);
+    const element = fixture.nativeElement as HTMLElement;
+    const opener = element.querySelector('#opener') as HTMLButtonElement;
+    const show = async () => {
+      opener.focus();
+      opener.click();
+      await settle(fixture);
+    };
+    const dialog = () => element.querySelector('dialog') as HTMLDialogElement | null;
+    return { fixture, element, opener, show, dialog };
+  }
+
+  it('is a modal dialog named by its heading, marked as a sheet', async () => {
+    const { element, show, dialog } = await setup();
+    await show();
+
+    expect(dialog()?.open).toBe(true);
+    expect(dialog()?.getAttribute('data-variant')).toBe('sheet');
+    expect(getByRole(element, 'dialog', 'More')).toBe(dialog());
+  });
+
+  it('sits on the bottom edge, takes the whole width, slides in and keeps clear of the home indicator', async () => {
+    const { show, dialog } = await setup();
+    await show();
+
+    const classes = dialog()?.className ?? '';
+    for (const name of [
+      'mt-auto',
+      'mb-0',
+      'w-full',
+      'max-w-none',
+      'rounded-t-card',
+      'rounded-b-none',
+      'bg-surface-raised',
+      'motion-safe:animate-sheet-in',
+      'backdrop:bg-black/60',
+    ]) {
+      expect(classes, name).toContain(name);
+    }
+    expect(classes).not.toContain('m-auto');
+    expect(dialog()?.querySelector('[class*="safe-area-inset-bottom"]')).not.toBeNull();
+  });
+
+  it('puts focus on its first link, and gives it back to what opened it on Escape', async () => {
+    const { fixture, opener, show, dialog } = await setup();
+    await show();
+    expect(document.activeElement?.id).toBe('first');
+
+    dialog()?.close();
+    await settle(fixture);
+
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('closes on a tap on the backdrop, which is a click on the dialog itself', async () => {
+    const { fixture, opener, show, dialog } = await setup();
+    await show();
+
+    dialog()?.click();
+    await settle(fixture);
+
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it('stays open for a tap on what is inside it', async () => {
+    const { fixture, element, show, dialog } = await setup();
+    await show();
+
+    getByRole(element, 'heading', 'More').click();
+    await settle(fixture);
+
+    expect(dialog()?.open).toBe(true);
+  });
+
+  it('is the dialog of a form by default: centered, and not closed by a tap outside', async () => {
+    const fixture = await render(DialogHost);
+    const element = fixture.nativeElement as HTMLElement;
+    (element.querySelector('#opener') as HTMLButtonElement).click();
+    await settle(fixture);
+
+    const dialog = element.querySelector('dialog') as HTMLDialogElement;
+    expect(dialog.getAttribute('data-variant')).toBe('dialog');
+    expect(dialog.className).toContain('m-auto');
+    expect(dialog.className).not.toContain('animate-sheet-in');
+  });
+});
+
 describe('AppDialog', () => {
   async function setup() {
     const fixture = await render(DialogHost);

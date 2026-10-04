@@ -3,9 +3,10 @@ import { RouterLink } from '@angular/router';
 import type { MonthKey } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
 import { LinkButton } from '../../shared/ui/link-button';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
 import { ImportReviewStore } from './import-review.store';
 import { ImportWizardStore } from './import-wizard.store';
 
@@ -19,26 +20,22 @@ const MONTH_LINKS_MAX = 12;
  */
 @Component({
   selector: 'app-import-done-step',
-  imports: [RouterLink, Button, Icon, LinkButton],
+  imports: [Alert, AppSection, SectionHelp, RouterLink, Button, LinkButton],
   template: `
-    <section aria-labelledby="import-done-heading" class="card max-w-2xl space-y-4">
-      <h2 #heading id="import-done-heading" tabindex="-1" class="text-xl font-semibold tracking-tight">
-        Import complete
-      </h2>
+    <app-section
+      heading="Import complete"
+      description="Imported rows are ordinary spendings: edit or delete them like any other."
+      focusable
+    >
+      <p sectionHelp>If you choose this file again, its rows are marked as already imported.</p>
 
       @if (review.result(); as result) {
-        <p role="status" class="flex items-start gap-2 text-base font-medium">
-          <app-icon name="check-circle" class="mt-1 text-positive" />
-          <span>Imported {{ result.created }} {{ result.created === 1 ? 'spending' : 'spendings' }}.</span>
-        </p>
-        <p class="text-sm text-muted">
-          They are ordinary spendings: edit or delete them like any other. If you choose this file
-          again, its rows are marked as already imported.
-        </p>
+        <app-alert tone="success" live="status">
+          Imported {{ result.created }} {{ result.created === 1 ? 'spending' : 'spendings' }}.
+        </app-alert>
 
-        <div>
-          <h3 class="text-sm font-semibold">See them in</h3>
-          <ul class="mt-2 flex flex-wrap gap-2">
+        <app-section level="3" heading="See them in">
+          <ul class="flex flex-wrap gap-2">
             @for (month of linkedMonths(); track month) {
               <li>
                 <a
@@ -52,19 +49,19 @@ const MONTH_LINKS_MAX = 12;
             }
           </ul>
           @if (hiddenMonths() > 0) {
-            <p class="mt-2 text-sm text-muted">
-              and {{ hiddenMonths() }} earlier {{ hiddenMonths() === 1 ? 'month' : 'months' }}: use the
-              month switcher on the Spendings page.
+            <p class="text-sm text-muted">
+              and {{ hiddenMonths() }} earlier {{ hiddenMonths() === 1 ? 'month' : 'months' }}: use
+              the month switcher on the Spendings page.
             </p>
           }
-        </div>
+        </app-section>
       }
 
-      <div class="flex flex-wrap gap-2 border-t border-line pt-4">
-        <a appLinkButton variant="primary" routerLink="/spendings">Go to spendings</a>
+      <div class="wizard-actions">
         <button appButton variant="secondary" (click)="another()">Import another file</button>
+        <a appLinkButton variant="primary" routerLink="/spendings">Go to spendings</a>
       </div>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })
@@ -77,8 +74,8 @@ export class ImportDoneStep {
   protected readonly linkedMonths = computed<readonly MonthKey[]>(() =>
     (this.review.result()?.months ?? []).slice(-MONTH_LINKS_MAX),
   );
-  protected readonly hiddenMonths = computed(
-    () => Math.max(0, (this.review.result()?.months.length ?? 0) - MONTH_LINKS_MAX),
+  protected readonly hiddenMonths = computed(() =>
+    Math.max(0, (this.review.result()?.months.length ?? 0) - MONTH_LINKS_MAX),
   );
 
   protected monthName(month: MonthKey): string {

@@ -2,10 +2,11 @@ import { Component, computed, inject } from '@angular/core';
 import type { MonthBudgetLine } from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMoney } from '../../shared/money.pipe';
+import { AsyncSection } from '../../shared/ui/async-section';
 import { BarChart, type BarChartRow } from '../../shared/ui/charts/bar-chart';
+import { SectionHelp } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
 import { ALERT_LABELS } from '../budgets/budget-utils';
-import { DashboardCard } from './dashboard-card';
 import { DashboardData } from './dashboard-data';
 
 /**
@@ -15,14 +16,14 @@ import { DashboardData } from './dashboard-data';
  */
 @Component({
   selector: 'app-spending-chart-section',
-  imports: [BarChart, DashboardCard, EmptyState],
+  imports: [AsyncSection, BarChart, EmptyState, SectionHelp],
   template: `
-    <app-dashboard-card
-      title="Spending per budget"
+    <app-async-section
+      heading="Spending per budget"
       [description]="
         'What you spent from each budget in ' +
         data.monthLabel() +
-        ', against what it had available. A bar that runs past its outline is over budget.'
+        ', against what it had available.'
       "
       [state]="data.viewState()"
       [error]="data.view.error()"
@@ -30,6 +31,10 @@ import { DashboardData } from './dashboard-data';
       errorTitle="Couldn't load the spending chart"
       (retry)="data.view.reload()"
     >
+      @if (rows()?.length) {
+        <p sectionHelp>A bar that runs past its outline is over budget.</p>
+      }
+
       @if (rows(); as rows) {
         @if (rows.length === 0) {
           <app-empty-state
@@ -52,7 +57,7 @@ import { DashboardData } from './dashboard-data';
           />
         }
       }
-    </app-dashboard-card>
+    </app-async-section>
   `,
   host: { class: 'block' },
 })

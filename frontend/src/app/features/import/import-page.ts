@@ -10,9 +10,11 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { CanLeave } from '../../core/guards';
-import { PageHeader } from '../../shared/page-header';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { LinkButton } from '../../shared/ui/link-button';
+import { AppPage, type PageWidth } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { Stepper } from '../../shared/ui/stepper';
 import { ImportDoneStep } from './import-done-step';
 import { ImportFileStep } from './import-file-step';
 import { ImportMappingStep } from './import-mapping-step';
@@ -31,8 +33,10 @@ import { ImportWizardStore, WIZARD_STEPS } from './import-wizard.store';
   selector: 'app-import-page',
   imports: [
     RouterLink,
+    AppPage,
     PageHeader,
     LinkButton,
+    Stepper,
     ImportFileStep,
     ImportMappingStep,
     ImportPreviewStep,
@@ -40,48 +44,12 @@ import { ImportWizardStore, WIZARD_STEPS } from './import-wizard.store';
   ],
   providers: [ImportProfilesStore, ImportWizardStore, ImportReviewStore],
   template: `
-    <app-page-header
-      title="Import CSV"
-      subtitle="Bring in spendings from your bank's CSV file. You check every row before anything is stored."
-    >
-      <a appLinkButton size="sm" routerLink="/spendings">Back to spendings</a>
-    </app-page-header>
+    <app-page [width]="width()">
+      <app-page-header title="Import CSV" subtitle="Bring in spendings from your bank's CSV file.">
+        <a appLinkButton size="sm" routerLink="/spendings">Back to spendings</a>
+      </app-page-header>
 
-    <div class="max-w-5xl space-y-4">
-      <nav aria-label="Import progress">
-        <ol class="flex flex-wrap items-center gap-x-4 gap-y-2">
-          @for (step of steps; track step.id; let i = $index) {
-            <li
-              class="flex items-center gap-2"
-              [attr.aria-current]="i === stepIndex() ? 'step' : null"
-            >
-              <span
-                aria-hidden="true"
-                class="grid size-7 shrink-0 place-items-center rounded-full border-2 text-xs font-semibold"
-                [class]="
-                  i < stepIndex()
-                    ? 'border-accent bg-accent text-on-accent'
-                    : i === stepIndex()
-                      ? 'border-accent text-accent'
-                      : 'border-line-strong text-muted'
-                "
-                >{{ i < stepIndex() ? '✓' : i + 1 }}</span
-              >
-              <span
-                class="text-sm"
-                [class]="
-                  i === stepIndex() ? 'font-semibold text-ink' : 'sr-only text-muted sm:not-sr-only'
-                "
-                >{{ step.label }}</span
-              >
-              @if (i < stepIndex()) {
-                <span class="sr-only">(done)</span>
-              }
-            </li>
-          }
-        </ol>
-      </nav>
-      <p class="text-sm text-muted">Step {{ stepIndex() + 1 }} of {{ steps.length }}</p>
+      <app-stepper label="Import progress" [steps]="steps" [current]="stepIndex()" />
 
       @switch (wizard.step()) {
         @case ('file') {
@@ -97,7 +65,7 @@ import { ImportWizardStore, WIZARD_STEPS } from './import-wizard.store';
           <app-import-done-step />
         }
       }
-    </div>
+    </app-page>
   `,
 })
 export class ImportPage implements CanLeave {
@@ -110,6 +78,11 @@ export class ImportPage implements CanLeave {
   protected readonly stepIndex = computed(() =>
     this.steps.findIndex((step) => step.id === this.wizard.step()),
   );
+  /** The mapping and the review are tables and wide forms; choosing a file and the result are a column. */
+  protected readonly width = computed<PageWidth>(() => {
+    const step = this.wizard.step();
+    return step === 'mapping' || step === 'preview' ? 'wide' : 'narrow';
+  });
 
   constructor() {
     // A new step is a new page of the form: focus its heading, so a keyboard or screen reader user

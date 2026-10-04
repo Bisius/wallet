@@ -2,7 +2,6 @@ import {
   afterNextRender,
   Component,
   computed,
-  ElementRef,
   inject,
   Injector,
   output,
@@ -16,7 +15,9 @@ import { SettingsStore } from '../../core/settings.store';
 import { formatMoney } from '../../shared/money.pipe';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
+import { Disclosure } from '../../shared/ui/disclosure';
 import { Icon } from '../../shared/ui/icon';
+import { AppSection } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { GoalCard } from './goal-card';
@@ -38,7 +39,7 @@ export interface GoalMoneyRequest {
  */
 @Component({
   selector: 'app-goals-section',
-  imports: [Button, EmptyState, GoalCard, GoalForm, Icon],
+  imports: [AppSection, Button, Disclosure, EmptyState, GoalCard, GoalForm, Icon],
   templateUrl: './goals-section.html',
   host: { class: 'block' },
 })
@@ -49,7 +50,7 @@ export class GoalsSection {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly section = viewChild(AppSection);
 
   /** The user wants to deposit to, or withdraw from, a goal. */
   readonly moveMoney = output<GoalMoneyRequest>();
@@ -132,6 +133,6 @@ export class GoalsSection {
   }
 
   private focusHeading(): void {
-    afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => this.section()?.focusHeading(), { injector: this.injector });
   }
 }

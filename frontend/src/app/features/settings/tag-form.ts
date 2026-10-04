@@ -25,9 +25,9 @@ import { applyApiErrors, focusFirstInvalidOrSubmit } from '../../shared/forms/ap
 import { AppInput } from '../../shared/forms/app-input';
 import { ColorPicker } from '../../shared/forms/color-picker';
 import { Field } from '../../shared/forms/field';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 
 /** A name of only spaces is no name: the API trims it and refuses what is left. */
@@ -44,7 +44,7 @@ const notBlank: ValidatorFn = (control) =>
  */
 @Component({
   selector: 'app-tag-form',
-  imports: [ReactiveFormsModule, AppDialog, Field, AppInput, ColorPicker, Button, Icon],
+  imports: [Alert, ReactiveFormsModule, AppDialog, Field, AppInput, ColorPicker, Button],
   template: `
     <app-dialog
       [heading]="'Edit tag ' + tag().name"
@@ -67,16 +67,10 @@ const notBlank: ValidatorFn = (control) =>
         <app-color-picker formControlName="color" />
 
         @if (formError(); as error) {
-          <p
-            role="alert"
-            class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-          >
-            <app-icon name="alert" class="mt-0.5 text-negative" />
-            <span>{{ error }}</span>
-          </p>
+          <app-alert tone="error">{{ error }}</app-alert>
         }
 
-        <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+        <div class="dialog-footer">
           <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
             Cancel
           </button>

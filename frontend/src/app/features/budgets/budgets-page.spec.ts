@@ -24,6 +24,7 @@ import {
 } from '../../../testing/dom';
 import { budgetDto, budgetLine, monthView } from '../../../testing/fixtures';
 import { flushError, primeStores, settle, StubPage } from '../../../testing/harness';
+import { menuItem, menuItemNames, rowAction } from '../../../testing/menu';
 import { BudgetsPage } from './budgets-page';
 
 @Component({
@@ -125,6 +126,15 @@ describe('BudgetsPage', () => {
       card: (name: string) => getByRole(element, 'article', name),
       cardText: (name: string) => textOf(getByRole(element, 'article', name)),
       summary: () => textOf(getByRole(element, 'region', /at a glance/)),
+      /** The folded list of upcoming and ended budgets (the strip's help is a `details` too). */
+      inactive: () =>
+        Array.from(element.querySelectorAll('details')).find((details) =>
+          textOf(details.querySelector('summary') as Element).startsWith(
+            'Upcoming and ended budgets',
+          ),
+        ) ?? null,
+      /** Opens the "More actions" menu called `menu` and presses its item: `menuAction('More actions for Rent', 'Delete')`. */
+      menuAction: (menu: string | RegExp, item: string | RegExp) => rowAction(element, item, menu),
       press: async (name: string | RegExp, root: ParentNode = element) => {
         getByRole(root, 'button', name).click();
         await settle(fixture);
@@ -165,7 +175,7 @@ describe('BudgetsPage', () => {
   const noRequest = (pattern: RegExp) => http.expectNone((request) => pattern.test(request.url));
 
   describe('the month at a glance', () => {
-    it('shows income, fixed costs, budgeted and unallocated exactly as the API reports them', async () => {
+    it('shows budgeted and unallocated exactly as the API reports them', async () => {
       // Figures that do not add up on purpose: the page must show what it is told, not compute.
       const p = await open('2026-10', {
         view: monthView({
@@ -177,18 +187,38 @@ describe('BudgetsPage', () => {
         }),
       });
 
-      expect(p.summary()).toContain('Income €2.22');
-      expect(p.summary()).toContain('Fixed costs €3.33');
       expect(p.summary()).toContain('Budgeted €4.44');
       expect(p.summary()).toContain('Unallocated €5.55');
       expect(p.text()).not.toContain('Over-allocated');
     });
 
-    it('leaves the spent total to the cards: the strip has four figures, the Dashboard five', async () => {
+    it('is a slim strip: the Dashboard has income, fixed costs and spent, the cards what each budget spent', async () => {
       const p = await open();
 
+      const strip = getByRole(p.element, 'region', /at a glance/);
+      expect(
+        Array.from(strip.querySelectorAll('dl > div')).map((figure) =>
+          textOf(figure.querySelector('dt') as Element),
+        ),
+      ).toEqual(['Budgeted', 'Unallocated']);
+      expect(p.summary()).not.toContain('Income');
+      expect(p.summary()).not.toContain('Fixed costs');
       expect(p.summary()).not.toContain('Spent');
-      expect(p.summary()).toContain('Unallocated');
+      // Flat, with the figures a size down from the Dashboard's big ones.
+      expect(strip.closest('.card')).toBeNull();
+      expect(strip.querySelector('dd.text-kpi')).toBeNull();
+      expect(strip.querySelectorAll('dd.text-stat')).toHaveLength(2);
+    });
+
+    it('keeps what the status means behind "How this works", folded away', async () => {
+      const p = await open();
+
+      const details = getByRole(p.element, 'region', /at a glance/).querySelector(
+        'details',
+      ) as HTMLDetailsElement;
+      expect(details.open).toBe(false);
+      expect(textOf(details.querySelector('summary') as Element)).toBe('How this works');
+      expect(textOf(details)).toContain('This month is still running');
     });
 
     it('says a closed month is closed, and what that means', async () => {
@@ -281,12 +311,68 @@ describe('BudgetsPage', () => {
     });
 
     it('shows the name, color and icon of the budget', async () => {
-      const p = await open();
+      const p = await open('2026-10', {
+        view: monthView({
+          budgets: [
+            GROCERIES_LINE,
+            FUN_LINE,
+            budgetLine({ id: 3, name: 'Rent', color: '#10b981', icon: null }),
+          ],
+        }),
+        budgets: [GROCERIES, FUN, budgetDto({ id: 3, name: 'Rent', sortOrder: 20 })],
+      });
 
       // The icon is decoration (the name says it all), so it is hidden from assistive technology.
-      expect(p.card('Fun').querySelector('[aria-hidden="true"]')?.textContent).toBe('🎬');
-      expect((p.card('Fun') as HTMLElement).style.borderLeftColor).not.toBe('');
-      expect((p.card('Groceries') as HTMLElement).style.borderLeftColor).toBe('');
+      const icon = p.card('Fun').querySelector('[aria-hidden="true"]') as HTMLElement;
+      expect(icon.textContent).toBe('🎬');
+      // Systems without an emoji font in the page's own stack draw an empty box.
+      expect(icon.classList.contains('font-emoji')).toBe(true);
+      // The color rings the avatar, or is a dot beside the name of a budget with no icon. A budget
+      // with neither has the neutral dot. The color is never read out.
+      expect(icon.style.borderColor).toBe('rgb(37, 99, 235)');
+      const dot = (name: string) =>
+        p.card(name).querySelector('span[appColorDot]') as HTMLElement | null;
+      expect(dot('Fun')).toBeNull();
+      expect(dot('Rent')?.style.backgroundColor).toBe('rgb(16, 185, 129)');
+      expect(dot('Groceries')?.style.backgroundColor).toBe('');
+      expect(p.cardText('Rent')).not.toContain('#10b981');
+    });
+
+    describe('actions', () => {
+      const visibleButtons = (card: HTMLElement) =>
+        queryAllByRole(card, 'button')
+          .filter((button) => !button.hasAttribute('appMenuItem'))
+          .map((button) => button.getAttribute('aria-label') ?? textOf(button));
+
+      it('are Edit and Move money on the card, and the rest in its menu, the one that deletes last', async () => {
+        const p = await open();
+
+        expect(visibleButtons(p.card('Groceries'))).toEqual([
+          'Edit Groceries',
+          'Move money from Groceries',
+          'More actions for Groceries',
+        ]);
+        expect(menuItemNames(p.card('Groceries'))).toEqual([
+          'Archive',
+          'Move up',
+          'Move down',
+          'Delete',
+        ]);
+      });
+
+      it('leave out what does not apply: no Archive once archived, no Delete with history', async () => {
+        const p = await open('2026-10', {
+          budgets: [GROCERIES, { ...FUN, endMonth: '2026-12', hasHistory: true }],
+        });
+
+        expect(menuItemNames(p.card('Fun'))).toEqual(['Move up', 'Move down']);
+        expect(menuItemNames(p.card('Groceries'))).toEqual([
+          'Archive',
+          'Move up',
+          'Move down',
+          'Delete',
+        ]);
+      });
     });
 
     describe('alert state', () => {
@@ -630,7 +716,7 @@ describe('BudgetsPage', () => {
     it('sit in a collapsed section below the cards, with their dates and amounts', async () => {
       const p = await open('2026-10', { budgets: [GROCERIES, FUN, UPCOMING, ENDED] });
 
-      const details = p.element.querySelector('details') as HTMLDetailsElement;
+      const details = p.inactive() as HTMLDetailsElement;
       expect(details.open).toBe(false);
       expect(textOf(details.querySelector('summary') as Element)).toBe(
         'Upcoming and ended budgets (2)',
@@ -644,16 +730,18 @@ describe('BudgetsPage', () => {
     it('can still be edited, and deleted when they have no history', async () => {
       const p = await open('2026-10', { budgets: [GROCERIES, FUN, UPCOMING, ENDED] });
 
-      expect(queryByRole(p.element, 'button', 'Edit Holiday 2027')).not.toBeNull();
-      expect(queryByRole(p.element, 'button', 'Delete Holiday 2027')).not.toBeNull();
+      // Two things to do: both are in the menu of the row, the one that deletes last.
+      expect(menuItemNames(p.element, 'More actions for Holiday 2027')).toEqual(['Edit', 'Delete']);
+      // It has spendings: only archiving would have been possible, and it is archived already. The
+      // one thing left, Edit, is a button of the row.
       expect(queryByRole(p.element, 'button', 'Edit Old gym')).not.toBeNull();
-      // It has spendings: only archiving would have been possible, and it is archived already.
+      expect(queryByRole(p.element, 'button', 'More actions for Old gym')).toBeNull();
       expect(queryByRole(p.element, 'button', 'Delete Old gym')).toBeNull();
     });
 
     it('are left out when there are none', async () => {
       const p = await open();
-      expect(p.element.querySelector('details')).toBeNull();
+      expect(p.inactive()).toBeNull();
     });
 
     it('also list, for another month, the budgets that start after it or ended before it', async () => {
@@ -670,14 +758,13 @@ describe('BudgetsPage', () => {
         budgets: [GROCERIES, rent, UPCOMING],
       });
 
-      const details = p.element.querySelector('details') as HTMLDetailsElement;
+      const details = p.inactive() as HTMLDetailsElement;
       expect(textOf(details.querySelector('summary') as Element)).toBe(
         'Upcoming and ended budgets (2)',
       );
       expect(textOf(details)).toContain('Rent Starts October 2026 · €900.00 a month');
       expect(textOf(details)).toContain('Holiday 2027 Starts January 2027');
-      expect(queryByRole(details, 'button', 'Edit Rent')).not.toBeNull();
-      expect(queryByRole(details, 'button', 'Delete Rent')).not.toBeNull();
+      expect(menuItemNames(details, 'More actions for Rent')).toEqual(['Edit', 'Delete']);
     });
 
     it('do not repeat a budget that has a card in the month shown', async () => {
@@ -691,11 +778,11 @@ describe('BudgetsPage', () => {
         budgets: [GROCERIES, ENDED],
       });
 
-      expect(p.element.querySelector('details')).toBeNull();
+      expect(p.inactive()).toBeNull();
       expect(p.cardText('Old gym')).toContain('Ended Aug 2026');
       expect(queryByRole(p.card('Old gym'), 'button', 'Edit Old gym')).not.toBeNull();
       // An ended budget cannot be archived again.
-      expect(queryByRole(p.card('Old gym'), 'button', 'Archive Old gym')).toBeNull();
+      expect(menuItemNames(p.card('Old gym'))).not.toContain('Archive');
     });
   });
 
@@ -723,6 +810,18 @@ describe('BudgetsPage', () => {
         'The budget starts in October 2026. Earlier months are not affected.',
       );
       expect(document.activeElement).toBe(getByLabel(dialog, 'Name'));
+    });
+
+    it('groups the amount fields under a legend with spacing, not in a box of their own inside the dialog', async () => {
+      const p = await open();
+      await p.press('New budget');
+      const dialog = p.dialog('New budget') as HTMLElement;
+
+      const group = getByRole(dialog, 'group', 'Amount');
+      expect(group.tagName).toBe('FIELDSET');
+      expect(getByLabel(group, 'Monthly amount')).toBeTruthy();
+      expect(getByLabel(group, 'Start month')).toBeTruthy();
+      expect(group.className).not.toMatch(/\b(border|rounded-card|p-\d)/);
     });
 
     it('explains the incremental switch in one line, and follows it', async () => {
@@ -973,6 +1072,13 @@ describe('BudgetsPage', () => {
       expect(
         getByRole(dialog, 'button', 'Use the shopping cart icon').getAttribute('aria-pressed'),
       ).toBe('true');
+      // The field and the suggestions draw an emoji with the emoji font stack too.
+      expect(getByLabel(dialog, 'Icon (optional)').classList.contains('font-emoji')).toBe(true);
+      expect(
+        getByRole(dialog, 'button', 'Use the shopping cart icon')
+          .querySelector('span')
+          ?.classList.contains('font-emoji'),
+      ).toBe(true);
 
       await p.press('Use the shopping cart icon', dialog);
       expect(p.value('Icon (optional)')).toBe('');
@@ -1034,7 +1140,7 @@ describe('BudgetsPage', () => {
         versions: [{ effectiveMonth: '2027-01', amount: 25000, incremental: true }],
       });
       const p = await open('2026-10', { budgets: [GROCERIES, FUN, upcoming] });
-      await p.press('Edit Holiday 2027');
+      await p.menuAction('More actions for Holiday 2027', 'Edit');
 
       expect(p.value('Applies from')).toBe('2027-01');
       expect(p.value('Monthly amount')).toBe('250.00');
@@ -1257,7 +1363,7 @@ describe('BudgetsPage', () => {
   describe('archive', () => {
     it('asks first, saying that the balance is released to savings when the last month closes', async () => {
       const p = await open();
-      await p.press('Archive Groceries');
+      await p.menuAction('More actions for Groceries', 'Archive');
 
       expect(p.confirmDialog().open).toBe(true);
       const text = textOf(p.confirmDialog());
@@ -1276,7 +1382,7 @@ describe('BudgetsPage', () => {
       const p = await open('2026-10', {
         budgets: [{ ...GROCERIES, hasHistory: true }, FUN],
       });
-      await p.press('Archive Groceries');
+      await p.menuAction('More actions for Groceries', 'Archive');
       expect(textOf(p.confirmDialog())).toContain(
         'It has spendings, so it can only be archived, not deleted.',
       );
@@ -1284,7 +1390,7 @@ describe('BudgetsPage', () => {
 
     it('posts the archive once confirmed, with no end month: the server uses the current one', async () => {
       const p = await open();
-      await p.press('Archive Groceries');
+      await p.menuAction('More actions for Groceries', 'Archive');
       await p.press('Archive budget', p.confirmDialog());
 
       const request = http.expectOne('/api/budgets/1/archive');
@@ -1303,10 +1409,11 @@ describe('BudgetsPage', () => {
       // The end month says it already: no second badge for the same fact.
       expect(p.cardText('Groceries')).toContain('Ends Oct 2026');
       expect(p.cardText('Groceries')).not.toContain('Last month');
-      // It cannot be archived twice, and focus went back to the card instead of the missing button.
-      expect(queryByRole(p.card('Groceries'), 'button', 'Archive Groceries')).toBeNull();
+      // It cannot be archived twice, and focus stayed on the card's menu button: the item that was
+      // pressed is hidden.
+      expect(menuItemNames(p.card('Groceries'))).not.toContain('Archive');
       expect(document.activeElement).toBe(
-        getByRole(p.card('Groceries'), 'button', 'Edit Groceries'),
+        getByRole(p.card('Groceries'), 'button', 'More actions for Groceries'),
       );
     });
 
@@ -1314,13 +1421,13 @@ describe('BudgetsPage', () => {
       const p = await open('2026-10', {
         budgets: [{ ...GROCERIES, endMonth: '2026-12' }, FUN],
       });
-      expect(queryByRole(p.card('Groceries'), 'button', 'Archive Groceries')).toBeNull();
-      expect(queryByRole(p.card('Fun'), 'button', 'Archive Fun')).not.toBeNull();
+      expect(menuItemNames(p.card('Groceries'))).not.toContain('Archive');
+      expect(menuItemNames(p.card('Fun'))).toContain('Archive');
     });
 
     it('reports a refusal with the message of the API', async () => {
       const p = await open();
-      await p.press('Archive Groceries');
+      await p.menuAction('More actions for Groceries', 'Archive');
       await p.press('Archive budget', p.confirmDialog());
       flushError(
         http.expectOne('/api/budgets/1/archive'),
@@ -1341,14 +1448,14 @@ describe('BudgetsPage', () => {
     it('is only offered for a budget without history', async () => {
       const p = await open('2026-10', { budgets: [GROCERIES, { ...FUN, hasHistory: true }] });
 
-      expect(queryByRole(p.card('Groceries'), 'button', 'Delete Groceries')).not.toBeNull();
-      expect(queryByRole(p.card('Fun'), 'button', 'Delete Fun')).toBeNull();
-      expect(queryByRole(p.card('Fun'), 'button', 'Archive Fun')).not.toBeNull();
+      expect(menuItemNames(p.card('Groceries'))).toContain('Delete');
+      expect(menuItemNames(p.card('Fun'))).not.toContain('Delete');
+      expect(menuItemNames(p.card('Fun'))).toContain('Archive');
     });
 
     it('asks first, and does nothing when cancelled', async () => {
       const p = await open();
-      await p.press('Delete Groceries');
+      await p.menuAction('More actions for Groceries', 'Delete');
 
       const text = textOf(p.confirmDialog());
       expect(text).toContain('Delete "Groceries"?');
@@ -1359,7 +1466,7 @@ describe('BudgetsPage', () => {
 
     it('deletes once confirmed, reloads and puts focus on the list heading', async () => {
       const p = await open();
-      await p.press('Delete Groceries');
+      await p.menuAction('More actions for Groceries', 'Delete');
       await p.press('Delete budget', p.confirmDialog());
 
       const request = http.expectOne('/api/budgets/1');
@@ -1376,7 +1483,7 @@ describe('BudgetsPage', () => {
 
     it('handles 409 has_history: says what the API says and reloads, so the button goes away', async () => {
       const p = await open();
-      await p.press('Delete Groceries');
+      await p.menuAction('More actions for Groceries', 'Delete');
       await p.press('Delete budget', p.confirmDialog());
       flushError(
         http.expectOne('/api/budgets/1'),
@@ -1389,39 +1496,29 @@ describe('BudgetsPage', () => {
       expect(p.toasts()).toEqual([
         'Budget has spendings or transfers; archive it instead of deleting it',
       ]);
-      expect(queryByRole(p.card('Groceries'), 'button', 'Delete Groceries')).toBeNull();
+      expect(menuItemNames(p.card('Groceries'))).not.toContain('Delete');
     });
   });
 
   describe('reorder', () => {
-    it('has Move up and Move down on each card, and the ends cannot move further', async () => {
+    it('has Move up and Move down in the menu of each card, and the ends cannot move further', async () => {
       const p = await open();
 
-      expect(
-        getByRole(p.card('Groceries'), 'button', 'Move Groceries up').getAttribute('aria-disabled'),
-      ).toBe('true');
-      expect(
-        getByRole(p.card('Groceries'), 'button', 'Move Groceries down').getAttribute(
-          'aria-disabled',
-        ),
-      ).toBe('false');
-      expect(getByRole(p.card('Fun'), 'button', 'Move Fun up').getAttribute('aria-disabled')).toBe(
-        'false',
-      );
-      expect(
-        getByRole(p.card('Fun'), 'button', 'Move Fun down').getAttribute('aria-disabled'),
-      ).toBe('true');
+      expect(menuItem(p.card('Groceries'), 'Move up').disabled).toBe(true);
+      expect(menuItem(p.card('Groceries'), 'Move down').disabled).toBe(false);
+      expect(menuItem(p.card('Fun'), 'Move up').disabled).toBe(false);
+      expect(menuItem(p.card('Fun'), 'Move down').disabled).toBe(true);
     });
 
     it('does nothing when the first card is moved up', async () => {
       const p = await open();
-      await p.press('Move Groceries up');
+      await p.menuAction('More actions for Groceries', 'Move up');
       noRequest(/\/api\/budgets\//);
     });
 
     it('trades sort orders with the neighbour using two PATCH requests', async () => {
       const p = await open();
-      await p.press('Move Fun up');
+      await p.menuAction('More actions for Fun', 'Move up');
 
       const toFun = http.expectOne('/api/budgets/2');
       const toGroceries = http.expectOne('/api/budgets/1');
@@ -1444,9 +1541,9 @@ describe('BudgetsPage', () => {
       ).toEqual(['Fun', 'Groceries']);
     });
 
-    it('announces the move, and keeps the keyboard on the button that was used', async () => {
+    it("announces the move, and puts the keyboard on the moved card's menu button", async () => {
       const p = await open();
-      await p.press('Move Fun up');
+      await p.menuAction('More actions for Fun', 'Move up');
       http.expectOne('/api/budgets/2').flush({ ...FUN, sortOrder: 0 });
       http.expectOne('/api/budgets/1').flush({ ...GROCERIES, sortOrder: 10 });
       await p.reload({
@@ -1460,12 +1557,14 @@ describe('BudgetsPage', () => {
       expect(textOf(getByRole(p.element, 'status', /moved up/))).toBe(
         'Fun moved up. It is now number 1 of 2.',
       );
-      expect(document.activeElement).toBe(getByRole(p.card('Fun'), 'button', 'Move Fun up'));
+      expect(document.activeElement).toBe(
+        getByRole(p.card('Fun'), 'button', 'More actions for Fun'),
+      );
     });
 
     it('moves down too', async () => {
       const p = await open();
-      await p.press('Move Groceries down');
+      await p.menuAction('More actions for Groceries', 'Move down');
 
       const toGroceries = http.expectOne('/api/budgets/1');
       const toFun = http.expectOne('/api/budgets/2');
@@ -1485,7 +1584,7 @@ describe('BudgetsPage', () => {
         'Groceries moved down. It is now number 2 of 2.',
       );
       expect(document.activeElement).toBe(
-        getByRole(p.card('Groceries'), 'button', 'Move Groceries down'),
+        getByRole(p.card('Groceries'), 'button', 'More actions for Groceries'),
       );
     });
 
@@ -1495,7 +1594,7 @@ describe('BudgetsPage', () => {
         { ...FUN, sortOrder: 0 },
       ];
       const p = await open('2026-10', { budgets: tied });
-      await p.press('Move Fun up');
+      await p.menuAction('More actions for Fun', 'Move up');
 
       // A swap would change nothing. Fun already has the first number, and Groceries takes the next
       // one, so that is the only request.
@@ -1518,11 +1617,10 @@ describe('BudgetsPage', () => {
 
     it('ignores another move while one is being saved', async () => {
       const p = await open();
-      await p.press('Move Fun up');
-      expect(getByRole(p.card('Fun'), 'button', 'Move Fun up').getAttribute('aria-disabled')).toBe(
-        'true',
-      );
-      await p.press('Move Groceries down');
+      await p.menuAction('More actions for Fun', 'Move up');
+      expect(menuItem(p.card('Fun'), 'Move up').disabled).toBe(true);
+      expect(menuItem(p.card('Groceries'), 'Move down').disabled).toBe(true);
+      await p.menuAction('More actions for Groceries', 'Move down');
 
       // Only the first move sent anything.
       const patches = http.match((request) => request.method === 'PATCH');
@@ -1534,7 +1632,7 @@ describe('BudgetsPage', () => {
 
     it('reports a failure, and still loads the real order', async () => {
       const p = await open();
-      await p.press('Move Fun up');
+      await p.menuAction('More actions for Fun', 'Move up');
       flushError(http.expectOne('/api/budgets/2'), 500, 'internal_error', 'Could not save');
       http.expectOne('/api/budgets/1').flush({ ...GROCERIES, sortOrder: 10 });
       await p.reload();

@@ -1,4 +1,4 @@
-import { Component, forwardRef, input, signal } from '@angular/core';
+import { Component, forwardRef, input, model, signal } from '@angular/core';
 import { type ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
 
 let nextToggleId = 0;
@@ -11,6 +11,10 @@ let nextToggleId = 0;
  * It is a real checkbox underneath (`role="switch"` for the switch), so it works with the keyboard
  * (Space), is announced correctly and keeps its native focus. The switch shows its state by the
  * position of the knob and a check mark, not by color alone.
+ *
+ * Besides a form control it takes `[(checked)]`, for a choice that lives in a signal and not in a
+ * form (a step of a wizard that keeps its draft in a store):
+ * `<app-toggle kind="checkbox" label="First row is a header" [checked]="draft().hasHeader" (checkedChange)="set($event)" />`.
  */
 @Component({
   selector: 'app-toggle',
@@ -70,7 +74,8 @@ export class Toggle implements ControlValueAccessor {
   // The label text names the control; the hint only describes it (it would otherwise be read twice).
   protected readonly labelId = `toggle-label-${this.id}`;
   protected readonly hintId = `toggle-hint-${this.id}`;
-  protected readonly checked = signal(false);
+  /** Whether it is on. Two-way (`[(checked)]`), and what a form control writes to. */
+  readonly checked = model(false);
   protected readonly disabled = signal(false);
 
   private onChange: (value: boolean) => void = () => undefined;

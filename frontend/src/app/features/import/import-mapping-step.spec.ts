@@ -319,7 +319,9 @@ describe('ImportMappingStep', () => {
       await t.choose('Date column', '0');
       await t.choose('Amount column', '1');
 
-      expect(describedText(t.select('Date format'))).toBe('Your file\'s first date reads "25/03/2026".');
+      expect(describedText(t.select('Date format'))).toBe(
+        'Your file\'s first date reads "25/03/2026".',
+      );
       expect(describedText(t.select('Decimal separator'))).toBe(
         'Your file\'s first amount reads "12,30".',
       );
@@ -350,11 +352,15 @@ describe('ImportMappingStep', () => {
         },
       });
       await t.mapColumns();
-      expect(describedText(t.select('Date format'))).toBe('Your file\'s first date reads "26/03/2026".');
+      expect(describedText(t.select('Date format'))).toBe(
+        'Your file\'s first date reads "26/03/2026".',
+      );
 
       await t.toggleHeader();
 
-      expect(describedText(t.select('Date format'))).toBe('Your file\'s first date reads "25/03/2026".');
+      expect(describedText(t.select('Date format'))).toBe(
+        'Your file\'s first date reads "25/03/2026".',
+      );
       expect(describedText(t.select('Decimal separator'))).toBe(
         'Your file\'s first amount reads "12,30".',
       );
@@ -407,7 +413,9 @@ describe('ImportMappingStep', () => {
     it('counts the data rows, less the header, and says only the first are shown', async () => {
       const t = await setup({ file: { parse: parseResponse({ recordCount: 41 }) } });
 
-      expect(textOf(t.section())).toContain('The file has 40 data rows. Only the first few are shown.');
+      expect(textOf(t.section())).toContain(
+        'The file has 40 data rows. Only the first few are shown.',
+      );
 
       await t.toggleHeader();
 
@@ -490,7 +498,10 @@ describe('ImportMappingStep', () => {
       expect(queryByRole(t.element, 'status', /Reading the file again/)).toBeNull();
       expect(t.select('Delimiter').disabled).toBe(false);
       expect(selectedText(t.select('Delimiter'))).toBe('Comma (,)');
-      expect(optionTexts(t.select('Date column'))).toEqual(['Choose a column', 'Date;Amount;Description']);
+      expect(optionTexts(t.select('Date column'))).toEqual([
+        'Choose a column',
+        'Date;Amount;Description',
+      ]);
       for (const label of ['Date column', 'Amount column', 'Description column']) {
         expect(selectedText(t.select(label)), label).toBe('Choose a column');
       }
@@ -609,7 +620,9 @@ describe('ImportMappingStep', () => {
       flushError(http.expectOne('/api/import/preview'), 500, 'internal_error', 'The preview broke');
       await settle(t.fixture);
 
-      expect(t.alerts()).toEqual(["Couldn't check the rows. The preview broke Nothing was imported."]);
+      expect(t.alerts()).toEqual([
+        "Couldn't check the rows. The preview broke Nothing was imported.",
+      ]);
       expect(t.wizard.step()).toBe('mapping');
       expect(t.next().disabled).toBe(false);
       expect(t.back().disabled).toBe(false);
@@ -632,7 +645,12 @@ describe('ImportMappingStep', () => {
 
     it('is on for a file of one data row', async () => {
       const t = await setup({
-        file: { parse: parseResponse({ sample: [{ line: 2, cells: ['2026-10-01', '-3.50', 'Coffee'] }], recordCount: 2 }) },
+        file: {
+          parse: parseResponse({
+            sample: [{ line: 2, cells: ['2026-10-01', '-3.50', 'Coffee'] }],
+            recordCount: 2,
+          }),
+        },
       });
 
       await t.mapColumns();
@@ -643,7 +661,9 @@ describe('ImportMappingStep', () => {
 
   describe('a file with too many rows', () => {
     it('says how many rows it has and what the limit is, and cannot go on', async () => {
-      const t = await setup({ file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 2 }) } });
+      const t = await setup({
+        file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 2 }) },
+      });
 
       await t.mapColumns();
 
@@ -654,7 +674,9 @@ describe('ImportMappingStep', () => {
     });
 
     it('counts the header row as data once it is turned off', async () => {
-      const t = await setup({ file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) } });
+      const t = await setup({
+        file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) },
+      });
       await t.mapColumns();
       expect(t.alerts()).toEqual([]);
       expect(t.next().disabled).toBe(false);
@@ -668,7 +690,9 @@ describe('ImportMappingStep', () => {
     });
 
     it('takes a file of exactly the limit', async () => {
-      const t = await setup({ file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) } });
+      const t = await setup({
+        file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) },
+      });
 
       await t.mapColumns();
 
@@ -694,7 +718,10 @@ describe('ImportMappingStep', () => {
     it('lists the profiles in the picker and offers to save these settings', async () => {
       const t = await setup({ profiles: [PROFILE] });
 
-      expect(optionTexts(t.select('Saved profile'))).toEqual(['None: set the columns below', 'My bank']);
+      expect(optionTexts(t.select('Saved profile'))).toEqual([
+        'None: set the columns below',
+        'My bank',
+      ]);
       expect(getByRole(t.element, 'button', 'Manage profiles')).toBeTruthy();
       expect(textOf(t.element)).toContain('Save these settings as a profile');
     });
@@ -751,7 +778,9 @@ describe('ImportMappingStep', () => {
     it('lets the mapping be set by hand when the profiles cannot be loaded', async () => {
       const t = await setup({ profiles: 'error' });
 
-      expect(textOf(t.section())).toContain('The saved profiles could not be loaded, so none was applied.');
+      expect(textOf(t.section())).toContain(
+        'The saved profiles could not be loaded, so none was applied.',
+      );
       await t.mapColumns();
 
       expect(t.next().disabled).toBe(false);
@@ -790,7 +819,9 @@ describe('ImportMappingStep', () => {
     });
 
     it('announces the errors in live regions that are in the page before the error', async () => {
-      const t = await setup({ file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) } });
+      const t = await setup({
+        file: { parse: parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }) },
+      });
       const before = Array.from(t.element.querySelectorAll('[aria-live="polite"]'));
       expect(queryByRole(t.element, 'alert')).toBeNull();
 

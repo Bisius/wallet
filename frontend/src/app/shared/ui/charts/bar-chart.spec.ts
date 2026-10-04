@@ -109,8 +109,12 @@ describe('BarChart', () => {
       expect(c.words(c.row('Groceries'))).toContain('Groceries €340.00 of €400.00');
       expect(c.words(c.row('Fun'))).toContain('Fun €230.00 of €220.00');
       expect(c.words(c.row('Transport'))).toContain('Transport €20.00 of €80.00');
-      // An emoji is decoration before the name.
+      // An emoji is decoration before the name, drawn with the emoji font stack.
       expect(c.words(c.row('Fun'))).toContain('🎬');
+      const emoji = Array.from(c.row('Fun').querySelectorAll('span')).find(
+        (span) => span.textContent === '🎬',
+      );
+      expect(emoji?.classList.contains('font-emoji')).toBe(true);
     });
 
     it('draws each bar from zero over its track, all on one scale so lengths compare', async () => {

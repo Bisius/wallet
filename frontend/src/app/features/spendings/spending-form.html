@@ -1,8 +1,18 @@
+<!--
+  The fields are written once, as templates, because the form has two shapes: the quick add of the
+  Spendings page (compact: amount, budget and date on a line, the rest under "More") and the form of a
+  dialog (the edit dialog, the shell's Add spending), which shows every field as it always did. The
+  templates are inside the form because a control looks for its `formGroup` where its template is
+  declared, not where it is shown.
+-->
 <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
-  <div class="grid gap-4 sm:grid-cols-2">
+  <ng-template #amountTpl>
     <app-field #amountField label="Amount">
       <app-money-input formControlName="amount" />
     </app-field>
+  </ng-template>
+
+  <ng-template #budgetTpl>
     <app-field label="Budget">
       <select appInput formControlName="budgetId">
         @for (line of budgets(); track line.id) {
@@ -17,16 +27,9 @@
         }
       </select>
     </app-field>
-  </div>
+  </ng-template>
 
-  <app-toggle
-    formControlName="refund"
-    kind="checkbox"
-    label="Refund"
-    hint="Money coming back into the budget, such as a returned item."
-  />
-
-  <div class="grid gap-4 sm:grid-cols-2">
+  <ng-template #dateTpl>
     <app-field label="Date">
       <input
         appInput
@@ -36,6 +39,9 @@
         [attr.max]="lastDay()"
       />
     </app-field>
+  </ng-template>
+
+  <ng-template #descriptionTpl>
     <app-field label="Description" [optional]="true">
       <input
         appInput
@@ -44,20 +50,9 @@
         [attr.maxlength]="descriptionMaxLength"
       />
     </app-field>
-  </div>
+  </ng-template>
 
-  @if (spending()) {
-    <app-field label="Notes" [optional]="true">
-      <textarea
-        appInput
-        formControlName="notes"
-        rows="3"
-        [attr.maxlength]="notesMaxLength"
-      ></textarea>
-    </app-field>
-  }
-
-  @if (spending() || tagsOpen()) {
+  <ng-template #tagsTpl>
     <app-field
       label="Tags"
       [optional]="true"
@@ -65,31 +60,86 @@
     >
       <app-tag-input formControlName="tagIds" />
     </app-field>
+  </ng-template>
+
+  <ng-template #refundTpl>
+    <app-toggle
+      formControlName="refund"
+      kind="checkbox"
+      label="Refund"
+      hint="Money coming back into the budget, such as a returned item."
+    />
+  </ng-template>
+
+  @if (compact()) {
+    <div class="flex flex-wrap items-start gap-x-3 gap-y-4">
+      <div class="basis-32 grow">
+        <ng-container [ngTemplateOutlet]="amountTpl" />
+      </div>
+      <div class="basis-56 grow-2">
+        <ng-container [ngTemplateOutlet]="budgetTpl" />
+      </div>
+      <div class="basis-40 grow">
+        <ng-container [ngTemplateOutlet]="dateTpl" />
+      </div>
+    </div>
+
+    <app-disclosure summary="More" [(open)]="moreOpen">
+      <span class="sr-only" disclosureSummary>: description, tags and refund</span>
+      <div class="space-y-4">
+        <div class="flex flex-wrap items-start gap-x-3 gap-y-4">
+          <div class="basis-56 grow">
+            <ng-container [ngTemplateOutlet]="descriptionTpl" />
+          </div>
+          <div class="basis-56 grow">
+            <ng-container [ngTemplateOutlet]="tagsTpl" />
+          </div>
+        </div>
+        <ng-container [ngTemplateOutlet]="refundTpl" />
+      </div>
+    </app-disclosure>
   } @else {
-    <button type="button" appButton variant="ghost" size="sm" (click)="revealTags()">
-      <app-icon name="tag" />
-      Add tags
-    </button>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <ng-container [ngTemplateOutlet]="amountTpl" />
+      <ng-container [ngTemplateOutlet]="budgetTpl" />
+    </div>
+
+    <ng-container [ngTemplateOutlet]="refundTpl" />
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <ng-container [ngTemplateOutlet]="dateTpl" />
+      <ng-container [ngTemplateOutlet]="descriptionTpl" />
+    </div>
+
+    @if (spending()) {
+      <app-field label="Notes" [optional]="true">
+        <textarea
+          appInput
+          formControlName="notes"
+          rows="3"
+          [attr.maxlength]="notesMaxLength"
+        ></textarea>
+      </app-field>
+    }
+
+    @if (spending() || tagsOpen()) {
+      <ng-container [ngTemplateOutlet]="tagsTpl" />
+    } @else {
+      <button type="button" appButton variant="ghost" size="sm" (click)="revealTags()">
+        <app-icon name="tag" />
+        Add tags
+      </button>
+    }
   }
 
   @if (formError(); as error) {
-    <p
-      role="alert"
-      class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-    >
-      <app-icon name="alert" class="mt-0.5 text-negative" />
-      <span>{{ error }}</span>
-    </p>
+    <app-alert tone="error">{{ error }}</app-alert>
   }
 
   <div
-    [class]="
-      spending()
-        ? 'dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end'
-        : 'flex flex-col gap-2 sm:flex-row sm:justify-end'
-    "
+    [class]="dialogFooter() ? 'dialog-footer' : 'flex flex-col gap-2 sm:flex-row sm:justify-end'"
   >
-    @if (spending()) {
+    @if (dialogFooter()) {
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

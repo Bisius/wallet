@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { a11yProblems } from '../../../testing/a11y';
 import { getByRole, queryByRole, textOf } from '../../../testing/dom';
 import { apiError, render, settle } from '../../../testing/harness';
 import { EmptyState, ErrorState, LoadingState } from './states';
@@ -55,6 +56,16 @@ describe('loading, empty and error states', () => {
     getByRole(alert, 'button', 'Try again').click();
     await settle(fixture);
     expect((element.querySelector('#retries') as HTMLElement).textContent).toBe('1');
+  });
+
+  it('is one alert, with an icon that is only decoration, so the words carry the meaning', async () => {
+    const fixture = await render(StatesHost);
+    const element = fixture.nativeElement as HTMLElement;
+
+    const alerts = element.querySelectorAll('[role="alert"]');
+    expect(alerts.length).toBe(1);
+    expect(alerts[0].querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(a11yProblems(element)).toEqual([]);
   });
 
   it('falls back to what the HTTP status means when the response has no ApiError body', async () => {

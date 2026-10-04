@@ -9,11 +9,15 @@ import { TodayStore } from '../../core/today.store';
 import { formatDate } from '../../shared/format';
 import { MoneyPipe } from '../../shared/money.pipe';
 import { Amount } from '../../shared/ui/amount';
-import { Icon } from '../../shared/ui/icon';
+import { AsyncSection } from '../../shared/ui/async-section';
+import { Badge } from '../../shared/ui/badge';
+import { LinkButton } from '../../shared/ui/link-button';
+import { AppList, ListRow } from '../../shared/ui/list';
 import { ProgressBar } from '../../shared/ui/progress-bar';
+import { SectionHelp } from '../../shared/ui/section';
+import { SeeAllLink } from '../../shared/ui/see-all-link';
 import { EmptyState } from '../../shared/ui/states';
 import { SubscriptionsApi } from '../subscriptions/subscriptions.api';
-import { DashboardCard } from './dashboard-card';
 
 /** "Today", "Tomorrow" or "In 12 days": `daysUntil` is the API's. */
 function untilText(daysUntil: number): string {
@@ -31,15 +35,24 @@ function untilText(daysUntil: number): string {
  */
 @Component({
   selector: 'app-upcoming-renewals-section',
-  imports: [Amount, DashboardCard, EmptyState, Icon, MoneyPipe, ProgressBar, RouterLink],
+  imports: [
+    Amount,
+    AppList,
+    AsyncSection,
+    Badge,
+    EmptyState,
+    LinkButton,
+    ListRow,
+    MoneyPipe,
+    ProgressBar,
+    RouterLink,
+    SectionHelp,
+    SeeAllLink,
+  ],
   template: `
-    <app-dashboard-card
-      title="Upcoming renewals"
-      [description]="
-        'Subscriptions billed in the next ' +
-        days +
-        ' days, whichever month you are looking at. A yearly renewal shows how much of its price is already set aside.'
-      "
+    <app-async-section
+      heading="Upcoming renewals"
+      [description]="'Subscriptions billed in the next ' + days + ' days.'"
       [state]="state()"
       [error]="renewals.error()"
       loadingLabel="Loading the upcoming renewals…"
@@ -47,15 +60,18 @@ function untilText(daysUntil: number): string {
       (retry)="renewals.reload()"
     >
       @if (items().length > 0) {
-        <a
-          cardAction
-          routerLink="/subscriptions"
+        <app-see-all-link
+          sectionAction
+          route="/subscriptions"
+          what="subscriptions"
           [queryParams]="selected.linkParams()"
-          class="inline-flex min-h-9 items-center gap-1 rounded-control px-3 py-1.5 text-sm font-semibold text-accent hover:bg-subtle"
-        >
-          Open subscriptions
-          <app-icon name="chevron-right" />
-        </a>
+        />
+      }
+      @if (items().length > 0) {
+        <p sectionHelp>
+          Whichever month you are looking at. A yearly renewal shows how much of its price is
+          already set aside.
+        </p>
       }
 
       @if (renewals.hasValue()) {
@@ -64,44 +80,27 @@ function untilText(daysUntil: number): string {
             [title]="'Nothing renews in the next ' + days + ' days'"
             description="Subscriptions show up here a month or so before they are billed."
           >
-            <a
-              routerLink="/subscriptions"
-              [queryParams]="selected.linkParams()"
-              class="inline-flex min-h-11 items-center justify-center rounded-control border border-line-strong bg-surface px-4 py-2 text-sm font-semibold text-ink hover:bg-subtle"
-            >
+            <a appLinkButton routerLink="/subscriptions" [queryParams]="selected.linkParams()">
               Go to subscriptions
             </a>
           </app-empty-state>
         } @else {
-          <ul class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <ul appList density="compact">
             @for (item of items(); track item.renewal.id) {
               <li
-                class="space-y-2 rounded-control border-l-4 border-line-strong bg-subtle p-3"
-                [class.ring-2]="item.renewal.yearly"
-                [class.ring-accent]="item.renewal.yearly"
-                [style.border-left-color]="item.renewal.color"
+                appListRow
+                [color]="item.renewal.color"
+                [amountNote]="item.renewal.yearly ? 'a year' : 'a month'"
               >
-                <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-                  <div class="min-w-0">
-                    <h3 class="font-semibold break-words">{{ item.renewal.name }}</h3>
-                    <p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                      <span class="font-medium">{{ item.until }}</span>
-                      <span class="text-muted">{{ item.date }}</span>
-                      @if (item.renewal.yearly) {
-                        <span
-                          class="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-text ring-1 ring-accent-text/40"
-                          >Yearly renewal</span
-                        >
-                      }
-                    </p>
-                  </div>
-                  <p class="font-semibold">
-                    <app-amount [cents]="item.renewal.amount" />
-                    <span class="text-sm font-normal text-muted">{{
-                      item.renewal.yearly ? ' a year' : ' a month'
-                    }}</span>
-                  </p>
-                </div>
+                <span rowTitle>{{ item.renewal.name }}</span>
+                <p rowMeta>
+                  <span class="font-medium text-ink">{{ item.until }}</span>
+                  <span>{{ item.date }}</span>
+                  @if (item.renewal.yearly) {
+                    <app-badge tone="accent">Yearly renewal</app-badge>
+                  }
+                </p>
+                <app-amount rowAmount [cents]="item.renewal.amount" />
 
                 @if (item.renewal.yearly && item.renewal.reserved !== null) {
                   <app-progress-bar
@@ -126,7 +125,7 @@ function untilText(daysUntil: number): string {
           </ul>
         }
       }
-    </app-dashboard-card>
+    </app-async-section>
   `,
   host: { class: 'block' },
 })

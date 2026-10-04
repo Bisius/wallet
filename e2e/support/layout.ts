@@ -257,6 +257,109 @@ export async function measureLayout(page: Page): Promise<LayoutReport> {
   );
 }
 
+/** What the fixed bars of a phone leave of the page: see `measureBars`. */
+export interface BarsReport {
+  /** The sticky top bar: how tall it is (0 when there is none). */
+  topBarHeight: number;
+  /** Where it is with the page scrolled to its end: 0 when it sticks to the top, as it should. null when the page does not scroll. */
+  topBarTopWhenScrolled: number | null;
+  /** The tab bar fixed to the bottom of the window, when the page has one. */
+  tabBar: { top: number; height: number } | null;
+  /** The floating "Add spending" button over it, when the page has one. */
+  fab: { top: number; height: number } | null;
+  /** Content that is under a fixed bar when the page is scrolled to its end. Empty when it all clears them. */
+  covered: string[];
+}
+
+/**
+ * How the fixed bars of a phone sit on the page: the sticky top bar, the tab bar fixed to the bottom
+ * and the floating button over it. The bars are fixed, so the layout checks above skip them (they do
+ * not make the page wider, and they are always on screen), but a fixed bar can hide what scrolls under
+ * it. This scrolls to the very end of the page, finds the lowest content (what is in `main`, not the
+ * bars) and says what is under a bar. It puts the scroll position back.
+ *
+ * Content that is only a box (a card's bottom edge, padding) is content too: the page has to leave room
+ * under the last thing a user can read or press, with the floating button's corner included.
+ */
+export async function measureBars(page: Page): Promise<BarsReport> {
+  return page.evaluate(async (): Promise<BarsReport> => {
+    const rect = (element: Element | null) => {
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      if (style.display === 'none' || box.width < 1.5 || box.height < 1.5) return null;
+      return { top: box.top, height: box.height };
+    };
+    const header = document.querySelector('header');
+    const tabs = rect(document.querySelector('nav[aria-label="Main (tabs)"]'));
+    const fab = rect(document.querySelector('app-add-spending-fab button'));
+    const main = document.querySelector('main');
+    const covered: string[] = [];
+    const describe = (element: Element): string => {
+      const classes = [...element.classList].slice(0, 3).join('.');
+      const label = (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 40);
+      return `<${element.tagName.toLowerCase()}${classes ? '.' + classes : ''}> "${label}"`;
+    };
+
+    const before = { x: window.scrollX, y: window.scrollY };
+    window.scrollTo({ left: 0, top: document.documentElement.scrollHeight, behavior: 'instant' });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    if (main && (tabs || fab)) {
+      let lowest = { bottom: -Infinity, element: main as Element };
+      for (const element of main.querySelectorAll('*')) {
+        const style = getComputedStyle(element);
+        if (
+          style.position === 'fixed' ||
+          style.display === 'none' ||
+          style.visibility === 'hidden'
+        ) {
+          continue;
+        }
+        if (element.closest('[inert]') || element.closest('app-add-spending-fab')) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width <= 1.5 || box.height <= 1.5) continue;
+        // What is inside a box for a screen reader only (`sr-only`: 1 x 1 px, clipped, like the table
+        // that stands for a chart) is not content that a person reads.
+        let hidden = false;
+        for (let node: Element | null = element; node && node !== main; node = node.parentElement) {
+          const nodeBox = node.getBoundingClientRect();
+          if (
+            nodeBox.width <= 1.5 &&
+            nodeBox.height <= 1.5 &&
+            getComputedStyle(node).overflow !== 'visible'
+          ) {
+            hidden = true;
+            break;
+          }
+        }
+        if (hidden) continue;
+        // Folded away in a closed `<details>` (the summary itself is shown).
+        const folded = element.closest('details:not([open])');
+        if (folded && !element.closest('summary')) continue;
+        if (box.bottom > lowest.bottom) lowest = { bottom: box.bottom, element };
+      }
+      const limit = Math.min(tabs?.top ?? Infinity, fab?.top ?? Infinity);
+      if (lowest.bottom > limit + 0.5) {
+        covered.push(
+          `${describe(lowest.element)} ends at ${Math.round(lowest.bottom)}, under the bar that starts at ${Math.round(limit)}`,
+        );
+      }
+    }
+
+    const topBarTopWhenScrolled =
+      header && window.scrollY > 0 ? header.getBoundingClientRect().top : null;
+    window.scrollTo({ left: before.x, top: before.y, behavior: 'instant' });
+    return {
+      topBarHeight: header ? header.getBoundingClientRect().height : 0,
+      topBarTopWhenScrolled,
+      tabBar: tabs,
+      fab,
+      covered,
+    };
+  });
+}
+
 /**
  * Where a modal dialog sits, when one is open: all of it must be on the screen, and its heading too.
  * Returns what is wrong, or an empty list (also when no dialog is open).

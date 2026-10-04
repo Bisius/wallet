@@ -21,9 +21,9 @@ import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { nonNegativeAmount } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
+import { Alert, type AlertTone } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { UNASSIGNED_LABEL } from './savings-data';
 import { Settlement, settlementPhrase } from './settlement';
 
@@ -48,7 +48,7 @@ interface SplitRow {
  */
 @Component({
   selector: 'app-settle-split-dialog',
-  imports: [ReactiveFormsModule, AppDialog, Field, MoneyInput, Button, Icon, MoneyPipe],
+  imports: [Alert, ReactiveFormsModule, AppDialog, Field, MoneyInput, Button, MoneyPipe],
   templateUrl: './settle-split-dialog.html',
   host: { class: 'block' },
 })
@@ -94,6 +94,11 @@ export class SettleSplitDialog implements OnInit {
   });
   /** What is still to be given a place: positive is missing, negative is too much. */
   protected readonly left = computed(() => this.target() - this.allocated());
+  /** Done, still something to share out, or too much: the tone of the line that says how much is left. */
+  protected readonly leftTone = computed<AlertTone>(() => {
+    const left = this.left();
+    return left === 0 ? 'success' : left > 0 ? 'info' : 'error';
+  });
 
   private lastAmount: Cents | null = null;
 

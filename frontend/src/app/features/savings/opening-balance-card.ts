@@ -2,9 +2,9 @@ import { Component, computed, inject, output } from '@angular/core';
 import { SettingsStore } from '../../core/settings.store';
 import { formatDate } from '../../shared/format';
 import { Amount } from '../../shared/ui/amount';
+import { AsyncSection } from '../../shared/ui/async-section';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
-import { ErrorState, LoadingState } from '../../shared/ui/states';
 import { SavingsData } from './savings-data';
 
 /**
@@ -14,45 +14,32 @@ import { SavingsData } from './savings-data';
  */
 @Component({
   selector: 'app-opening-balance-card',
-  imports: [Amount, Button, ErrorState, Icon, LoadingState],
+  imports: [Amount, AsyncSection, Button, Icon],
   template: `
-    <section aria-labelledby="opening-heading" class="card space-y-3">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <h2 id="opening-heading" class="text-lg font-semibold">Starting point</h2>
-        @if (opening()) {
-          <button appButton variant="secondary" size="sm" (click)="edit.emit()">
-            <app-icon name="pencil" />
-            Edit opening balance
-          </button>
-        }
-      </div>
-
-      @switch (data.openingState()) {
-        @case ('loading') {
-          <app-loading-state label="Loading your opening balance…" />
-        }
-        @case ('error') {
-          <app-error-state
-            title="Couldn't load your opening balance"
-            [error]="data.opening.error()"
-            (retry)="data.opening.reload()"
-          />
-        }
-        @default {
-          @if (opening(); as opening) {
-            <p>
-              Opening balance:
-              <span class="text-lg font-semibold"><app-amount [cents]="opening.amount" /></span>
-              on {{ dateLabel() }}
-            </p>
-            <p class="text-sm text-muted">
-              This is the balance of your savings on the first day of your start month. Everything
-              after it is tracked here as it happens.
-            </p>
-          }
-        }
+    <app-async-section
+      heading="Starting point"
+      description="This is the balance of your savings on the first day of your start month. Everything after it is tracked here as it happens."
+      [state]="data.openingState()"
+      [error]="data.opening.error()"
+      loadingLabel="Loading your opening balance…"
+      errorTitle="Couldn't load your opening balance"
+      (retry)="data.opening.reload()"
+    >
+      @if (opening()) {
+        <button sectionAction appButton variant="secondary" size="sm" (click)="edit.emit()">
+          <app-icon name="pencil" />
+          Edit opening balance
+        </button>
       }
-    </section>
+
+      @if (opening(); as opening) {
+        <p>
+          Opening balance:
+          <span class="text-lg font-semibold"><app-amount [cents]="opening.amount" /></span>
+          on {{ dateLabel() }}
+        </p>
+      }
+    </app-async-section>
   `,
   host: { class: 'block' },
 })

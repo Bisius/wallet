@@ -15,10 +15,13 @@ import {
   figure,
   glance,
   monthSwitcher,
+  openFilters,
+  openMore,
   openPage,
   spendingRow,
   spendingsList,
 } from '../support/month-ui';
+import { moreActions, rowAction } from '../support/menu';
 import { eur } from '../support/money';
 import {
   addIncome,
@@ -134,13 +137,10 @@ async function checkpoint(page: Page, snapshot: Snapshot): Promise<void> {
   });
   for (const [name, figures] of budgets) await expectDashboardRow(page, name, figures);
 
+  // The budgets page's strip is slim: budgeted and unallocated (income and fixed costs are the
+  // dashboard's above and the subscriptions page's below).
   await openPage(page, 'Budgets');
-  await expectGlance(page, {
-    income: INCOME,
-    fixedCosts: FIXED_COSTS,
-    budgeted: BUDGETED,
-    unallocated: UNALLOCATED,
-  });
+  await expectGlance(page, { budgeted: BUDGETED, unallocated: UNALLOCATED });
   for (const [name, figures] of budgets) await expectBudgetCard(page, name, figures);
 
   await openPage(page, 'Subscriptions');
@@ -435,6 +435,8 @@ test.describe('refund, edit and delete', () => {
     const form = addForm(page);
     await form.getByLabel('Amount', { exact: true }).fill('30');
     await expect(form.getByRole('button', { name: 'Add spending' })).toBeVisible();
+    // The switch is under "More"; turning it on keeps "More" open.
+    await openMore(page);
     await form.getByRole('checkbox', { name: 'Refund' }).check();
     await expect(form.getByRole('button', { name: 'Add refund' })).toBeVisible();
     await form.getByRole('checkbox', { name: 'Refund' }).uncheck();
@@ -464,6 +466,7 @@ test.describe('refund, edit and delete', () => {
     await checkpoint(page, { spent: 50270, budgets: afterRefund });
 
     // 8. Edit Team lunch from 130.00 to 110.00: Eating out lands on exactly 100%.
+    // (The name of the row does it too: it is a button named for what it does.)
     await page.getByRole('button', { name: 'Edit Team lunch, €130.00', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Edit spending' });
     await expect(dialog.getByLabel('Amount', { exact: true })).toHaveValue('130.00');
@@ -487,9 +490,7 @@ test.describe('refund, edit and delete', () => {
     await openPage(page, 'Spendings');
 
     // 9. Delete Bakery and cheese (32.20). The confirmation can be turned down first.
-    await page
-      .getByRole('button', { name: 'Delete Bakery and cheese, €32.20', exact: true })
-      .click();
+    await rowAction(spendingRow(page, 'Bakery and cheese'), 'Delete');
     const confirm = page.getByRole('dialog', { name: 'Delete this spending?' });
     await expect(confirm).toContainText(
       'Bakery and cheese, €32.20 on Sun, Mar 8, 2026 will be removed from Groceries.',
@@ -499,9 +500,7 @@ test.describe('refund, edit and delete', () => {
     await expect(spendingRow(page, 'Bakery and cheese')).toBeVisible();
     expect((await getMonth(wallet.api, '2026-03')).totals.spent).toBe(48270);
 
-    await page
-      .getByRole('button', { name: 'Delete Bakery and cheese, €32.20', exact: true })
-      .click();
+    await rowAction(spendingRow(page, 'Bakery and cheese'), 'Delete');
     await page
       .getByRole('dialog', { name: 'Delete this spending?' })
       .getByRole('button', { name: 'Delete spending' })
@@ -771,6 +770,8 @@ test.describe('search and filters', () => {
     await expect(list).toContainText(summary(7, 50270));
     await expect(search).toHaveValue('');
 
+    // The rest of the filters are in the panel under the search box.
+    await openFilters(page);
     // One budget: 12000 + 13000 - 3000 = 22000 over 3 rows (the refund is one of them).
     await budgetFilter.selectOption({ label: 'Eating out' });
     await expect(list).toContainText(summary(3, 22000));
@@ -907,28 +908,31 @@ test.describe('the spending form and its dialogs', () => {
     });
     await page.goto('/spendings');
 
-    const edit = page.getByRole('button', { name: 'Edit Weekly shop, €45.50', exact: true });
+    const row = spendingRow(page, 'Weekly shop');
+    // Edit is in the menu of the row, and the title of the row does it too; the dialog gives focus
+    // back to the button of the menu either way.
+    const menu = moreActions(row);
+    const edit = () => rowAction(row, 'Edit');
     const dialog = page.getByRole('dialog', { name: 'Edit spending' });
     const amount = dialog.getByLabel('Amount', { exact: true });
-    const row = spendingRow(page, 'Weekly shop');
 
     // Cancel throws the change away.
-    await edit.click();
+    await edit();
     await expect(amount).toBeFocused();
     await amount.fill('99');
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog).toBeHidden();
     await expect(row).toContainText('€45.50');
-    await expect(edit).toBeFocused();
+    await expect(menu).toBeFocused();
 
     // So does Escape, and the dialog starts again from what is stored.
-    await edit.click();
+    await edit();
     await expect(amount).toHaveValue('45.50');
     await amount.fill('99');
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(row).toContainText('€45.50');
-    await edit.click();
+    await edit();
     await expect(amount).toHaveValue('45.50');
 
     // A wrong amount keeps the dialog open and says why; nothing is sent.
@@ -950,7 +954,7 @@ test.describe('the spending form and its dialogs', () => {
     expect((await getMonth(wallet.api, '2026-03')).totals.spent).toBe(4550);
 
     // Moving the spending to another budget moves it between the cards: Groceries 0, Fun 4550.
-    await edit.click();
+    await edit();
     await chooseBudget(dialog, 'Fun');
     await dialog.getByRole('button', { name: 'Save changes' }).click();
     await expect(page.getByText('Spending updated.')).toBeVisible();
@@ -979,24 +983,24 @@ test.describe('the spending form and its dialogs', () => {
     });
     await page.goto('/spendings');
 
-    const remove = page.getByRole('button', { name: 'Delete Weekly shop, €45.50', exact: true });
+    const remove = () => rowAction(spendingRow(page, 'Weekly shop'), 'Delete');
     const confirm = page.getByRole('dialog', { name: 'Delete this spending?' });
 
-    await remove.click();
+    await remove();
     // Focus starts on Cancel, so a stray Enter never deletes.
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(confirm).toBeHidden();
     await expect(spendingRow(page, 'Weekly shop')).toBeVisible();
 
-    await remove.click();
+    await remove();
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(confirm).toBeHidden();
     await expect(spendingRow(page, 'Weekly shop')).toBeVisible();
 
     // A click on the dimmed page behind it is a click outside the dialog.
-    await remove.click();
+    await remove();
     await expect(confirm.getByRole('button', { name: 'Cancel' })).toBeFocused();
     await page.mouse.click(5, 5);
     await expect(confirm).toBeHidden();

@@ -13,6 +13,7 @@ import {
 } from '../../../testing/dom';
 import { goalDto, savingsDto } from '../../../testing/fixtures';
 import { flushError, settle } from '../../../testing/harness';
+import { menuItemNames } from '../../../testing/menu';
 import { openSavingsPage } from '../../../testing/savings-harness';
 
 /** Today in these specs is 2026-10-02, so the deadline 2027-03-15 leaves six months (October to March). */
@@ -43,6 +44,11 @@ describe('the goals', () => {
   const card = (p: Page, name: string) => getByRole(p.element, 'article', name);
   const cardText = (p: Page, name: string) => textOf(card(p, name));
   const section = (p: Page) => p.region('Goals');
+  /** The buttons a card shows: the ones in its menu are not among them. */
+  const visibleButtons = (cardElement: HTMLElement) =>
+    queryAllByRole(cardElement, 'button')
+      .filter((button) => !button.hasAttribute('appMenuItem'))
+      .map((button) => button.getAttribute('aria-label') ?? textOf(button));
 
   describe('the cards', () => {
     it('invites the user to create a first goal', async () => {
@@ -113,6 +119,32 @@ describe('the goals', () => {
       expect(text).not.toContain('Put aside');
     });
 
+    it('gives each status a meaning besides its word: active and reached are positive, overdue is a warning, archived is neutral', async () => {
+      const p = await open([
+        goalDto({ id: 1, name: 'Rainy day', deadline: null }),
+        goalDto({ id: 2, name: 'Laptop', targetAmount: 90000, balance: 90000 }),
+        goalDto({
+          id: 3,
+          name: 'Bike',
+          targetAmount: 100000,
+          balance: 35000,
+          deadline: '2026-02-10',
+        }),
+        goalDto({ id: 4, name: 'Holiday', archived: true }),
+      ]);
+      const tone = (name: string, label: string) => {
+        const badge = Array.from(card(p, name).querySelectorAll<HTMLElement>('app-badge')).find(
+          (candidate) => textOf(candidate) === label,
+        );
+        return [...(badge?.classList ?? [])].find((className) => className.startsWith('bg-'));
+      };
+
+      expect(tone('Rainy day', 'Active')).toBe('bg-positive-soft');
+      expect(tone('Laptop', 'Reached')).toBe('bg-positive-soft');
+      expect(tone('Bike', 'Overdue')).toBe('bg-warning-soft');
+      expect(tone('Holiday', 'Archived')).toBe('bg-subtle');
+    });
+
     it('lets the progress pass 100: the bar is full, the words say how far', async () => {
       const p = await open([
         goalDto({ id: 1, name: 'Laptop', targetAmount: 90000, balance: 135000 }),
@@ -150,13 +182,17 @@ describe('the goals', () => {
       expect(text).toContain('Below zero: more was taken out of this goal than it held.');
       expect(text).toContain('0% of the target');
       expect(p.alerts()).toEqual([]);
-      expect(card(p, 'Car').querySelector('.text-negative')).toBeNull();
+      // No error color on the figures or the words (the red of Delete in the menu is another matter).
+      expect(card(p, 'Car').querySelector('.text-negative:not([appMenuItem])')).toBeNull();
     });
 
     it('colors the card with the goal color', async () => {
       const p = await open([HOLIDAY]);
 
-      expect((card(p, 'Holiday') as HTMLElement).style.borderLeftColor).toBe('rgb(37, 99, 235)');
+      // A dot beside the name, for the eye only: the name says what the card is.
+      const dot = card(p, 'Holiday').querySelector('span[appColorDot]') as HTMLElement;
+      expect(dot.style.backgroundColor).toBe('rgb(37, 99, 235)');
+      expect(dot.getAttribute('aria-hidden')).toBe('true');
     });
 
     it('folds archived goals away in a section of their own, with the actions that make sense for them', async () => {
@@ -178,34 +214,30 @@ describe('the goals', () => {
       expect(archived).toContain('Archived');
       expect(archived).toContain('Deadline: January 2027');
       expect(archived).not.toContain('Put aside');
-      // It takes no new money, but what it holds can be taken out.
-      expect(
-        queryAllByRole(card(p, 'Old laptop'), 'button').map((b) => b.getAttribute('aria-label')),
-      ).toEqual([
-        'Withdraw from Old laptop',
-        'Reallocate money from Old laptop',
-        'Edit Old laptop',
-        'Unarchive Old laptop',
-        'Delete Old laptop',
+      // It takes no new money, but what it holds can be taken out: no Deposit button, and the menu
+      // has Withdraw and Reallocate, and what any goal can do.
+      expect(visibleButtons(card(p, 'Old laptop'))).toEqual(['More actions for Old laptop']);
+      expect(menuItemNames(card(p, 'Old laptop'))).toEqual([
+        'Withdraw',
+        'Reallocate',
+        'Edit',
+        'Unarchive',
+        'Delete',
       ]);
       expect(archived).toContain('you can still take out what it holds');
       // The goal in use is outside the folded section and can take money.
       expect(details.contains(card(p, 'Holiday'))).toBe(false);
-      expect(
-        queryAllByRole(card(p, 'Holiday'), 'button').map((b) => b.getAttribute('aria-label')),
-      ).toEqual([
+      expect(visibleButtons(card(p, 'Holiday'))).toEqual([
         'Deposit to Holiday',
-        'Withdraw from Holiday',
-        'Edit Holiday',
-        'Archive Holiday',
-        'Delete Holiday',
+        'More actions for Holiday',
       ]);
+      expect(menuItemNames(card(p, 'Holiday'))).toEqual(['Withdraw', 'Edit', 'Archive', 'Delete']);
     });
 
     it('says so when every goal is archived', async () => {
       const p = await open([goalDto({ id: 2, name: 'Old laptop', archived: true })]);
 
-      expect(textOf(section(p))).toContain('All your goals are archived.');
+      expect(textOf(section(p))).toContain('All your goals are archived');
       expect(textOf(section(p))).not.toContain('No goals yet');
     });
   });
@@ -311,7 +343,7 @@ describe('the goals', () => {
 
   describe('editing a goal', () => {
     const edit = async (p: Page, name = 'Holiday') => {
-      await p.press(`Edit ${name}`, card(p, name));
+      await p.menuAction(`More actions for ${name}`, 'Edit');
       return p.dialog('app-goal-form') as HTMLElement;
     };
 
@@ -390,7 +422,7 @@ describe('the goals', () => {
     it('archives a goal, says it keeps its balance, and moves its card to the archived section', async () => {
       const p = await open([HOLIDAY]);
 
-      await p.press('Archive Holiday');
+      await p.menuAction('More actions for Holiday', 'Archive');
       const request = http.expectOne('/api/goals/1');
       expect(request.request.method).toBe('PATCH');
       expect(request.request.body).toEqual({ archived: true });
@@ -404,7 +436,7 @@ describe('the goals', () => {
       ]);
       const details = section(p).querySelector('details') as HTMLDetailsElement;
       expect(details.contains(card(p, 'Holiday'))).toBe(true);
-      expect(textOf(section(p))).toContain('All your goals are archived.');
+      expect(textOf(section(p))).toContain('All your goals are archived');
       expect(document.activeElement).toBe(getByRole(section(p), 'heading', 'Goals'));
     });
 
@@ -412,7 +444,7 @@ describe('the goals', () => {
       const archived = { ...HOLIDAY, archived: true, status: 'archived' as const };
       const p = await open([archived]);
 
-      await p.press('Unarchive Holiday');
+      await p.menuAction('More actions for Holiday', 'Unarchive');
       const request = http.expectOne('/api/goals/1');
       expect(request.request.body).toEqual({ archived: false });
       request.flush(HOLIDAY);
@@ -424,7 +456,7 @@ describe('the goals', () => {
 
     it('says what the API said when it fails, and loads the goals again', async () => {
       const p = await open([HOLIDAY]);
-      await p.press('Archive Holiday');
+      await p.menuAction('More actions for Holiday', 'Archive');
 
       flushError(http.expectOne('/api/goals/1'), 404, 'not_found', 'Goal 1 not found');
       await p.reload({ savings: savingsDto({ goals: [] }) });
@@ -438,7 +470,7 @@ describe('the goals', () => {
     it('asks first, and says the balance moves to unassigned savings and nothing is lost', async () => {
       const p = await open([HOLIDAY]);
 
-      await p.press('Delete Holiday');
+      await p.menuAction('More actions for Holiday', 'Delete');
       await settle(p.fixture);
 
       const dialog = p.confirmDialog();
@@ -452,7 +484,7 @@ describe('the goals', () => {
 
     it('deletes the goal when confirmed, then loads everything again and confirms', async () => {
       const p = await open([HOLIDAY], { unassigned: 10000 });
-      await p.press('Delete Holiday');
+      await p.menuAction('More actions for Holiday', 'Delete');
 
       await p.confirm('Delete goal');
       const request = http.expectOne('/api/goals/1');
@@ -468,7 +500,7 @@ describe('the goals', () => {
     it('says a goal below zero moves its negative balance too', async () => {
       const p = await open([goalDto({ id: 1, name: 'Car', balance: -5000 })]);
 
-      await p.press('Delete Car');
+      await p.menuAction('More actions for Car', 'Delete');
       await settle(p.fixture);
 
       expect(textOf(p.confirmDialog())).toContain('Its balance of -€50.00 moves');
@@ -476,7 +508,7 @@ describe('the goals', () => {
 
     it('does nothing when the user cancels', async () => {
       const p = await open([HOLIDAY]);
-      await p.press('Delete Holiday');
+      await p.menuAction('More actions for Holiday', 'Delete');
 
       await p.confirm('Cancel');
 
@@ -486,7 +518,7 @@ describe('the goals', () => {
 
     it('says what the API said when it fails', async () => {
       const p = await open([HOLIDAY]);
-      await p.press('Delete Holiday');
+      await p.menuAction('More actions for Holiday', 'Delete');
       await p.confirm('Delete goal');
 
       flushError(http.expectOne('/api/goals/1'), 500, 'internal_error', 'Something went wrong');

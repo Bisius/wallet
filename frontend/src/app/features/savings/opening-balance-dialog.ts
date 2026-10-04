@@ -22,9 +22,9 @@ import { applyApiErrors, focusFirstInvalid } from '../../shared/forms/api-errors
 import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { nonNegativeAmount } from '../../shared/forms/validators';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SavingsApi } from './savings.api';
@@ -41,12 +41,12 @@ import { SavingsApi } from './savings.api';
 @Component({
   selector: 'app-opening-balance-dialog',
   imports: [
+    Alert,
     ReactiveFormsModule,
     AppDialog,
     Field,
     MoneyInput,
     Button,
-    Icon,
     ErrorState,
     LoadingState,
   ],
@@ -55,7 +55,7 @@ import { SavingsApi } from './savings.api';
       @switch (state()) {
         @case ('loading') {
           <app-loading-state label="Loading your opening balance…" />
-          <div class="dialog-footer flex justify-end">
+          <div class="dialog-footer">
             <button appButton variant="secondary" (click)="cancelled.emit()">
               {{ cancelLabel() }}
             </button>
@@ -67,7 +67,7 @@ import { SavingsApi } from './savings.api';
             [error]="error()"
             (retry)="retry.emit()"
           />
-          <div class="dialog-footer flex justify-end">
+          <div class="dialog-footer">
             <button appButton variant="secondary" (click)="cancelled.emit()">
               {{ cancelLabel() }}
             </button>
@@ -87,16 +87,10 @@ import { SavingsApi } from './savings.api';
               </app-field>
 
               @if (formError(); as message) {
-                <p
-                  role="alert"
-                  class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-                >
-                  <app-icon name="alert" class="mt-0.5 text-negative" />
-                  <span>{{ message }}</span>
-                </p>
+                <app-alert tone="error">{{ message }}</app-alert>
               }
 
-              <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+              <div class="dialog-footer">
                 <button
                   appButton
                   variant="secondary"

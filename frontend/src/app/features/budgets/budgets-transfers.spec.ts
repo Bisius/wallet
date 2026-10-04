@@ -304,7 +304,7 @@ describe('BudgetsPage: moving money', () => {
     it('is looked at again after a transfer is deleted', async () => {
       const p = await openBudgetsPage(http, { transfers: [transferDto({ id: 5 })] });
       const savings = await withOverview(p);
-      await p.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await p.transferAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
       await p.press('Delete transfer', p.confirmDialog());
       http.expectOne('/api/transfers/5').flush(null, { status: 204, statusText: 'No Content' });
 
@@ -400,7 +400,7 @@ describe('BudgetsPage: moving money', () => {
 
     it('deletes a transfer after asking, and loads everything again', async () => {
       const p = await openBudgetsPage(http, { transfers: [transferDto({ id: 5 })] });
-      await p.press('Delete transfer of €50.00 from Groceries to Fun on Oct 2, 2026');
+      await p.transferAction('€50.00 from Groceries to Fun on Oct 2, 2026', 'Delete');
       await p.press('Delete transfer', p.confirmDialog());
 
       const request = http.expectOne('/api/transfers/5');
@@ -426,7 +426,7 @@ describe('BudgetsPage: moving money', () => {
         transfers: [transferDto({ id: 5, date: '2026-09-20' })],
       });
 
-      await p.press('Delete transfer of €50.00 from Groceries to Fun on Sep 20, 2026');
+      await p.transferAction('€50.00 from Groceries to Fun on Sep 20, 2026', 'Delete');
 
       expect(textOf(p.confirmDialog())).toContain(
         "September 2026 is already closed, so this changes that month's budgets and the amount due to savings for it.",

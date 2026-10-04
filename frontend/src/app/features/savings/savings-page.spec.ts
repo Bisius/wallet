@@ -148,6 +148,25 @@ describe('SavingsPage', () => {
       expect(buttons).toEqual(['Deposit', 'Withdraw', 'Reallocate']);
     });
 
+    it('has the three buttons in one group, beside the heading, and the figures as a strip of their own', async () => {
+      const p = await openSavingsPage(http, {
+        savings: savingsDto({ balance: 50000, unassigned: 20000, goals: [goalDto({ id: 1 })] }),
+      });
+
+      const group = getByRole(p.region('Your savings'), 'group', 'Move money by hand');
+      expect(queryAllByRole(group, 'button').map((b) => textOf(b))).toEqual([
+        'Deposit',
+        'Withdraw',
+        'Reallocate',
+      ]);
+      // The figures are a list of terms and values, not part of the group, and not in a card.
+      const strip = p.region('Your savings').querySelector('dl') as HTMLElement;
+      expect(group.contains(strip)).toBe(false);
+      expect(textOf(strip)).toContain('Savings balance €500.00');
+      expect(textOf(strip)).toContain('Unassigned €200.00');
+      expect(p.region('Your savings').classList).not.toContain('card');
+    });
+
     it('offers to reallocate once there is a goal', async () => {
       const p = await openSavingsPage(http, {
         savings: savingsDto({ goals: [goalDto({ id: 1 })] }),

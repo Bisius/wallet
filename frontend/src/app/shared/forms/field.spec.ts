@@ -138,6 +138,31 @@ describe('Field', () => {
 });
 
 @Component({
+  selector: 'app-hidden-label-host',
+  imports: [ReactiveFormsModule, Field, AppInput],
+  template: `
+    <app-field label="Search" [labelHidden]="true">
+      <input appInput type="search" [formControl]="search" />
+    </app-field>
+  `,
+})
+class HiddenLabelHost {
+  readonly search = new FormControl('', { nonNullable: true });
+}
+
+describe('Field with a hidden label', () => {
+  it('keeps the label for screen readers: it still names the control, but is not drawn', async () => {
+    const fixture = await render(HiddenLabelHost);
+    const element = fixture.nativeElement as HTMLElement;
+
+    expect(getByLabel(element, 'Search')).toBeTruthy();
+    const label = element.querySelector('label') as HTMLElement;
+    expect(label.classList).toContain('sr-only');
+    expect(label.classList).not.toContain('mb-1.5');
+  });
+});
+
+@Component({
   selector: 'app-control-types-host',
   imports: [ReactiveFormsModule, Field, AppInput],
   template: `

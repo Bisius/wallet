@@ -13,9 +13,13 @@ import { parseApiError } from '../../core/api-error';
 import { reloaded, resourceState } from '../../core/resource-state';
 import { SettingsStore } from '../../core/settings.store';
 import { formatBytes, formatDateTime } from '../../shared/format';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { Icon } from '../../shared/ui/icon';
+import { KeyValue, KeyValues } from '../../shared/ui/key-values';
 import { LinkButton } from '../../shared/ui/link-button';
+import { AppList, ListRow } from '../../shared/ui/list';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { BackupsApi } from './backups.api';
@@ -34,19 +38,40 @@ const UNAVAILABLE =
  * The backups of the database (`GET /api/backups`): whether the automatic ones are on, when the last
  * one was made and when the next is due, a "Back up now" button (`POST /api/backups`) and the files,
  * newest first, each with a plain download link. A backup holds all the data, and restoring one is
- * done outside the app, which the section says in one line: there is no restore button.
+ * done outside the app, which the section's help says: there is no restore button.
+ *
+ * It is a block of the "Data" section of the settings, so its heading is a level 3 one (still a named
+ * region).
  */
 @Component({
   selector: 'app-backups-section',
-  imports: [Button, EmptyState, ErrorState, Icon, LinkButton, LoadingState],
+  imports: [
+    AppList,
+    AppSection,
+    Alert,
+    Button,
+    EmptyState,
+    ErrorState,
+    Icon,
+    KeyValue,
+    KeyValues,
+    LinkButton,
+    ListRow,
+    LoadingState,
+    SectionHelp,
+  ],
   template: `
-    <section aria-labelledby="backups-heading" class="card space-y-4">
-      <div>
-        <h2 id="backups-heading" tabindex="-1" class="text-lg font-semibold">Backups</h2>
-        <p class="mt-1 text-sm text-muted">
-          A backup is a complete copy of your database, made while the app keeps running.
-        </p>
-      </div>
+    <app-section
+      level="3"
+      landmark
+      heading="Backups"
+      description="A complete copy of your database, made while the app keeps running."
+    >
+      <p sectionHelp>
+        A backup holds all your data, so keep it private. To restore one, stop the app and follow
+        the steps in the README under “Backups and restore”: they move the old database aside before
+        the backup is copied in. There is no restore button.
+      </p>
 
       @switch (state()) {
         @case ('loading') {
@@ -61,32 +86,29 @@ const UNAVAILABLE =
         }
         @default {
           @if (data(); as info) {
-            <dl class="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[auto_1fr]">
-              <dt class="font-medium">Automatic backups</dt>
-              <dd>
+            <dl appKeyValues>
+              <div appKeyValue label="Automatic backups">
                 @if (info.automatic) {
                   On: one a day, and one when the app starts if the last is older than a day.
                 } @else {
                   Off: this server has no backup folder.
                 }
-              </dd>
-              <dt class="font-medium">Last backup</dt>
-              <dd>{{ info.lastBackupAt ? when(info.lastBackupAt) : 'None yet' }}</dd>
+              </div>
+              <div appKeyValue label="Last backup">
+                {{ info.lastBackupAt ? when(info.lastBackupAt) : 'None yet' }}
+              </div>
               @if (info.nextDueAt) {
-                <dt class="font-medium">Next due</dt>
-                <dd>
+                <div appKeyValue label="Next due">
                   {{ when(info.nextDueAt) }}
                   <span class="text-muted"
                     >(a time that has passed means it runs at the next check)</span
                   >
-                </dd>
+                </div>
               }
             </dl>
 
             @if (!info.automatic) {
-              <p class="rounded-control border border-line-strong bg-subtle p-3 text-sm">
-                {{ unavailable }}
-              </p>
+              <app-alert tone="warning">{{ unavailable }}</app-alert>
             }
 
             <div class="flex flex-col items-start gap-2">
@@ -109,21 +131,15 @@ const UNAVAILABLE =
             </div>
 
             @if (failure(); as problem) {
-              <p
-                role="alert"
-                class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-              >
-                <app-icon name="alert" class="mt-0.5 text-negative" />
-                <span>
-                  @if (problem.unavailable) {
-                    <strong class="font-semibold">Backups are not available on this server.</strong>
-                    {{ unavailable }}
-                  } @else {
-                    <strong class="font-semibold">The backup was not made.</strong>
-                    {{ problem.message }}
-                  }
-                </span>
-              </p>
+              <app-alert tone="error">
+                @if (problem.unavailable) {
+                  <strong class="font-semibold">Backups are not available on this server.</strong>
+                  {{ unavailable }}
+                } @else {
+                  <strong class="font-semibold">The backup was not made.</strong>
+                  {{ problem.message }}
+                }
+              </app-alert>
             }
 
             @if (info.backups.length === 0) {
@@ -132,19 +148,17 @@ const UNAVAILABLE =
                 description="The first one is made when you press Back up now, or by the daily schedule."
               />
             } @else {
-              <ul
-                aria-label="Backups, newest first"
-                class="divide-y divide-line rounded-card border border-line"
-              >
+              <ul appList aria-label="Backups, newest first">
                 @for (backup of info.backups; track backup.name) {
-                  <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3">
-                    <div class="min-w-0 flex-1">
-                      <p class="font-medium">{{ when(backup.createdAt) }}</p>
-                      <p class="text-sm break-all text-muted">
-                        {{ backup.name }} · {{ size(backup.sizeBytes) }}
-                      </p>
-                    </div>
+                  <li appListRow actionsBelow>
+                    <span rowTitle>{{ when(backup.createdAt) }}</span>
+                    <p rowMeta>
+                      <span class="break-all"
+                        >{{ backup.name }} · {{ size(backup.sizeBytes) }}</span
+                      >
+                    </p>
                     <a
+                      rowActions
                       appLinkButton
                       variant="ghost"
                       size="sm"
@@ -162,13 +176,7 @@ const UNAVAILABLE =
           }
         }
       }
-
-      <p class="text-sm text-muted">
-        A backup holds all your data, so keep it private. To restore one, stop the app and follow
-        the steps in the README under “Backups and restore”: they move the old database aside before
-        the backup is copied in. There is no restore button.
-      </p>
-    </section>
+    </app-section>
   `,
   host: { class: 'block' },
 })

@@ -41,9 +41,10 @@ import {
 import { Toggle } from '../../shared/forms/toggle';
 import { nonNegativeAmount, wholePercent } from '../../shared/forms/validators';
 import { MoneyPipe } from '../../shared/money.pipe';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
+import { Disclosure } from '../../shared/ui/disclosure';
 import { ToastService } from '../../shared/ui/toast.service';
 import { BudgetsApi } from './budgets.api';
 import { versionAt } from './budget-utils';
@@ -86,8 +87,9 @@ const ICON_SUGGESTIONS: readonly { icon: string; name: string }[] = [
     MonthInput,
     Toggle,
     ColorPicker,
+    Alert,
     Button,
-    Icon,
+    Disclosure,
     MoneyPipe,
   ],
   templateUrl: './budget-form.html',

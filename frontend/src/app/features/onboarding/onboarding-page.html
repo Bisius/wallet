@@ -1,294 +1,241 @@
-<app-page-header
-  title="Welcome to Wallet"
-  subtitle="A few questions to set things up. You can change all of it later."
-/>
+<app-page width="narrow">
+  <app-page-header
+    title="Welcome to Wallet"
+    subtitle="A few questions to set things up. You can change all of it later."
+  />
 
-<div class="max-w-2xl space-y-4">
-  <nav aria-label="Setup progress">
-    <ol class="flex flex-wrap items-center gap-x-4 gap-y-2">
-      @for (step of steps; track step.id; let i = $index) {
-        <li class="flex items-center gap-2" [attr.aria-current]="i === stepIndex() ? 'step' : null">
-          <span
-            aria-hidden="true"
-            class="grid size-7 shrink-0 place-items-center rounded-full border-2 text-xs font-semibold"
-            [class]="
-              i < stepIndex()
-                ? 'border-accent bg-accent text-on-accent'
-                : i === stepIndex()
-                  ? 'border-accent text-accent'
-                  : 'border-line-strong text-muted'
-            "
-            >{{ i < stepIndex() ? '✓' : i + 1 }}</span
+  <app-stepper label="Setup progress" [steps]="steps" [current]="stepIndex()" />
+
+  <app-section
+    [heading]="current().heading"
+    [description]="current().description"
+    focusable
+    [landmark]="false"
+  >
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="space-y-4">
+      @switch (current().id) {
+        @case ('basics') {
+          <app-field label="Start month" [hint]="startMonthHint()">
+            <app-month-input formControlName="startMonth" [max]="today.month()" />
+          </app-field>
+
+          <app-field label="Currency" hint="A 3-letter code such as EUR or USD.">
+            <input
+              appInput
+              formControlName="currency"
+              list="currency-options"
+              maxlength="3"
+              autocomplete="off"
+              autocapitalize="characters"
+              spellcheck="false"
+              (input)="uppercaseCurrency()"
+            />
+          </app-field>
+          <datalist id="currency-options">
+            @for (code of currencies; track code) {
+              <option [value]="code">{{ currencyName(code) }}</option>
+            }
+          </datalist>
+
+          <app-field
+            label="Locale"
+            hint="How numbers and dates are written. For example it-IT writes 1.234,56."
           >
-          <span
-            class="text-sm"
-            [class]="
-              i === stepIndex() ? 'font-semibold text-ink' : 'sr-only text-muted sm:not-sr-only'
-            "
-            >{{ step.label }}</span
+            <input
+              appInput
+              formControlName="locale"
+              list="locale-options"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </app-field>
+          <datalist id="locale-options">
+            @for (tag of locales; track tag) {
+              <option [value]="tag">{{ localeName(tag) }}</option>
+            }
+          </datalist>
+
+          <p class="text-sm text-muted">
+            Amounts will look like
+            <span class="font-medium text-ink">{{
+              sampleAmount | money: currency() : locale()
+            }}</span
+            >.
+          </p>
+        }
+
+        @case ('salary') {
+          <app-field
+            label="Monthly net salary"
+            hint="What you take home each month, after tax. Raises can be recorded later."
           >
-          @if (i < stepIndex()) {
-            <span class="sr-only">(done)</span>
-          }
-        </li>
-      }
-    </ol>
-  </nav>
+            <app-money-input formControlName="salary" [currency]="currency()" [locale]="locale()" />
+          </app-field>
+        }
 
-  <p class="text-sm text-muted">Step {{ stepIndex() + 1 }} of {{ steps.length }}</p>
+        @case ('savings') {
+          <app-field
+            [label]="openingLabel()"
+            hint="What you already have set aside on that day. Use 0 if you are starting from scratch."
+          >
+            <app-money-input
+              formControlName="openingSavings"
+              [currency]="currency()"
+              [locale]="locale()"
+            />
+          </app-field>
+        }
 
-  <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="card space-y-5">
-    <h2 #stepHeading tabindex="-1" class="text-xl font-semibold tracking-tight">
-      {{ current().heading }}
-    </h2>
+        @case ('budgets') {
+          <div formArrayName="budgets" class="divide-y divide-line empty:hidden">
+            @for (row of budgets.controls; track row; let i = $index) {
+              <div class="py-4 first:pt-0">
+                <fieldset [formGroupName]="i" [attr.data-budget-row]="i" class="space-y-4">
+                  <legend class="text-sm font-semibold">Budget {{ i + 1 }}</legend>
+                  <app-field label="Name">
+                    <input
+                      appInput
+                      formControlName="name"
+                      [attr.maxlength]="nameMaxLength"
+                      autocomplete="off"
+                    />
+                  </app-field>
+                  <app-field label="Monthly amount">
+                    <app-money-input
+                      formControlName="amount"
+                      [currency]="currency()"
+                      [locale]="locale()"
+                    />
+                  </app-field>
+                  <app-toggle
+                    formControlName="incremental"
+                    label="Incremental"
+                    hint="Carry what is left (or overspent) into next month. Off: leftovers go to savings."
+                  />
+                  <button
+                    appButton
+                    variant="ghost"
+                    size="sm"
+                    [attr.aria-label]="'Remove ' + budgetLabel(i)"
+                    (click)="removeBudget(i)"
+                  >
+                    <app-icon name="trash" />
+                    Remove
+                  </button>
+                </fieldset>
+              </div>
+            }
+          </div>
 
-    @switch (current().id) {
-      @case ('basics') {
-        <app-field label="Start month" [hint]="startMonthHint()">
-          <app-month-input formControlName="startMonth" [max]="today.month()" />
-        </app-field>
+          <button
+            #addBudgetButton
+            appButton
+            variant="secondary"
+            [disabled]="budgets.length >= maxBudgets"
+            (click)="addBudget()"
+          >
+            <app-icon name="plus" />
+            Add a budget
+          </button>
+        }
 
-        <app-field label="Currency" hint="A 3-letter code such as EUR or USD.">
-          <input
-            appInput
-            formControlName="currency"
-            list="currency-options"
-            maxlength="3"
-            autocomplete="off"
-            autocapitalize="characters"
-            spellcheck="false"
-            (input)="uppercaseCurrency()"
-          />
-        </app-field>
-        <datalist id="currency-options">
-          @for (code of currencies; track code) {
-            <option [value]="code">{{ currencyName(code) }}</option>
-          }
-        </datalist>
-
-        <app-field
-          label="Locale"
-          hint="How numbers and dates are written. For example it-IT writes 1.234,56."
-        >
-          <input
-            appInput
-            formControlName="locale"
-            list="locale-options"
-            autocomplete="off"
-            spellcheck="false"
-          />
-        </app-field>
-        <datalist id="locale-options">
-          @for (tag of locales; track tag) {
-            <option [value]="tag">{{ localeName(tag) }}</option>
-          }
-        </datalist>
-
-        <p class="text-sm text-muted">
-          Amounts will look like
-          <span class="font-medium text-ink">{{ sampleAmount | money: currency() : locale() }}</span
-          >.
-        </p>
-      }
-
-      @case ('salary') {
-        <app-field
-          label="Monthly net salary"
-          hint="What you take home each month, after tax. Raises can be recorded later."
-        >
-          <app-money-input formControlName="salary" [currency]="currency()" [locale]="locale()" />
-        </app-field>
-      }
-
-      @case ('savings') {
-        <app-field
-          [label]="openingLabel()"
-          hint="What you already have set aside on that day. Use 0 if you are starting from scratch."
-        >
-          <app-money-input
-            formControlName="openingSavings"
-            [currency]="currency()"
-            [locale]="locale()"
-          />
-        </app-field>
-      }
-
-      @case ('budgets') {
-        <p class="text-sm text-muted">
-          Budgets split your income into spending categories, each with a monthly amount. You can
-          skip this and add budgets later.
-        </p>
-
-        <div formArrayName="budgets" class="space-y-4">
-          @for (row of budgets.controls; track row; let i = $index) {
-            <fieldset
-              [formGroupName]="i"
-              [attr.data-budget-row]="i"
-              class="space-y-4 rounded-card border border-line p-4"
-            >
-              <legend class="px-1 text-sm font-semibold">Budget {{ i + 1 }}</legend>
-              <app-field label="Name">
-                <input
-                  appInput
-                  formControlName="name"
-                  [attr.maxlength]="nameMaxLength"
-                  autocomplete="off"
-                />
-              </app-field>
-              <app-field label="Monthly amount">
-                <app-money-input
-                  formControlName="amount"
-                  [currency]="currency()"
-                  [locale]="locale()"
-                />
-              </app-field>
-              <app-toggle
-                formControlName="incremental"
-                label="Incremental"
-                hint="Carry what is left (or overspent) into next month. Off: leftovers go to savings."
-              />
+        @case ('review') {
+          <ul appList>
+            <li appListRow>
+              <dl appKeyValues layout="stacked" rowBody>
+                <div appKeyValue label="Start month">{{ startMonthLabel() }}</div>
+                <div appKeyValue label="Currency and locale">{{ currency() }} · {{ locale() }}</div>
+              </dl>
               <button
+                rowActions
                 appButton
                 variant="ghost"
                 size="sm"
-                [attr.aria-label]="'Remove ' + budgetLabel(i)"
-                (click)="removeBudget(i)"
+                aria-label="Change start month, currency and locale"
+                (click)="goTo(0)"
               >
-                <app-icon name="trash" />
-                Remove
+                Change
               </button>
-            </fieldset>
-          }
-        </div>
+            </li>
+            <li appListRow>
+              <dl appKeyValues layout="stacked" rowBody>
+                <div appKeyValue label="Monthly net salary">
+                  {{ draft().salary | money: currency() : locale() }}
+                </div>
+              </dl>
+              <button
+                rowActions
+                appButton
+                variant="ghost"
+                size="sm"
+                aria-label="Change monthly net salary"
+                (click)="goTo(1)"
+              >
+                Change
+              </button>
+            </li>
+            <li appListRow>
+              <dl appKeyValues layout="stacked" rowBody>
+                <div appKeyValue [label]="openingLabel()">
+                  {{ draft().openingSavings | money: currency() : locale() }}
+                </div>
+              </dl>
+              <button
+                rowActions
+                appButton
+                variant="ghost"
+                size="sm"
+                aria-label="Change savings balance"
+                (click)="goTo(2)"
+              >
+                Change
+              </button>
+            </li>
+            <li appListRow>
+              <dl appKeyValues layout="stacked" rowBody>
+                <div appKeyValue label="Budgets">
+                  @if (draft().budgets.length === 0) {
+                    <p class="font-normal text-muted">None yet. You can add them later.</p>
+                  } @else {
+                    <ul appList density="compact" class="-mx-4">
+                      @for (budget of draft().budgets; track $index) {
+                        <li appListRow>
+                          <span rowTitle>{{ budget.name }}</span>
+                          <p rowMeta>
+                            {{ budget.incremental ? 'Incremental' : 'Not incremental' }}
+                          </p>
+                          <span rowAmount>{{ budget.amount | money: currency() : locale() }}</span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
+              </dl>
+              <button
+                rowActions
+                appButton
+                variant="ghost"
+                size="sm"
+                aria-label="Change budgets"
+                (click)="goTo(3)"
+              >
+                Change
+              </button>
+            </li>
+          </ul>
+        }
+      }
 
-        <button
-          #addBudgetButton
-          appButton
-          variant="secondary"
-          [disabled]="budgets.length >= maxBudgets"
-          (click)="addBudget()"
-        >
-          <app-icon name="plus" />
-          Add a budget
+      @if (formError(); as error) {
+        <app-alert tone="error">{{ error }}</app-alert>
+      }
+
+      <div class="wizard-actions">
+        <button appButton variant="secondary" [disabled]="isFirst()" (click)="back()">Back</button>
+        <button appButton type="submit" [loading]="saving()">
+          {{ isLast() ? 'Create my wallet' : 'Next' }}
         </button>
-      }
-
-      @case ('review') {
-        <p class="text-sm text-muted">
-          Check everything, then create your wallet. Nothing is saved until you do.
-        </p>
-
-        <ul class="divide-y divide-line rounded-card border border-line">
-          <li class="flex items-start justify-between gap-4 p-3">
-            <dl class="min-w-0 space-y-2">
-              <div>
-                <dt class="text-sm text-muted">Start month</dt>
-                <dd class="font-medium">{{ startMonthLabel() }}</dd>
-              </div>
-              <div>
-                <dt class="text-sm text-muted">Currency and locale</dt>
-                <dd class="font-medium">{{ currency() }} · {{ locale() }}</dd>
-              </div>
-            </dl>
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              aria-label="Change start month, currency and locale"
-              (click)="goTo(0)"
-            >
-              Change
-            </button>
-          </li>
-          <li class="flex items-start justify-between gap-4 p-3">
-            <dl>
-              <dt class="text-sm text-muted">Monthly net salary</dt>
-              <dd class="font-medium tabular-nums">
-                {{ draft().salary | money: currency() : locale() }}
-              </dd>
-            </dl>
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              aria-label="Change monthly net salary"
-              (click)="goTo(1)"
-            >
-              Change
-            </button>
-          </li>
-          <li class="flex items-start justify-between gap-4 p-3">
-            <dl>
-              <dt class="text-sm text-muted">{{ openingLabel() }}</dt>
-              <dd class="font-medium tabular-nums">
-                {{ draft().openingSavings | money: currency() : locale() }}
-              </dd>
-            </dl>
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              aria-label="Change savings balance"
-              (click)="goTo(2)"
-            >
-              Change
-            </button>
-          </li>
-          <li class="flex items-start justify-between gap-4 p-3">
-            <dl class="min-w-0 flex-1">
-              <dt class="text-sm text-muted">Budgets</dt>
-              <dd>
-                @if (draft().budgets.length === 0) {
-                  <p class="text-muted">None yet. You can add them later.</p>
-                } @else {
-                  <ul class="space-y-1">
-                    @for (budget of draft().budgets; track $index) {
-                      <li class="flex items-baseline justify-between gap-3">
-                        <span class="min-w-0">
-                          <span class="font-medium">{{ budget.name }}</span>
-                          <span class="text-sm text-muted">
-                            ·
-                            {{ budget.incremental ? 'Incremental' : 'Not incremental' }}</span
-                          >
-                        </span>
-                        <span class="font-medium tabular-nums">{{
-                          budget.amount | money: currency() : locale()
-                        }}</span>
-                      </li>
-                    }
-                  </ul>
-                }
-              </dd>
-            </dl>
-            <button
-              appButton
-              variant="ghost"
-              size="sm"
-              aria-label="Change budgets"
-              (click)="goTo(3)"
-            >
-              Change
-            </button>
-          </li>
-        </ul>
-      }
-    }
-
-    @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
-    }
-
-    <div class="flex items-center justify-between gap-3 border-t border-line pt-4">
-      <button appButton variant="secondary" [disabled]="isFirst()" (click)="back()">Back</button>
-      <button appButton type="submit" [loading]="saving()">
-        {{ isLast() ? 'Create my wallet' : 'Next' }}
-      </button>
-    </div>
-  </form>
-</div>
+      </div>
+    </form>
+  </app-section>
+</app-page>

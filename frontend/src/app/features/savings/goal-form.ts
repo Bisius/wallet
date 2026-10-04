@@ -22,9 +22,9 @@ import { ColorPicker } from '../../shared/forms/color-picker';
 import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { positiveAmount } from '../../shared/forms/validators';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { GoalsApi } from './goals.api';
 
@@ -38,7 +38,16 @@ import { GoalsApi } from './goals.api';
  */
 @Component({
   selector: 'app-goal-form',
-  imports: [ReactiveFormsModule, AppDialog, Field, AppInput, MoneyInput, ColorPicker, Button, Icon],
+  imports: [
+    Alert,
+    ReactiveFormsModule,
+    AppDialog,
+    Field,
+    AppInput,
+    MoneyInput,
+    ColorPicker,
+    Button,
+  ],
   templateUrl: './goal-form.html',
   host: { class: 'block' },
 })

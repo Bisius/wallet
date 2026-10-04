@@ -1,3 +1,4 @@
+import { a11yProblems } from '../../../testing/a11y';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DOCUMENT } from '@angular/core';
@@ -26,7 +27,12 @@ import {
 } from '../../../testing/harness';
 import { SettingsPage } from './settings-page';
 
-const NO_BACKUPS: BackupsDto = { automatic: true, backups: [], lastBackupAt: null, nextDueAt: null };
+const NO_BACKUPS: BackupsDto = {
+  automatic: true,
+  backups: [],
+  lastBackupAt: null,
+  nextDueAt: null,
+};
 
 describe('SettingsPage', () => {
   let http: HttpTestingController;
@@ -109,8 +115,34 @@ describe('SettingsPage', () => {
       expect(getByRole(section, 'heading', name)).toBeTruthy();
       expect(form.contains(section)).toBe(false);
     }
-    expect(getByRole(getByRole(element, 'region', 'Export'), 'link', 'Download spendings CSV')).toBeTruthy();
-    expect(getByRole(getByRole(element, 'region', 'Backups'), 'button', 'Back up now')).toBeTruthy();
+    expect(
+      getByRole(getByRole(element, 'region', 'Export'), 'link', 'Download spendings CSV'),
+    ).toBeTruthy();
+    expect(
+      getByRole(getByRole(element, 'region', 'Backups'), 'button', 'Back up now'),
+    ).toBeTruthy();
+  });
+
+  it('is three titled sections, General, Tags and Data, with the data split into three blocks', async () => {
+    const { element } = await setup();
+
+    const headings = (level: string) =>
+      Array.from(element.querySelectorAll(level)).map((heading) => textOf(heading));
+    expect(headings('h2')).toEqual(['General', 'Tags', 'Data']);
+    expect(headings('h3')).toEqual(['Export', 'Import', 'Backups']);
+    // The form is the General section, and the three blocks are the Data section.
+    const general = getByRole(element, 'region', 'General');
+    expect(general.querySelector('form')).toBe(element.querySelector('form'));
+    const data = getByRole(element, 'region', 'Data');
+    for (const name of ['Export', 'Import', 'Backups']) {
+      expect(data.contains(getByRole(element, 'region', name))).toBe(true);
+    }
+  });
+
+  it('has nothing wrong with its markup', async () => {
+    const { element } = await setup();
+
+    expect(a11yProblems(element)).toEqual([]);
   });
 
   it('links to the import wizard', async () => {

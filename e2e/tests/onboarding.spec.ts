@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, failedResponse, test } from '../support/fixtures';
+import { dashboardRow } from '../support/month-ui';
 import { getMonth, getSavings, getSettings, onboard } from '../support/seed';
 
 /*
@@ -24,14 +25,6 @@ function figure(region: Locator, label: string) {
 /** A figure of the "at a glance" strip of the dashboard. */
 function glanceFigure(page: Page, label: string) {
   return figure(page.getByRole('region', { name: /at a glance$/ }), label);
-}
-
-/** The "Budget progress" row of one budget. */
-function budgetRow(page: Page, name: string) {
-  return page
-    .getByRole('region', { name: 'Budget progress' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name, exact: true }) });
 }
 
 test.describe('first run', () => {
@@ -102,9 +95,9 @@ test.describe('first run', () => {
     await expect(review).toContainText('EUR · en-US');
     await expect(review).toContainText('€2,500.00');
     await expect(review).toContainText('€1,500.00');
-    await expect(review).toContainText('Groceries · Not incremental');
+    await expect(review).toContainText('Groceries Not incremental');
     await expect(review).toContainText('€400.00');
-    await expect(review).toContainText('Fun · Incremental');
+    await expect(review).toContainText('Fun Incremental');
     await expect(review).toContainText('€150.00');
     expect((await wallet.api.get('/api/settings', { failOnStatusCode: false })).status()).toBe(404);
 
@@ -131,10 +124,10 @@ test.describe('first run', () => {
     // Groceries is not incremental: it starts March clean with 400.00. Fun is incremental and
     // nothing was spent in January and February, so it brings 150.00 + 150.00 into March:
     // 300.00 + 150.00 = 450.00.
-    await expect(budgetRow(page, 'Groceries')).toContainText(/Remaining\s*€400\.00/);
-    await expect(budgetRow(page, 'Groceries')).toContainText(/Available\s*€400\.00/);
-    await expect(budgetRow(page, 'Fun')).toContainText(/Remaining\s*€450\.00/);
-    await expect(budgetRow(page, 'Fun')).toContainText(/Available\s*€450\.00/);
+    await expect(dashboardRow(page, 'Groceries')).toContainText(/€400\.00\s*remaining/);
+    await expect(dashboardRow(page, 'Groceries')).toContainText(/Available\s*€400\.00/);
+    await expect(dashboardRow(page, 'Fun')).toContainText(/€450\.00\s*remaining/);
+    await expect(dashboardRow(page, 'Fun')).toContainText(/Available\s*€450\.00/);
 
     // January and February are closed and each has 1,950.00 unallocated plus the 400.00 that
     // Groceries leaves (Fun carries its own over): 2,350.00 each, 4,700.00 to move to savings.

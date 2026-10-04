@@ -2,54 +2,51 @@ import {
   afterNextRender,
   Component,
   computed,
-  effect,
-  ElementRef,
   inject,
   Injector,
   input,
   output,
   signal,
-  untracked,
   viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import type { Cents, MonthKey, SalaryEntryDto } from '@wallet/shared';
 import { firstValueFrom } from 'rxjs';
 import { parseApiError } from '../../core/api-error';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
-import { applyApiErrors, focusFirstInvalid } from '../../shared/forms/api-errors';
-import { Field } from '../../shared/forms/field';
-import { MoneyInput } from '../../shared/forms/money-input';
-import { MonthInput } from '../../shared/forms/month-input';
-import { nonNegativeAmount } from '../../shared/forms/validators';
-import { MoneyPipe } from '../../shared/money.pipe';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
 import { Amount } from '../../shared/ui/amount';
+import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { AppSection } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SalaryApi } from './salary.api';
+import { SalaryForm } from './salary-form';
 
 /**
- * The salary history, and the form to add or change an entry. A salary entry applies **from its
- * month onward**; it never rewrites earlier months, and the form says so. The amount shown for the
- * selected month is the one the month view reports (`salary` input), not a calculation of ours.
+ * The salary history, and the button that opens the dialog to add or change an entry (`SalaryForm`).
+ * A salary entry applies **from its month onward**; it never rewrites earlier months, and the dialog
+ * says so. The amount shown for the selected month is the one the month view reports (`salary`
+ * input), not a calculation of ours.
  */
 @Component({
   selector: 'app-salary-section',
   imports: [
-    ReactiveFormsModule,
-    Field,
-    MoneyInput,
-    MonthInput,
-    Button,
-    Icon,
+    ActionMenu,
     Amount,
+    AppList,
+    AppSection,
+    Badge,
+    Button,
     EmptyState,
-    MoneyPipe,
+    Icon,
+    ListRow,
+    MenuItem,
+    SalaryForm,
   ],
   templateUrl: './salary-section.html',
   host: { class: 'block' },
@@ -60,8 +57,7 @@ export class SalarySection {
   private readonly confirm = inject(ConfirmService);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly section = viewChild<AppSection>('section');
 
   /** The selected month. */
   readonly month = input.required<MonthKey>();
@@ -73,30 +69,10 @@ export class SalarySection {
   /** Something was saved or deleted: the page reloads what it shows. */
   readonly changed = output<void>();
 
-  protected readonly startMonth = this.settings.startMonth;
-  protected readonly saving = signal(false);
-  protected readonly formError = signal<string | null>(null);
-
-  protected readonly form = new FormGroup({
-    month: new FormControl<MonthKey | null>(null, [Validators.required]),
-    amount: new FormControl<Cents | null>(null, [Validators.required, nonNegativeAmount]),
-  });
-
-  private readonly formMonth = toSignal(this.form.controls.month.valueChanges, {
-    initialValue: this.form.controls.month.value,
-  });
+  /** The dialog: changing from the selected month (`entry` unset) or an entry of the history. `null` while it is closed. */
+  protected readonly form = signal<{ entry: SalaryEntryDto | undefined } | null>(null);
 
   protected readonly monthLabel = computed(() => this.label(this.month()));
-  protected readonly fromLabel = computed(() => {
-    const month = this.formMonth();
-    return month ? this.label(month) : null;
-  });
-
-  /** The entry that starts exactly in the month of the form: saving would replace it. */
-  protected readonly replaced = computed(() => {
-    const month = this.formMonth();
-    return month ? this.entries().find((entry) => entry.effectiveMonth === month) : undefined;
-  });
 
   /**
    * Marks the entry that covers the selected month, as the contract describes it ("the entry with
@@ -109,34 +85,22 @@ export class SalarySection {
         .at(-1)?.effectiveMonth,
   );
 
-  constructor() {
-    // The form starts on the selected month and follows it until the user picks another one.
-    effect(() => {
-      const month = this.month();
-      untracked(() => {
-        const control = this.form.controls.month;
-        if (!control.dirty) control.setValue(month);
-      });
-    });
-  }
-
   protected label(month: MonthKey): string {
     return formatMonth(month, this.settings.locale());
   }
 
-  /** Loads an entry into the form to change its amount. */
-  protected edit(entry: SalaryEntryDto): void {
-    this.form.setValue({ month: entry.effectiveMonth, amount: entry.amount });
-    this.form.controls.month.markAsDirty();
-    this.formError.set(null);
-    afterNextRender(
-      () => {
-        const form = this.host.nativeElement.querySelector<HTMLElement>('form');
-        form?.scrollIntoView?.({ block: 'nearest' });
-        form?.querySelector<HTMLElement>('app-money-input input')?.focus();
-      },
-      { injector: this.injector },
-    );
+  protected openChange(entry?: SalaryEntryDto): void {
+    this.form.set({ entry });
+  }
+
+  protected closeForm(): void {
+    this.form.set(null);
+  }
+
+  /** The salary was saved: the dialog closes (and gives focus back to what opened it), the page reloads. */
+  protected onSaved(): void {
+    this.form.set(null);
+    this.changed.emit();
   }
 
   protected async remove(entry: SalaryEntryDto): Promise<void> {
@@ -156,37 +120,9 @@ export class SalarySection {
       this.toast.success(`Salary change from ${from} deleted.`);
       this.changed.emit();
       // The row that had focus is gone.
-      afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+      afterNextRender(() => this.section()?.focusHeading(), { injector: this.injector });
     } catch (error) {
       this.toast.error(parseApiError(error).message);
-    }
-  }
-
-  protected async save(): Promise<void> {
-    if (this.saving()) return;
-    this.form.markAllAsTouched();
-    const { month, amount } = this.form.getRawValue();
-    if (this.form.invalid || month === null || amount === null) {
-      afterNextRender(() => focusFirstInvalid(this.host.nativeElement), {
-        injector: this.injector,
-      });
-      return;
-    }
-
-    this.saving.set(true);
-    this.formError.set(null);
-    try {
-      await firstValueFrom(this.api.upsert(month, { amount }));
-      this.toast.success(`Salary saved from ${this.label(month)} onward.`);
-      this.form.reset({ month: this.month(), amount: null });
-      this.changed.emit();
-    } catch (error) {
-      this.formError.set(applyApiErrors(this.form, parseApiError(error)));
-      afterNextRender(() => focusFirstInvalid(this.host.nativeElement), {
-        injector: this.injector,
-      });
-    } finally {
-      this.saving.set(false);
     }
   }
 }

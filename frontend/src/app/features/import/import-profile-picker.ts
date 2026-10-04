@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { ImportProfilesDialog } from './import-profiles-dialog';
 import { ImportProfilesStore } from './import-profiles.store';
@@ -13,7 +14,7 @@ import { ImportWizardStore } from './import-wizard.store';
  */
 @Component({
   selector: 'app-import-profile-picker',
-  imports: [Field, AppInput, Button, ImportProfilesDialog],
+  imports: [Alert, Field, AppInput, Button, ImportProfilesDialog],
   template: `
     <div class="space-y-2">
       <app-field
@@ -39,20 +40,24 @@ import { ImportWizardStore } from './import-wizard.store';
       </app-field>
 
       @if (profiles.state() === 'error') {
-        <p class="text-sm text-muted">
+        <app-alert tone="warning">
           The saved profiles could not be loaded, so none was applied. You can still set the columns
           by hand.
-          <button appButton variant="ghost" size="sm" (click)="profiles.reload()">Try again</button>
-        </p>
+          <button alertAction appButton variant="secondary" size="sm" (click)="profiles.reload()">
+            Try again
+          </button>
+        </app-alert>
       }
 
-      <p role="status" class="text-sm empty:hidden">
+      <div role="status" class="empty:hidden">
         @if (wizard.profileNotice(); as notice) {
-          <span class="block rounded-control bg-subtle p-3 text-ink">{{ notice }}</span>
+          <app-alert tone="info">{{ notice }}</app-alert>
         }
-      </p>
+      </div>
 
-      <button appButton variant="ghost" size="sm" (click)="managing.set(true)">Manage profiles</button>
+      <button appButton variant="ghost" size="sm" (click)="managing.set(true)">
+        Manage profiles
+      </button>
     </div>
 
     @if (managing()) {

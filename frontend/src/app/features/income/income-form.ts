@@ -16,6 +16,7 @@ import type { Cents, IncomeDto, IncomeUpdateInput, MonthKey } from '@wallet/shar
 // Zod-free deep import: keeps zod out of this page's chunk.
 import { DESCRIPTION_MAX_LENGTH } from '@wallet/shared/limits';
 import { firstValueFrom, type Observable } from 'rxjs';
+import { aliveFlag } from '../../core/alive';
 import { parseApiError } from '../../core/api-error';
 import { SettingsStore } from '../../core/settings.store';
 import { TodayStore } from '../../core/today.store';
@@ -25,69 +26,65 @@ import { AppInput } from '../../shared/forms/app-input';
 import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { dateInMonth, positiveAmount } from '../../shared/forms/validators';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { AppDialog } from '../../shared/ui/dialog';
 import { ToastService } from '../../shared/ui/toast.service';
 import { IncomesApi } from './incomes.api';
 
 /**
- * Adds a one-off income, or edits one when `income` is given. The date starts as today (from the
- * server) and has to stay inside the selected month, so the income ends up on the page it was
- * added from.
+ * The dialog that adds a one-off income, or edits one when `income` is given. The date starts as
+ * today (from the server) and has to stay inside the selected month, so the income ends up on the
+ * page it was added from.
  */
 @Component({
   selector: 'app-income-form',
-  imports: [ReactiveFormsModule, Field, AppInput, MoneyInput, Button, Icon],
+  imports: [Alert, AppDialog, ReactiveFormsModule, Field, AppInput, MoneyInput, Button],
   template: `
-    <form
-      [formGroup]="form"
-      (ngSubmit)="save()"
-      novalidate
-      class="space-y-4 rounded-card border border-line bg-subtle p-4"
+    <app-dialog
+      [heading]="income() ? 'Edit income' : 'Add income'"
+      [locked]="saving()"
+      (closed)="cancelled.emit()"
     >
-      <h3 class="font-semibold">{{ income() ? 'Edit income' : 'Add income' }}</h3>
-
-      <app-field label="Description">
-        <input
-          appInput
-          formControlName="description"
-          autocomplete="off"
-          [attr.maxlength]="descriptionMaxLength"
-        />
-      </app-field>
-
-      <div class="grid gap-4 sm:grid-cols-2">
-        <app-field label="Amount">
-          <app-money-input formControlName="amount" />
-        </app-field>
-        <app-field label="Date">
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate class="space-y-4">
+        <app-field label="Description">
           <input
             appInput
-            type="date"
-            formControlName="date"
-            [attr.min]="firstDay()"
-            [attr.max]="lastDay()"
+            formControlName="description"
+            autocomplete="off"
+            [attr.maxlength]="descriptionMaxLength"
           />
         </app-field>
-      </div>
 
-      @if (formError(); as error) {
-        <p
-          role="alert"
-          class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-        >
-          <app-icon name="alert" class="mt-0.5 text-negative" />
-          <span>{{ error }}</span>
-        </p>
-      }
+        <div class="grid gap-4 sm:grid-cols-2">
+          <app-field label="Amount">
+            <app-money-input formControlName="amount" />
+          </app-field>
+          <app-field label="Date">
+            <input
+              appInput
+              type="date"
+              formControlName="date"
+              [attr.min]="firstDay()"
+              [attr.max]="lastDay()"
+            />
+          </app-field>
+        </div>
 
-      <div class="flex flex-wrap gap-2">
-        <button appButton type="submit" [loading]="saving()">
-          {{ income() ? 'Save changes' : 'Add income' }}
-        </button>
-        <button appButton variant="secondary" (click)="cancelled.emit()">Cancel</button>
-      </div>
-    </form>
+        @if (formError(); as error) {
+          <app-alert tone="error">{{ error }}</app-alert>
+        }
+
+        <div class="dialog-footer">
+          <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
+            Cancel
+          </button>
+          <button appButton type="submit" [loading]="saving()">
+            {{ income() ? 'Save changes' : 'Add income' }}
+          </button>
+        </div>
+      </form>
+    </app-dialog>
   `,
   host: { class: 'block' },
 })
@@ -98,6 +95,7 @@ export class IncomeForm implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly alive = aliveFlag();
 
   /** The month the income belongs to: its date must be inside it. */
   readonly month = input.required<MonthKey>();
@@ -156,10 +154,6 @@ export class IncomeForm implements OnInit {
       const today = this.today.date() ?? firstDayOf(this.month());
       this.form.controls.date.setValue(clampDateToMonth(today, this.month()));
     }
-    // The user just asked for this form: start in it.
-    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('input')?.focus(), {
-      injector: this.injector,
-    });
   }
 
   protected async save(): Promise<void> {
@@ -195,7 +189,7 @@ export class IncomeForm implements OnInit {
     try {
       await firstValueFrom(request);
       this.toast.success(income ? 'Income updated.' : 'Income added.');
-      this.saved.emit();
+      if (this.alive()) this.saved.emit();
     } catch (error) {
       this.formError.set(applyApiErrors(this.form, parseApiError(error)));
       afterNextRender(() => focusFirstInvalid(this.host.nativeElement), {

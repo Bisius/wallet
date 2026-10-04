@@ -1,73 +1,42 @@
-<app-page-header
-  title="Income"
-  [subtitle]="monthLabel() ? 'Salary and other money coming in, for ' + monthLabel() + '.' : ''"
-/>
+<app-page width="narrow">
+  <app-page-header
+    title="Income"
+    [subtitle]="monthLabel() ? 'Salary and other money coming in, for ' + monthLabel() + '.' : ''"
+  />
 
-@if (month(); as month) {
-  <div class="max-w-3xl space-y-6">
-    <section aria-labelledby="income-summary-heading" class="card">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="income-summary-heading" class="text-lg font-semibold">
-          Income in {{ monthLabel() }}
-        </h2>
-        @if (monthView(); as view) {
-          <app-month-status [status]="view.status" />
-        }
-      </div>
-
-      @switch (viewState()) {
-        @case ('loading') {
-          <app-loading-state label="Loading this month's income…" />
-        }
-        @case ('error') {
-          <app-error-state
-            title="Couldn't load this month's income"
-            [error]="view.error()"
-            (retry)="view.reload()"
-          />
-        }
-        @default {
-          @if (monthView(); as view) {
-            <dl class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div class="rounded-control bg-subtle p-3">
-                <dt class="text-sm text-muted">Salary</dt>
-                <dd class="text-lg font-semibold"><app-amount [cents]="view.income.salary" /></dd>
-              </div>
-              <div class="rounded-control bg-subtle p-3">
-                <dt class="text-sm text-muted">One-off income</dt>
-                <dd class="text-lg font-semibold"><app-amount [cents]="view.income.extra" /></dd>
-              </div>
-              <div class="rounded-control bg-subtle p-3">
-                <dt class="text-sm text-muted">Total income</dt>
-                <dd class="text-lg font-semibold"><app-amount [cents]="view.income.total" /></dd>
-              </div>
-            </dl>
-            @if (view.status === 'closed') {
-              <p class="mt-3 text-sm text-muted">
-                This month is closed. Changing its income changes what is due to savings.
-              </p>
-            } @else if (view.status === 'future') {
-              <p class="mt-3 text-sm text-muted">
-                This month has not started yet, so these figures are a projection.
-              </p>
-            }
-          }
-        }
+  @if (month(); as month) {
+    <app-async-section
+      variant="plain"
+      [heading]="'Income in ' + monthLabel()"
+      [description]="monthNote()"
+      [state]="viewState()"
+      [error]="view.error()"
+      loadingLabel="Loading this month's income…"
+      errorTitle="Couldn't load this month's income"
+      (retry)="view.reload()"
+    >
+      @if (monthView(); as view) {
+        <app-month-status sectionAction [status]="view.status" />
       }
-    </section>
+      @if (monthView(); as view) {
+        <dl appStatGrid [columns]="3">
+          <div appStat label="Salary" [cents]="view.income.salary"></div>
+          <div appStat label="One-off income" [cents]="view.income.extra"></div>
+          <div appStat size="lg" label="Total income" [cents]="view.income.total"></div>
+        </dl>
+      }
+    </app-async-section>
 
     @switch (salaryState()) {
       @case ('loading') {
-        <section class="card"><app-loading-state label="Loading the salary history…" /></section>
+        <app-loading-state label="Loading the salary history…" />
       }
       @case ('error') {
-        <section class="card">
-          <app-error-state
-            title="Couldn't load the salary history"
-            [error]="salary.error()"
-            (retry)="salary.reload()"
-          />
-        </section>
+        <app-error-state
+          title="Couldn't load the salary history"
+          [error]="salary.error()"
+          (retry)="salary.reload()"
+        />
       }
       @default {
         @if (salaryEntries(); as entries) {
@@ -89,5 +58,5 @@
       (retry)="incomes.reload()"
       (changed)="reload()"
     />
-  </div>
-}
+  }
+</app-page>

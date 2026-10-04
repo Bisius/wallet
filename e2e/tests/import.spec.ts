@@ -16,6 +16,8 @@ import {
   utf8Upload,
 } from '../support/csv-fixtures';
 import { json } from '../support/fixtures';
+import { rowAction } from '../support/menu';
+import { dashboardRow } from '../support/month-ui';
 import {
   chooseColumns,
   chooseFile,
@@ -62,14 +64,6 @@ function glanceFigure(page: Page, label: string): Locator {
     .filter({ has: page.getByText(label, { exact: true }) })
     .getByRole('definition')
     .first();
-}
-
-/** The "Budget progress" row of one budget on the dashboard. */
-function budgetRow(page: Page, name: string): Locator {
-  return page
-    .getByRole('region', { name: 'Budget progress' })
-    .getByRole('listitem')
-    .filter({ has: page.getByRole('heading', { name, exact: true }) });
 }
 
 /** The spending of the list on /spendings that carries this text. */
@@ -156,10 +150,10 @@ test.describe('a bank statement through the wizard', () => {
     await expect(glanceFigure(page, 'Budgeted')).toHaveText('€1,830.00');
     await expect(glanceFigure(page, 'Spent')).toHaveText('€45.30');
     await expect(glanceFigure(page, 'Unallocated')).toHaveText('€657.01');
-    await expect(budgetRow(page, 'Groceries')).toContainText(/Remaining\s*€370\.00/);
-    await expect(budgetRow(page, 'Fun')).toContainText(/Remaining\s*€137\.50/);
-    await expect(budgetRow(page, 'Transport')).toContainText(/Remaining\s*€77\.20/);
-    await expect(budgetRow(page, 'Home')).toContainText(/Remaining\s*€1,200\.00/);
+    await expect(dashboardRow(page, 'Groceries')).toContainText(/€370\.00\s*remaining/);
+    await expect(dashboardRow(page, 'Fun')).toContainText(/€137\.50\s*remaining/);
+    await expect(dashboardRow(page, 'Transport')).toContainText(/€77\.20\s*remaining/);
+    await expect(dashboardRow(page, 'Home')).toContainText(/€1,200\.00\s*remaining/);
 
     // 1. The file. It is not valid UTF-8 (ü, ß and É are single bytes), so the app reads it as
     //    windows-1252 and says so. The server found the semicolon by itself.
@@ -312,10 +306,10 @@ test.describe('a bank statement through the wizard', () => {
     await expect(glanceFigure(page, 'Budgeted')).toHaveText('€1,830.00');
     await expect(glanceFigure(page, 'Spent')).toHaveText('€1,155.51');
     await expect(glanceFigure(page, 'Unallocated')).toHaveText('€657.01');
-    await expect(budgetRow(page, 'Groceries')).toContainText(/Remaining\s*€336\.69/);
-    await expect(budgetRow(page, 'Fun')).toContainText(/Remaining\s*€115\.20/);
-    await expect(budgetRow(page, 'Transport')).toContainText(/Remaining\s*€71\.60/);
-    await expect(budgetRow(page, 'Home')).toContainText(/Remaining\s*€151\.00/);
+    await expect(dashboardRow(page, 'Groceries')).toContainText(/€336\.69\s*remaining/);
+    await expect(dashboardRow(page, 'Fun')).toContainText(/€115\.20\s*remaining/);
+    await expect(dashboardRow(page, 'Transport')).toContainText(/€71\.60\s*remaining/);
+    await expect(dashboardRow(page, 'Home')).toContainText(/€151\.00\s*remaining/);
 
     // The server's month view says the same, in cents, and the spendings are ordinary ones.
     const march = await getMonth(wallet.api, '2026-03');
@@ -748,9 +742,11 @@ test.describe('saved mapping profiles', () => {
     const dialog = page.getByRole('dialog', { name: 'Import profiles' });
     // Listed by name, ignoring case: Postbank before Sparkasse Giro.
     await expect(dialog.getByRole('listitem')).toHaveText([/Postbank/, /Sparkasse Giro/]);
+    const profile = (name: string) =>
+      dialog.getByRole('listitem').filter({ has: page.getByText(name, { exact: true }) });
 
     // A name that another profile has, in other letters, is refused and says so on the field.
-    await dialog.getByRole('button', { name: 'Rename profile Sparkasse Giro' }).click();
+    await rowAction(profile('Sparkasse Giro'), 'Rename');
     await dialog.getByLabel('New name for Sparkasse Giro').fill('POSTBANK');
     await dialog.getByRole('button', { name: 'Save name' }).click();
     await expect(
@@ -772,20 +768,20 @@ test.describe('saved mapping profiles', () => {
     expect(renamed[1]?.header).toHaveLength(5);
 
     // Deleting asks first. Cancelling keeps it, confirming removes it.
-    await dialog.getByRole('button', { name: 'Delete profile Postbank' }).click();
+    await rowAction(profile('Postbank'), 'Delete');
     const confirm = page.getByRole('dialog', { name: /^Delete the profile "/ });
     await expect(confirm).toHaveAccessibleName('Delete the profile "Postbank"?');
     await expect(confirm).toContainText('Nothing you imported changes.');
     await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog.getByRole('listitem')).toHaveCount(2);
-    await dialog.getByRole('button', { name: 'Delete profile Postbank' }).click();
+    await rowAction(profile('Postbank'), 'Delete');
     await confirm.getByRole('button', { name: 'Delete profile', exact: true }).click();
     await expect(page.getByText('Profile Postbank deleted.')).toBeVisible();
     await expect(dialog.getByRole('listitem')).toHaveText([/Sparkasse Girokonto/]);
 
     // Deleting the one in use takes it off the picker. The columns on the page stay as they are, so
     // the person can still go on with this file.
-    await dialog.getByRole('button', { name: 'Delete profile Sparkasse Girokonto' }).click();
+    await rowAction(profile('Sparkasse Girokonto'), 'Delete');
     await confirm.getByRole('button', { name: 'Delete profile', exact: true }).click();
     await expect(page.getByText('Profile Sparkasse Girokonto deleted.')).toBeVisible();
     await expect(dialog.getByText('No profiles yet')).toBeVisible();

@@ -108,8 +108,19 @@ describe('ImportDoneStep', () => {
       const t = await setup();
 
       expect(textOf(t.element)).toContain(
-        'They are ordinary spendings: edit or delete them like any other. If you choose this file again, its rows are marked as already imported.',
+        'Imported rows are ordinary spendings: edit or delete them like any other.',
       );
+      expect(textOf(t.element)).toContain(
+        'If you choose this file again, its rows are marked as already imported.',
+      );
+    });
+
+    it('says how many were imported in a success message, announced politely', async () => {
+      const t = await setup(['2026-10', '2026-10'], { created: 2 });
+
+      const status = getByRole(t.element, 'status');
+      expect(textOf(status)).toBe('Imported 2 spendings.');
+      expect(status.className).toContain('bg-positive-soft');
     });
 
     it('is the end of the wizard: there is nothing left to lose', async () => {
@@ -210,7 +221,9 @@ describe('ImportDoneStep', () => {
       const t = await setup(monthsEnding('2026-10', 14));
 
       expect(getByRole(t.element, 'region', 'Import complete')).toBeTruthy();
-      expect(getByRole(t.element, 'heading', 'Import complete').getAttribute('tabindex')).toBe('-1');
+      expect(getByRole(t.element, 'heading', 'Import complete').getAttribute('tabindex')).toBe(
+        '-1',
+      );
       expect(getByRole(t.element, 'heading', 'See them in')).toBeTruthy();
       expect(a11yProblems(t.element)).toEqual([]);
     });

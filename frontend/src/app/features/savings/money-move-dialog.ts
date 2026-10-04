@@ -34,9 +34,9 @@ import { Field } from '../../shared/forms/field';
 import { MoneyInput } from '../../shared/forms/money-input';
 import { positiveAmount } from '../../shared/forms/validators';
 import { formatMoney, MoneyPipe } from '../../shared/money.pipe';
+import { Alert } from '../../shared/ui/alert';
 import { Button } from '../../shared/ui/button';
 import { AppDialog } from '../../shared/ui/dialog';
-import { Icon } from '../../shared/ui/icon';
 import { ToastService } from '../../shared/ui/toast.service';
 import { UNASSIGNED_LABEL } from './savings-data';
 import { SavingsApi } from './savings.api';
@@ -91,7 +91,7 @@ const toGoalId = (value: string): number | null => (value === UNASSIGNED ? null 
  */
 @Component({
   selector: 'app-money-move-dialog',
-  imports: [ReactiveFormsModule, AppDialog, Field, AppInput, MoneyInput, Button, Icon, MoneyPipe],
+  imports: [Alert, ReactiveFormsModule, AppDialog, Field, AppInput, MoneyInput, Button, MoneyPipe],
   templateUrl: './money-move-dialog.html',
   host: { class: 'block' },
 })

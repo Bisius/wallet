@@ -10,6 +10,8 @@ import { TagChip } from './tag-chip';
     <app-tag-chip name="Groceries" color="#15803d" />
     <app-tag-chip name="Travel" />
     <app-tag-chip name="Holiday" size="md"><button type="button">Remove</button></app-tag-chip>
+    <app-tag-chip name="Groceries budget" mode="color" color="#15803d" />
+    <app-tag-chip name="Budget without a color" mode="color" />
   `,
 })
 class Host {}
@@ -60,5 +62,23 @@ describe('TagChip', () => {
     expect(pill.className).toContain('text-ink');
     expect(pill.className).toContain('bg-surface');
     expect(pill.className).toContain('border-line-strong');
+  });
+
+  it('in the color mode is a label with a dot for its color, as a budget has one', async () => {
+    const [, , , budget] = await setup();
+
+    expect(textOf(budget)).toBe('Groceries budget');
+    const dot = budget.querySelector<HTMLElement>('span[aria-hidden="true"]');
+    expect(dot?.style.backgroundColor).toBe('rgb(21, 128, 61)');
+    expect(budget.querySelector('svg')).toBeNull();
+  });
+
+  it('in the color mode has no marker at all without a color, where a tag has the tag icon', async () => {
+    const [, travel, , , plain] = await setup();
+
+    expect(textOf(plain)).toBe('Budget without a color');
+    expect(plain.querySelector('svg')).toBeNull();
+    expect(plain.querySelector('span[aria-hidden="true"]')).toBeNull();
+    expect(travel.querySelector('svg')).not.toBeNull();
   });
 });

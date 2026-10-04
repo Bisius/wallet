@@ -1,14 +1,16 @@
-import { Component, computed, inject, input, output } from '@angular/core';
+import { Component, computed, inject, input, output, viewChild } from '@angular/core';
 import type { BudgetDto, MonthBudgetLine, MonthKey, MonthStatus } from '@wallet/shared';
 import { addMonths } from '@wallet/shared/month';
 import { SettingsStore } from '../../core/settings.store';
 import { formatMonth } from '../../shared/format';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
 import { Amount } from '../../shared/ui/amount';
+import { Badge } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
+import { EntityCard } from '../../shared/ui/entity-card';
 import { Icon } from '../../shared/ui/icon';
+import { Stat } from '../../shared/ui/stat';
 import { BudgetUsage } from './budget-usage';
-
-const BADGE = 'rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium';
 
 /**
  * One budget in one month: what is available, spent and left, how far along it is (`BudgetUsage`:
@@ -17,15 +19,15 @@ const BADGE = 'rounded-full border border-line-strong px-2 py-0.5 text-xs font-m
  *
  * It only shows the figures of the month view. The rollover, the alert state and the savings amount
  * are the API's; nothing here is calculated. When money was moved in or out this month
- * (`transfersNet`, already part of what is available) the card says so. The actions (edit, archive,
- * delete, move money, reorder) show when the `budget` is known, and they are only requests: the page
- * does the work.
+ * (`transfersNet`, already part of what is available) the card says so. The actions show when the
+ * `budget` is known, and they are only requests: the page does the work. Edit and Move money are
+ * buttons; Archive, Move up, Move down and Delete are in the card's menu.
  */
 @Component({
   selector: 'app-budget-card',
-  imports: [Amount, BudgetUsage, Button, Icon],
+  imports: [ActionMenu, Amount, Badge, BudgetUsage, Button, EntityCard, Icon, MenuItem, Stat],
   templateUrl: './budget-card.html',
-  host: { class: 'block' },
+  host: { class: 'block h-full' },
 })
 export class BudgetCard {
   private readonly settings = inject(SettingsStore);
@@ -51,8 +53,7 @@ export class BudgetCard {
   readonly moveUp = output<void>();
   readonly moveDown = output<void>();
 
-  protected readonly badge = BADGE;
-  protected readonly nameId = computed(() => `budget-name-${this.line().id}`);
+  private readonly menu = viewChild(ActionMenu);
 
   protected readonly previousMonthLabel = computed(() =>
     formatMonth(addMonths(this.month(), -1), this.settings.locale()),
@@ -92,6 +93,11 @@ export class BudgetCard {
     const budget = this.budget();
     return budget !== undefined && budget.endMonth === null && budget.status === 'active';
   });
+
+  /** Puts the keyboard on the card's "More actions" button (the page does after a card was moved). */
+  focusMenu(): void {
+    this.menu()?.focus();
+  }
 
   protected move(direction: 'up' | 'down'): void {
     if (this.busy()) return;

@@ -6,6 +6,7 @@ import {
   inject,
   Injector,
   signal,
+  viewChildren,
 } from '@angular/core';
 import type { MonthSubscriptionLine, SubscriptionDto, SubscriptionStatus } from '@wallet/shared';
 import { firstValueFrom } from 'rxjs';
@@ -15,12 +16,16 @@ import { SelectedMonth } from '../../core/selected-month';
 import { SettingsStore } from '../../core/settings.store';
 import { TodayStore } from '../../core/today.store';
 import { formatMonth } from '../../shared/format';
-import { PageHeader } from '../../shared/page-header';
-import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
 import { ConfirmService } from '../../shared/ui/confirm.service';
 import { Icon } from '../../shared/ui/icon';
 import { MonthStatusBadge } from '../../shared/ui/month-status';
+import { AppPage } from '../../shared/ui/page';
+import { PageHeader } from '../../shared/ui/page-header';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
+import { Stat } from '../../shared/ui/stat';
+import { StatGrid } from '../../shared/ui/stat-grid';
+import { StatStrip } from '../../shared/ui/stat-strip';
 import { EmptyState, ErrorState, LoadingState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { MonthsApi } from '../months/months.api';
@@ -54,8 +59,13 @@ const SECTIONS: readonly Section[] = [
 @Component({
   selector: 'app-subscriptions-page',
   imports: [
+    AppPage,
     PageHeader,
-    Amount,
+    AppSection,
+    SectionHelp,
+    Stat,
+    StatGrid,
+    StatStrip,
     Button,
     Icon,
     MonthStatusBadge,
@@ -76,6 +86,7 @@ export class SubscriptionsPage {
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly cardViews = viewChildren(SubscriptionCard);
 
   protected readonly month = inject(SelectedMonth).month;
 
@@ -155,8 +166,12 @@ export class SubscriptionsPage {
       await firstValueFrom(this.api.cancel(subscription.id));
       this.toast.success(`${subscription.name} cancelled. It is charged through ${last}.`);
       await this.reload();
-      // The Cancel button that had focus is gone: go back to the card.
-      this.focus(() => this.byAction(`edit-${subscription.id}`));
+      // The menu item that was pressed is hidden: keep the keyboard on the card's menu button.
+      this.focus(() =>
+        this.cardViews()
+          .find((view) => view.subscription().id === subscription.id)
+          ?.focusMenu(),
+      );
     } catch (error) {
       this.toast.error(parseApiError(error).message);
       await this.reload();
@@ -181,18 +196,14 @@ export class SubscriptionsPage {
       this.toast.success(`${subscription.name} deleted.`);
       await this.reload();
       // The card that had focus is gone: the page title is the nearest stable place.
-      this.focus(() => this.host.nativeElement.querySelector<HTMLElement>('h1'));
+      this.focus(() => this.host.nativeElement.querySelector<HTMLElement>('h1')?.focus());
     } catch (error) {
       this.toast.error(parseApiError(error).message);
       await this.reload();
     }
   }
 
-  private byAction(action: string): HTMLElement | null {
-    return this.host.nativeElement.querySelector<HTMLElement>(`[data-action="${action}"]`);
-  }
-
-  private focus(find: () => HTMLElement | null): void {
-    afterNextRender(() => find()?.focus(), { injector: this.injector });
+  private focus(move: () => void): void {
+    afterNextRender(move, { injector: this.injector });
   }
 }

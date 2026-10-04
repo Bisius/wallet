@@ -84,7 +84,7 @@ export interface BarChartRow {
             <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
               <span class="min-w-0 flex-1 basis-32 font-medium break-words">
                 @if (row.icon) {
-                  <span class="mr-1">{{ row.icon }}</span>
+                  <span class="mr-1 font-emoji">{{ row.icon }}</span>
                 }
                 {{ row.label }}
               </span>

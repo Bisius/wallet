@@ -2,25 +2,39 @@ import { Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { SelectedMonth } from '../../core/selected-month';
 import { Amount } from '../../shared/ui/amount';
-import { Icon } from '../../shared/ui/icon';
+import { AsyncSection } from '../../shared/ui/async-section';
+import { LinkButton } from '../../shared/ui/link-button';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { SectionHelp } from '../../shared/ui/section';
+import { SeeAllLink } from '../../shared/ui/see-all-link';
 import { EmptyState } from '../../shared/ui/states';
 import { BudgetUsage } from '../budgets/budget-usage';
 import { sortByAlert } from './alert-order';
-import { DashboardCard } from './dashboard-card';
 import { DashboardData } from './dashboard-data';
 
 /**
  * One row per budget of the month: its progress bar and alert state (in words, with an icon and a
- * color), what is left, and a link to the Budgets page for that month. Budgets that are over, then
- * in warning, come first. A month with no budgets says what to do next.
+ * color), what is left, and a "See all" link to the Budgets page for that month. Budgets that are
+ * over, then in warning, come first. A month with no budgets says what to do next.
  */
 @Component({
   selector: 'app-budget-progress-section',
-  imports: [Amount, BudgetUsage, DashboardCard, EmptyState, Icon, RouterLink],
+  imports: [
+    Amount,
+    AppList,
+    AsyncSection,
+    BudgetUsage,
+    EmptyState,
+    LinkButton,
+    ListRow,
+    RouterLink,
+    SectionHelp,
+    SeeAllLink,
+  ],
   template: `
-    <app-dashboard-card
-      title="Budget progress"
-      description="What each budget has left. The ones over budget, then in warning, come first."
+    <app-async-section
+      heading="Budget progress"
+      description="What each budget has left."
       [state]="data.viewState()"
       [error]="data.view.error()"
       loadingLabel="Loading budget progress…"
@@ -28,15 +42,15 @@ import { DashboardData } from './dashboard-data';
       (retry)="data.view.reload()"
     >
       @if (hasBudgets()) {
-        <a
-          cardAction
-          routerLink="/budgets"
+        <app-see-all-link
+          sectionAction
+          route="/budgets"
+          what="budgets"
           [queryParams]="selected.linkParams()"
-          class="inline-flex min-h-9 items-center gap-1 rounded-control px-3 py-1.5 text-sm font-semibold text-accent hover:bg-subtle"
-        >
-          Open budgets
-          <app-icon name="chevron-right" />
-        </a>
+        />
+      }
+      @if (hasBudgets()) {
+        <p sectionHelp>The budgets that are over, then the ones in warning, come first.</p>
       }
 
       @if (lines(); as lines) {
@@ -46,45 +60,42 @@ import { DashboardData } from './dashboard-data';
             description="Create a budget to give part of your income a job. As you add spendings to it, its progress shows up here."
           >
             <a
+              appLinkButton
+              variant="primary"
               routerLink="/budgets"
               [queryParams]="selected.linkParams()"
-              class="inline-flex min-h-11 items-center justify-center rounded-control bg-accent px-4 py-2 text-sm font-semibold text-on-accent hover:bg-accent-hover"
             >
               Go to budgets
             </a>
           </app-empty-state>
         } @else {
-          <ul class="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
+          <ul appList density="compact">
             @for (line of lines; track line.id) {
-              <li
-                class="space-y-2 border-l-4 border-line pl-3"
-                [style.border-left-color]="line.color"
-              >
-                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h3 class="min-w-0 font-semibold break-words">
-                    @if (line.icon) {
-                      <span aria-hidden="true" class="mr-1">{{ line.icon }}</span>
-                    }
-                    {{ line.name }}
-                  </h3>
-                  <p class="text-sm">
-                    <span class="text-muted">Remaining</span>{{ ' '
-                    }}<span class="font-semibold"><app-amount [cents]="line.remaining" /></span>
-                  </p>
-                </div>
-                <p class="text-sm text-muted">
-                  Spent
-                  <span class="font-medium text-ink"><app-amount [cents]="line.spent" /></span>
-                  · Available
-                  <span class="font-medium text-ink"><app-amount [cents]="line.available" /></span>
+              <li appListRow [color]="line.color" amountNote="remaining">
+                <span rowTitle>
+                  @if (line.icon) {
+                    <span aria-hidden="true" class="mr-1 font-emoji">{{ line.icon }}</span>
+                  }
+                  {{ line.name }}
+                </span>
+                <p rowMeta>
+                  <span>
+                    Spent
+                    <span class="font-medium text-ink"><app-amount [cents]="line.spent" /></span>
+                    · Available
+                    <span class="font-medium text-ink"
+                      ><app-amount [cents]="line.available"
+                    /></span>
+                  </span>
                 </p>
+                <app-amount rowAmount [cents]="line.remaining" />
                 <app-budget-usage [line]="line" />
               </li>
             }
           </ul>
         }
       }
-    </app-dashboard-card>
+    </app-async-section>
   `,
   host: { class: 'block' },
 })

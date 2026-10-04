@@ -1,5 +1,8 @@
 import { type Locator, type Page, expect, test } from '@playwright/test';
 import { finishAnimations } from './axe';
+import { chooseMenuItem, moreActions } from './menu';
+import { openFilters, openMore } from './month-ui';
+import { goToPage, moreButton } from './nav';
 import { NAMES } from './rich-data';
 
 /*
@@ -35,9 +38,18 @@ export const BANK_CSV = [
 // Waiting for a page to be ready
 // ------------------------------------------------------------------------------------------------
 
+/**
+ * The words of the API status that are on screen. The sidebar of a wide screen has them and so does
+ * the top bar of a phone (as text for a screen reader beside a dot), and CSS hides the one that does
+ * not fit the screen (`display: none`), so only the visible one counts: two matches would be an error.
+ */
+export function apiStatus(page: Page, words: 'API online' | 'API offline'): Locator {
+  return page.getByText(words).filter({ visible: true });
+}
+
 /** Waits until nothing on the page is loading, and nothing is moving. */
 export async function settle(page: Page): Promise<void> {
-  await expect(page.getByText('API online')).toBeVisible();
+  await expect(apiStatus(page, 'API online')).toBeVisible();
   await expect(
     page.getByRole('status').filter({ hasText: /^\s*(Loading|Reading)/ }),
     'a loading indicator is still on screen',
@@ -118,8 +130,14 @@ export interface DialogOpening {
   heading: string | RegExp;
   /** Anything to do on the page first (open a section that is folded). */
   prepare?: (page: Page) => Promise<void>;
-  /** The control that opens the dialog. The keyboard check focuses it and presses Enter. */
+  /**
+   * The control that opens the dialog. The keyboard check focuses it and presses Enter. When an item
+   * of a "More actions" menu opens the dialog, this is the menu's button (the one that gets focus back
+   * when the dialog closes) and `menuItem` is the item.
+   */
   opener: (page: Page) => Locator;
+  /** The item of the menu of `opener` that opens the dialog (a name, matched exactly). */
+  menuItem?: string | RegExp;
 }
 
 export interface Stop {
@@ -129,16 +147,32 @@ export interface Stop {
   open: (page: Page) => Promise<void>;
   /** A modal dialog is open in this state. */
   modal?: boolean;
+  /**
+   * A "More actions" menu is open in this state. It is on screen, in front of the page, and closes
+   * when the page scrolls, so a screenshot shows the window as it is, not the whole page.
+   */
+  menu?: boolean;
   /** The one thing a user comes to this page, or this dialog, to do. */
   primary?: (page: Page) => Locator;
   /** For a dialog that is just opened: how, so that the keyboard check can open it with keys. */
   dialog?: DialogOpening;
+  /** The state only exists on this screen (the tab bar's "More" sheet is a phone's). Leave it out for both. */
+  screen?: ScreenName;
 }
 
-/** On a phone the spendings filters are folded behind a button; on a desktop they are always open. */
-async function openFilters(page: Page): Promise<void> {
-  const toggle = page.getByRole('button', { name: /^Filters/ });
-  if (await toggle.isVisible()) await toggle.click();
+/** The stops that make sense on a screen: the ones that belong to the other one are left out. */
+export function onScreen<T extends Stop>(stops: readonly T[], screen: ScreenName): T[] {
+  return stops.filter((stop) => stop.screen === undefined || stop.screen === screen);
+}
+
+/**
+ * Scrolls a control to the middle of the window, where a person who has just unfolded a section is
+ * looking. Unfolding at the end of a long page leaves what it reveals wherever the click scrolled to,
+ * which can be under the sticky top bar (or the tab bar of a phone): not a fault of the page, but axe
+ * measures a target that is half under a bar as a small one.
+ */
+async function toMiddle(control: Locator): Promise<void> {
+  await control.evaluate((element) => element.scrollIntoView({ block: 'center' }));
 }
 
 /** Last button of the open dialog: Save, Create, Confirm. Cancel always comes first. */
@@ -178,13 +212,44 @@ function dialogStop(
     open: async (page) => {
       await openPage(page, opening.path, opening.heading);
       await opening.prepare?.(page);
-      await opening.opener(page).click();
+      if (opening.menuItem === undefined) await opening.opener(page).click();
+      else await chooseMenuItem(opening.opener(page), opening.menuItem);
       await expectDialogOpen(page);
       await after?.(page, openDialog(page));
       await settle(page);
     },
   };
 }
+
+/** A page with the "More actions" menu of one row open: what a user sees before choosing. */
+function menuStop(
+  name: string,
+  path: string,
+  heading: string | RegExp,
+  row: (page: Page) => Locator,
+): Stop {
+  return {
+    name,
+    menu: true,
+    open: async (page) => {
+      await openPage(page, path, heading);
+      const button = moreActions(row(page));
+      await button.click();
+      await expect(button).toHaveAttribute('aria-expanded', 'true');
+      await settle(page);
+    },
+  };
+}
+
+/** A card (budget, subscription, goal) by its name: an `article` named by its title. */
+const card = (page: Page, name: string): Locator =>
+  page.getByRole('article', { name, exact: true });
+
+/** A row of a list, found by the text of its title (a row has one title, and the text is its own). */
+const listRow = (page: Page, title: string | RegExp): Locator =>
+  page.getByRole('listitem').filter({
+    has: typeof title === 'string' ? page.getByText(title, { exact: true }) : page.getByText(title),
+  });
 
 /** Presses a dialog's submit button with nothing filled in, and waits for the fields to complain. */
 async function submitEmpty(dialog: Locator, button: string | RegExp): Promise<void> {
@@ -198,9 +263,16 @@ async function submitEmpty(dialog: Locator, button: string | RegExp): Promise<vo
  */
 export function richStops(): Stop[] {
   const { budgets, subscriptions, goals, incomes, tags } = NAMES;
+  const dashboardPage = { path: '/dashboard', heading: 'Dashboard' };
+  const addSpendingButton = (page: Page) =>
+    page.getByRole('button', { name: 'Add spending', exact: true });
   const budgetsPage = { path: '/budgets', heading: 'Budgets' };
   const subscriptionsPage = { path: '/subscriptions', heading: 'Subscriptions' };
   const incomePage = { path: '/income', heading: 'Income' };
+  const changeSalaryButton = (page: Page) =>
+    page.getByRole('button', { name: 'Change salary', exact: true });
+  const addIncomeButton = (page: Page) =>
+    page.getByRole('button', { name: 'Add income', exact: true });
   const savingsPage = { path: '/savings', heading: 'Savings' };
   const settingsPage = { path: '/settings', heading: 'Settings' };
   const spendingsPage = { path: '/spendings', heading: 'Spendings' };
@@ -210,7 +282,7 @@ export function richStops(): Stop[] {
   return [
     // --- Dashboard
     pageStop('dashboard', '/dashboard', 'Dashboard', {
-      primary: (page) => page.getByRole('link', { name: /^Open budgets/ }),
+      primary: (page) => page.getByRole('link', { name: /^See all budgets/ }),
     }),
     pageStop('dashboard (closed month)', '/dashboard?month=2026-02', 'Dashboard'),
     {
@@ -223,6 +295,25 @@ export function richStops(): Stop[] {
         await settle(page);
       },
     },
+    // The shell's Add spending, which is on every page but Spendings. Exactly one of its buttons is on
+    // screen: the top bar's on a wide screen, the floating one on a phone.
+    dialogStop('dashboard > Add spending dialog', {
+      ...dashboardPage,
+      opener: addSpendingButton,
+    }),
+    dialogStop(
+      'dashboard > Add spending dialog, validation errors',
+      { ...dashboardPage, opener: addSpendingButton },
+      (_page, dialog) => submitEmpty(dialog, 'Add spending'),
+    ),
+    // The tab bar's "More" sheet, which only a phone has.
+    {
+      ...dialogStop('dashboard > More sheet', {
+        ...dashboardPage,
+        opener: (page) => moreButton(page),
+      }),
+      screen: 'phone',
+    },
 
     // --- Budgets
     pageStop('budgets', budgetsPage.path, budgetsPage.heading, {
@@ -232,9 +323,11 @@ export function richStops(): Stop[] {
     pageStop('budgets > ended and upcoming budgets unfolded', budgetsPage.path, 'Budgets', {
       then: async (page) => {
         await page.getByText('Upcoming and ended budgets').click();
-        await expect(
-          page.getByRole('button', { name: `Delete ${budgets.deletable}` }),
-        ).toBeVisible();
+        const unfolded = page.getByRole('button', {
+          name: `More actions for ${budgets.deletable}`,
+        });
+        await expect(unfolded).toBeVisible();
+        await toMiddle(unfolded);
       },
     }),
     dialogStop('budgets > New budget dialog', {
@@ -267,17 +360,23 @@ export function richStops(): Stop[] {
     ),
     dialogStop(`budgets > Archive ${budgets.over} confirmation`, {
       ...budgetsPage,
-      opener: (page) => page.getByRole('button', { name: `Archive ${budgets.over}` }),
+      opener: (page) => moreActions(card(page, budgets.over)),
+      menuItem: 'Archive',
     }),
     dialogStop(`budgets > Delete ${budgets.deletable} confirmation`, {
       ...budgetsPage,
       prepare: (page) => page.getByText('Upcoming and ended budgets').click(),
-      opener: (page) => page.getByRole('button', { name: `Delete ${budgets.deletable}` }),
+      opener: (page) => page.getByRole('button', { name: `More actions for ${budgets.deletable}` }),
+      menuItem: 'Delete',
     }),
     dialogStop('budgets > Delete transfer confirmation', {
       ...budgetsPage,
-      opener: (page) => page.getByRole('button', { name: /^Delete transfer of/ }).first(),
+      opener: (page) => page.getByRole('button', { name: /^More actions for transfer of/ }).first(),
+      menuItem: 'Delete',
     }),
+    menuStop('budgets > card menu open', budgetsPage.path, 'Budgets', (page) =>
+      card(page, budgets.over),
+    ),
 
     // --- Spendings
     pageStop('spendings', spendingsPage.path, 'Spendings', {
@@ -291,7 +390,7 @@ export function richStops(): Stop[] {
     }),
     pageStop('spendings > tag suggestions open', spendingsPage.path, 'Spendings', {
       then: async (page) => {
-        await page.getByRole('button', { name: 'Add tags' }).click();
+        await openMore(page);
         const box = page.getByRole('combobox', { name: /^Tags/ });
         await box.click();
         await box.pressSequentially('e');
@@ -318,8 +417,10 @@ export function richStops(): Stop[] {
     }),
     dialogStop('spendings > Delete spending confirmation', {
       ...spendingsPage,
-      opener: (page) => spendingRow(page).getByRole('button', { name: /^Delete/ }),
+      opener: (page) => moreActions(spendingRow(page)),
+      menuItem: 'Delete',
     }),
+    menuStop('spendings > row menu open', spendingsPage.path, 'Spendings', spendingRow),
 
     // --- Subscriptions
     pageStop('subscriptions', subscriptionsPage.path, 'Subscriptions', {
@@ -348,51 +449,56 @@ export function richStops(): Stop[] {
     }),
     dialogStop(`subscriptions > Cancel ${subscriptions.renewsSoon} confirmation`, {
       ...subscriptionsPage,
-      opener: (page) => page.getByRole('button', { name: `Cancel ${subscriptions.renewsSoon}` }),
+      opener: (page) => moreActions(card(page, subscriptions.renewsSoon)),
+      // The item is named for the subscription, so it is not taken for the Cancel of a dialog.
+      menuItem: `Cancel ${subscriptions.renewsSoon}`,
     }),
     dialogStop(`subscriptions > Delete ${subscriptions.renewsSoon} confirmation`, {
       ...subscriptionsPage,
-      opener: (page) => page.getByRole('button', { name: `Delete ${subscriptions.renewsSoon}` }),
+      opener: (page) => moreActions(card(page, subscriptions.renewsSoon)),
+      menuItem: 'Delete',
     }),
+    menuStop('subscriptions > card menu open', subscriptionsPage.path, 'Subscriptions', (page) =>
+      card(page, subscriptions.renewsSoon),
+    ),
 
     // --- Income
     pageStop('income', incomePage.path, 'Income', {
-      primary: (page) => page.getByRole('button', { name: 'Add income', exact: true }),
+      primary: addIncomeButton,
     }),
-    pageStop('income > salary form, validation errors', incomePage.path, 'Income', {
-      then: async (page) => {
-        await page.getByLabel('Monthly net salary').fill('');
-        await page.getByRole('button', { name: /^Save (salary|the change)$/ }).click();
-        await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible();
-      },
+    dialogStop('income > Change salary dialog', {
+      ...incomePage,
+      opener: changeSalaryButton,
     }),
-    pageStop('income > Add income form', incomePage.path, 'Income', {
-      then: async (page) => {
-        await page.getByRole('button', { name: 'Add income', exact: true }).click();
-        await expect(page.getByRole('heading', { name: 'Add income', level: 3 })).toBeVisible();
-      },
+    dialogStop(
+      'income > Change salary dialog, validation errors',
+      { ...incomePage, opener: changeSalaryButton },
+      (_page, dialog) => submitEmpty(dialog, /^Save (salary|the change)$/),
+    ),
+    dialogStop('income > Add income dialog', {
+      ...incomePage,
+      opener: addIncomeButton,
     }),
-    pageStop('income > Add income form, validation errors', incomePage.path, 'Income', {
-      then: async (page) => {
-        await page.getByRole('button', { name: 'Add income', exact: true }).click();
-        await page.getByRole('button', { name: 'Add income', exact: true }).click();
-        await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible();
-      },
-    }),
-    pageStop(`income > Edit ${incomes.gift} form`, incomePage.path, 'Income', {
-      then: async (page) => {
-        await page.getByRole('button', { name: `Edit ${incomes.gift}` }).click();
-        await expect(page.getByRole('heading', { name: 'Edit income', level: 3 })).toBeVisible();
-      },
+    dialogStop(
+      'income > Add income dialog, validation errors',
+      { ...incomePage, opener: addIncomeButton },
+      (_page, dialog) => submitEmpty(dialog, 'Add income'),
+    ),
+    dialogStop(`income > Edit ${incomes.gift} dialog`, {
+      ...incomePage,
+      opener: (page) => moreActions(listRow(page, incomes.gift)),
+      menuItem: 'Edit',
     }),
     dialogStop(`income > Delete ${incomes.gift} confirmation`, {
       ...incomePage,
-      opener: (page) => page.getByRole('button', { name: `Delete ${incomes.gift}` }),
+      opener: (page) => moreActions(listRow(page, incomes.gift)),
+      menuItem: 'Delete',
     }),
     dialogStop('income > Delete salary change confirmation', {
       ...incomePage,
       opener: (page) =>
-        page.getByRole('button', { name: /^Delete the salary change from/ }).first(),
+        page.getByRole('button', { name: /^More actions for the salary from/ }).first(),
+      menuItem: 'Delete',
     }),
 
     // --- Savings
@@ -402,9 +508,9 @@ export function richStops(): Stop[] {
     pageStop('savings > archived goals unfolded', savingsPage.path, 'Savings', {
       then: async (page) => {
         await page.getByText('Archived goals').click();
-        await expect(
-          page.getByRole('button', { name: `Unarchive ${goals.archived}` }),
-        ).toBeVisible();
+        const unfolded = page.getByRole('button', { name: `More actions for ${goals.archived}` });
+        await expect(unfolded).toBeVisible();
+        await toMiddle(unfolded);
       },
     }),
     dialogStop('savings > Split a month dialog', {
@@ -433,7 +539,8 @@ export function richStops(): Stop[] {
     ),
     dialogStop(`savings > Edit ${goals.active} dialog`, {
       ...savingsPage,
-      opener: (page) => page.getByRole('button', { name: `Edit ${goals.active}` }),
+      opener: (page) => moreActions(card(page, goals.active)),
+      menuItem: 'Edit',
     }),
     dialogStop('savings > Deposit dialog', {
       ...savingsPage,
@@ -461,20 +568,40 @@ export function richStops(): Stop[] {
     }),
     dialogStop(`savings > Delete ${goals.open} confirmation`, {
       ...savingsPage,
-      opener: (page) => page.getByRole('button', { name: `Delete ${goals.open}` }),
+      opener: (page) => moreActions(card(page, goals.open)),
+      menuItem: 'Delete',
     }),
+    menuStop('savings > goal card menu open', savingsPage.path, 'Savings', (page) =>
+      card(page, goals.active),
+    ),
     dialogStop('savings > Delete entry confirmation', {
+      ...savingsPage,
+      // A deposit, a withdrawal and a reallocation can be deleted: their menus name the entry.
+      opener: (page) =>
+        page
+          .getByRole('region', { name: 'History' })
+          .getByRole('button', { name: /^More actions for (Deposit|Withdrawal|Moved)/ })
+          .first(),
+      menuItem: 'Delete',
+    }),
+    dialogStop('savings > Undo settlement confirmation', {
       ...savingsPage,
       opener: (page) =>
         page
           .getByRole('region', { name: 'History' })
-          .getByRole('button', { name: /^Delete / })
+          .getByRole('button', { name: /^More actions for Settled / })
           .first(),
+      menuItem: 'Undo settlement',
     }),
-    dialogStop('savings > Undo settlement confirmation', {
-      ...savingsPage,
-      opener: (page) => page.getByRole('button', { name: /^Undo / }).first(),
-    }),
+    menuStop('savings > history entry menu open', savingsPage.path, 'Savings', (page) =>
+      page
+        .getByRole('region', { name: 'History' })
+        .getByRole('listitem')
+        .filter({
+          has: page.getByRole('button', { name: /^More actions for (Deposit|Withdrawal|Moved)/ }),
+        })
+        .first(),
+    ),
 
     // --- Yearly report
     pageStop('report', '/report', 'Yearly report'),
@@ -509,8 +636,12 @@ export function richStops(): Stop[] {
     ),
     dialogStop(`settings > Delete tag ${tags.weekend} confirmation`, {
       ...settingsPage,
-      opener: (page) => page.getByRole('button', { name: `Delete tag ${tags.weekend}` }),
+      opener: (page) => page.getByRole('button', { name: `More actions for tag ${tags.weekend}` }),
+      menuItem: 'Delete',
     }),
+    menuStop('settings > tag menu open', settingsPage.path, 'Settings', (page) =>
+      listRow(page, tags.weekend),
+    ),
     pageStop('settings > backup made, toast on screen', settingsPage.path, 'Settings', {
       then: async (page) => {
         await page.getByRole('button', { name: 'Back up now' }).click();
@@ -625,9 +756,12 @@ function importStops(withProfile: boolean): Stop[] {
               await toColumns(page);
               await page.getByRole('button', { name: 'Manage profiles' }).click();
               await expectDialogOpen(page);
-              await page
-                .getByRole('button', { name: `Delete profile ${NAMES.importProfile}` })
-                .click();
+              await chooseMenuItem(
+                openDialog(page).getByRole('button', {
+                  name: `More actions for profile ${NAMES.importProfile}`,
+                }),
+                'Delete',
+              );
               await expect(page.getByRole('heading', { name: /Delete/ })).toBeVisible();
               await settle(page);
             },
@@ -664,7 +798,7 @@ function importStops(withProfile: boolean): Stop[] {
       open: async (page) => {
         await openPage(page, path, heading);
         await chooseFile(page);
-        await page.getByRole('link', { name: 'Budgets', exact: true }).click();
+        await goToPage(page, 'Budgets');
         await expectDialogOpen(page);
       },
     },
@@ -696,11 +830,10 @@ export function emptyStops(): Stop[] {
     pageStop('income', '/income', 'Income', {
       primary: (page) => page.getByRole('button', { name: 'Add income', exact: true }),
     }),
-    pageStop('income > Add income form', '/income', 'Income', {
-      then: async (page) => {
-        await page.getByRole('button', { name: 'Add income', exact: true }).click();
-        await expect(page.getByRole('heading', { name: 'Add income', level: 3 })).toBeVisible();
-      },
+    dialogStop('income > Add income dialog', {
+      path: '/income',
+      heading: 'Income',
+      opener: (page) => page.getByRole('button', { name: 'Add income', exact: true }),
     }),
     pageStop('savings', '/savings', 'Savings', {
       primary: (page) => page.getByRole('button', { name: 'New goal' }).first(),

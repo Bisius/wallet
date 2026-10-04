@@ -4,12 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { IMPORT_MAX_BODY_BYTES, IMPORT_MAX_ROWS } from '@wallet/shared';
 import { importMapping, importProfileDto, parseResponse } from '../../../testing/fixtures';
 import { flushError, settle } from '../../../testing/harness';
-import {
-  chooseFile,
-  csvFile,
-  IMPORT_STORES,
-  setupWizard,
-} from '../../../testing/import-harness';
+import { chooseFile, csvFile, IMPORT_STORES, setupWizard } from '../../../testing/import-harness';
 import { ImportWizardStore, profileHeader } from './import-wizard.store';
 
 const TEXT = 'Date;Amount;Description\n2026-10-01;-3.50;Coffee\n2026-10-02;-12.30;Lunch\n';
@@ -44,11 +39,15 @@ describe('ImportWizardStore', () => {
     it('decodes the file as UTF-8 and sends its text to parse, with no delimiter so the server detects one', async () => {
       const wizard = await setupWizard(http);
 
-      const loading = wizard.loadFile(csvFile('Date;Amount;Description\n2026-10-01;-3,50;Café\n', 'ing.csv'));
+      const loading = wizard.loadFile(
+        csvFile('Date;Amount;Description\n2026-10-01;-3,50;Café\n', 'ing.csv'),
+      );
       await settle();
       expect(wizard.reading()).toBe(true);
       const request = http.expectOne('/api/import/parse');
-      expect(request.request.body).toEqual({ csv: 'Date;Amount;Description\n2026-10-01;-3,50;Café\n' });
+      expect(request.request.body).toEqual({
+        csv: 'Date;Amount;Description\n2026-10-01;-3,50;Café\n',
+      });
       request.flush(parseResponse());
       await loading;
 
@@ -75,7 +74,7 @@ describe('ImportWizardStore', () => {
       expect(wizard.file()?.encoding).toBe('windows-1252');
     });
 
-    it("prefills the delimiter with the detected one", async () => {
+    it('prefills the delimiter with the detected one', async () => {
       const wizard = await setupWizard(http);
 
       await chooseFile(http, wizard, csvFile(TEXT), parseResponse({ delimiter: '|' }));
@@ -113,9 +112,13 @@ describe('ImportWizardStore', () => {
 
       const loading = wizard.loadFile(csvFile('a;"b\n'));
       await settle();
-      flushError(http.expectOne('/api/import/parse'), 400, 'validation_error', 'Validation failed', [
-        { path: 'csv', message: 'A quoted field starting on line 1 is never closed' },
-      ]);
+      flushError(
+        http.expectOne('/api/import/parse'),
+        400,
+        'validation_error',
+        'Validation failed',
+        [{ path: 'csv', message: 'A quoted field starting on line 1 is never closed' }],
+      );
       await loading;
 
       expect(wizard.readError()).toBe('Validation failed');
@@ -142,7 +145,12 @@ describe('ImportWizardStore', () => {
     it('is not ready for an empty file', async () => {
       const wizard = await setupWizard(http);
 
-      await chooseFile(http, wizard, csvFile(''), parseResponse({ header: [], sample: [], recordCount: 0, columnCount: 0 }));
+      await chooseFile(
+        http,
+        wizard,
+        csvFile(''),
+        parseResponse({ header: [], sample: [], recordCount: 0, columnCount: 0 }),
+      );
 
       expect(wizard.parse()?.recordCount).toBe(0);
       expect(wizard.fileReady()).toBe(false);
@@ -195,7 +203,9 @@ describe('ImportWizardStore', () => {
       expect(wizard.parsing()).toBe(true);
       const request = http.expectOne('/api/import/parse');
       expect(request.request.body).toEqual({ csv: TEXT, delimiter: ',' });
-      request.flush(parseResponse({ delimiter: ',', header: [TEXT.split('\n')[0]], columnCount: 1 }));
+      request.flush(
+        parseResponse({ delimiter: ',', header: [TEXT.split('\n')[0]], columnCount: 1 }),
+      );
       await changing;
 
       expect(wizard.parsing()).toBe(false);
@@ -224,7 +234,12 @@ describe('ImportWizardStore', () => {
 
       const changing = wizard.setDelimiter('|');
       await settle();
-      flushError(http.expectOne('/api/import/parse'), 400, 'validation_error', 'A quote is never closed on line 3');
+      flushError(
+        http.expectOne('/api/import/parse'),
+        400,
+        'validation_error',
+        'A quote is never closed on line 3',
+      );
       await changing;
 
       expect(wizard.readError()).toBe('A quote is never closed on line 3');
@@ -337,7 +352,12 @@ describe('ImportWizardStore', () => {
 
     it('is not ready for a file with too many rows', async () => {
       const wizard = await setupWizard(http);
-      await chooseFile(http, wizard, csvFile(TEXT), parseResponse({ recordCount: IMPORT_MAX_ROWS + 2 }));
+      await chooseFile(
+        http,
+        wizard,
+        csvFile(TEXT),
+        parseResponse({ recordCount: IMPORT_MAX_ROWS + 2 }),
+      );
       mapColumns(wizard);
 
       expect(wizard.dataRows()).toBe(IMPORT_MAX_ROWS + 1);
@@ -352,7 +372,12 @@ describe('ImportWizardStore', () => {
 
     it('is ready at exactly the row limit', async () => {
       const wizard = await setupWizard(http);
-      await chooseFile(http, wizard, csvFile(TEXT), parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }));
+      await chooseFile(
+        http,
+        wizard,
+        csvFile(TEXT),
+        parseResponse({ recordCount: IMPORT_MAX_ROWS + 1 }),
+      );
       mapColumns(wizard);
 
       expect(wizard.dataRows()).toBe(IMPORT_MAX_ROWS);
@@ -361,7 +386,12 @@ describe('ImportWizardStore', () => {
 
     it('is not ready for a file with only a header', async () => {
       const wizard = await setupWizard(http);
-      await chooseFile(http, wizard, csvFile('Date;Amount;Description\n'), parseResponse({ sample: [], recordCount: 1 }));
+      await chooseFile(
+        http,
+        wizard,
+        csvFile('Date;Amount;Description\n'),
+        parseResponse({ sample: [], recordCount: 1 }),
+      );
       mapColumns(wizard);
 
       expect(wizard.dataRows()).toBe(0);
@@ -471,12 +501,18 @@ describe('ImportWizardStore', () => {
     });
 
     it('reads the file again when the profile has another delimiter than the one detected', async () => {
-      const comma = importProfileDto({ id: 5, name: 'Comma bank', mapping: importMapping({ delimiter: ',' }) });
+      const comma = importProfileDto({
+        id: 5,
+        name: 'Comma bank',
+        mapping: importMapping({ delimiter: ',' }),
+      });
       const wizard = await setupWizard(http, { profiles: [comma] });
 
       const loading = wizard.loadFile(csvFile(TEXT));
       await settle();
-      http.expectOne('/api/import/parse').flush(parseResponse({ delimiter: ';', suggestedProfileId: 5 }));
+      http
+        .expectOne('/api/import/parse')
+        .flush(parseResponse({ delimiter: ';', suggestedProfileId: 5 }));
       await settle();
       const again = http.expectOne('/api/import/parse');
       expect(again.request.body).toEqual({ csv: TEXT, delimiter: ',' });

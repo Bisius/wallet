@@ -11,7 +11,9 @@ describe('exportUrl', () => {
     expect(exportUrl('spendings', { from: '2026-01-01' })).toBe(
       '/api/export/spendings.csv?from=2026-01-01',
     );
-    expect(exportUrl('incomes', { to: '2026-03-31' })).toBe('/api/export/incomes.csv?to=2026-03-31');
+    expect(exportUrl('incomes', { to: '2026-03-31' })).toBe(
+      '/api/export/incomes.csv?to=2026-03-31',
+    );
     expect(exportUrl('savings', { from: '2026-01-01', to: '2026-03-31' })).toBe(
       '/api/export/savings.csv?from=2026-01-01&to=2026-03-31',
     );
@@ -31,8 +33,12 @@ describe('exportUrl', () => {
 describe('exportFileName', () => {
   it('is the name the API gives the file', () => {
     expect(exportFileName('spendings', {})).toBe('wallet-spendings-all.csv');
-    expect(exportFileName('incomes', { from: '2026-01-01' })).toBe('wallet-incomes-from-2026-01-01.csv');
-    expect(exportFileName('savings', { to: '2026-03-31' })).toBe('wallet-savings-until-2026-03-31.csv');
+    expect(exportFileName('incomes', { from: '2026-01-01' })).toBe(
+      'wallet-incomes-from-2026-01-01.csv',
+    );
+    expect(exportFileName('savings', { to: '2026-03-31' })).toBe(
+      'wallet-savings-until-2026-03-31.csv',
+    );
     expect(exportFileName('spendings', { from: '2026-01-01', to: '2026-03-31' })).toBe(
       'wallet-spendings-2026-01-01_to_2026-03-31.csv',
     );

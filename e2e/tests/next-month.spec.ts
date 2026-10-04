@@ -17,6 +17,7 @@ import {
   spendingRow,
   spendingsList,
 } from '../support/month-ui';
+import { rowAction } from '../support/menu';
 import { eur, signedEur } from '../support/money';
 import {
   doneButton,
@@ -25,6 +26,7 @@ import {
   expectBreakdown,
   expectHistory,
   historyEntries,
+  historyEntry,
   inbox,
   inboxEntry,
   savingsToMove,
@@ -242,12 +244,8 @@ test.describe('March closes and April begins', () => {
     await expect(glance(page)).toContainText(
       'This month is over, so its figures are final. Changing something in it now changes what is due to savings.',
     );
-    await expectGlance(page, {
-      income: 300000,
-      fixedCosts: 2965,
-      budgeted: 85000,
-      unallocated: 212035,
-    });
+    // The budgets page's strip is slim: March's income and fixed costs are asserted on its dashboard below.
+    await expectGlance(page, { budgeted: 85000, unallocated: 212035 });
     for (const [name, figures] of Object.entries(MARCH))
       await expectBudgetCard(page, name, figures);
     await expect(budgetCard(page, 'Groceries')).toContainText('Moved to savings: €100.00');
@@ -458,10 +456,12 @@ test.describe('March closes and April begins', () => {
     await expectHistory(page, ['Settled March 2026', 'Settled March 2026', 'Opening balance']);
     await expect(historyEntries(page).nth(0)).toContainText('Unassigned savings: -€15.00');
     await expect(historyEntries(page).nth(1)).toContainText('Unassigned savings: +€2,170.35');
-    await expect(page.getByRole('button', { name: 'Undo Settled March 2026' })).toHaveCount(1);
+    await expect(
+      page.getByRole('button', { name: 'More actions for Settled March 2026' }),
+    ).toHaveCount(1);
 
     // Undoing removes both: March is due its whole 215535 again, as a first move and not a correction.
-    await page.getByRole('button', { name: 'Undo Settled March 2026' }).click();
+    await rowAction(historyEntry(page, 'Settled March 2026').first(), 'Undo settlement');
     await page
       .getByRole('dialog', { name: 'Undo the settlement of March 2026?' })
       .getByRole('button', { name: 'Undo settlement' })
@@ -535,7 +535,7 @@ test.describe('a correction that changes or disappears', () => {
     await expectBadge(page, 1);
 
     // Edited to 25.00: March is due 217035 - 2500 = 214535, so 25.00 is to be taken back.
-    await page.getByRole('button', { name: 'Edit Forgotten receipt, €15.00', exact: true }).click();
+    await rowAction(spendingRow(page, 'Forgotten receipt'), 'Edit');
     const dialog = page.getByRole('dialog', { name: 'Edit spending' });
     await dialog.getByLabel('Amount', { exact: true }).fill('25');
     await dialog.getByRole('button', { name: 'Save changes' }).click();
@@ -555,9 +555,7 @@ test.describe('a correction that changes or disappears', () => {
 
     // Deleted: March is due what it was settled for, and leaves the list, on the page that did it.
     await openPage(page, 'Spendings');
-    await page
-      .getByRole('button', { name: 'Delete Forgotten receipt, €25.00', exact: true })
-      .click();
+    await rowAction(spendingRow(page, 'Forgotten receipt'), 'Delete');
     await page
       .getByRole('dialog', { name: 'Delete this spending?' })
       .getByRole('button', { name: 'Delete spending' })
@@ -672,7 +670,7 @@ test.describe('skipping months', () => {
     await expect(budgetCard(page, 'Hobby')).toContainText('Carried into June 2026: €170.00');
     await expect(budgetCard(page, 'Groceries')).toContainText('Moved to savings: €400.00');
     await expect(budgetCard(page, 'Eating out')).toContainText('Moved to savings: €200.00');
-    await expectGlance(page, { fixedCosts: 2964, unallocated: 212036 });
+    await expectGlance(page, { unallocated: 212036 });
 
     await monthSwitcher(page).previous();
     await monthSwitcher(page).expectShowing('April 2026');
@@ -686,9 +684,11 @@ test.describe('skipping months', () => {
     await expect(budgetCard(page, 'Fun')).toContainText('Carried in from March 2026: +€110.00');
     await expect(budgetCard(page, 'Fun')).toContainText('Carried into May 2026: €260.00');
     await expect(budgetCard(page, 'Hobby')).toContainText('Carried into May 2026: €70.00');
-    await expectGlance(page, { fixedCosts: 2965, unallocated: 212035 });
+    await expectGlance(page, { unallocated: 212035 });
 
     // The reserve at the end of each month: 1715, 3430, 5144, 6858 (and 57% of the price in June).
+    // The fixed costs of April and May (the budgets page's strip has no such figure) are the
+    // subscriptions page's: 1250 + the month's contribution.
     await openPage(page, 'Subscriptions');
     await expectReserveLine(page, 'Insurance', {
       monthLabel: 'April 2026',
@@ -697,6 +697,7 @@ test.describe('skipping months', () => {
       price: 12000,
       renewalLabel: 'September 2026',
     });
+    await expectFixedCosts(page, 2965);
     await monthSwitcher(page).next();
     await expectReserveLine(page, 'Insurance', {
       monthLabel: 'May 2026',
@@ -705,6 +706,7 @@ test.describe('skipping months', () => {
       price: 12000,
       renewalLabel: 'September 2026',
     });
+    await expectFixedCosts(page, 2964);
     await monthSwitcher(page).next();
     await monthSwitcher(page).expectShowing('June 2026');
     await expectReserveLine(page, 'Insurance', {
@@ -856,7 +858,7 @@ test.describe('a budget that changes mode or ends', () => {
     await expect(budgetCard(page, 'Fun')).toContainText('Projected to move to savings: €260.00');
 
     // Hobby is archived in April, its last month: 7000 is left in it (-3000 carried in + 10000).
-    await page.getByRole('button', { name: 'Archive Hobby', exact: true }).click();
+    await rowAction(budgetCard(page, 'Hobby'), 'Archive');
     const confirm = page.getByRole('dialog', { name: 'Archive "Hobby"?' });
     await expect(confirm).toContainText('It stays active through April 2026, its last month');
     await confirm.getByRole('button', { name: 'Archive budget' }).click();

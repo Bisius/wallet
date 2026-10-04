@@ -7,17 +7,11 @@
     </p>
 
     @if (notice(); as message) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-warning bg-warning-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-warning" />
-        <span>{{ message }}</span>
-      </p>
+      <app-alert tone="warning" live="alert">{{ message }}</app-alert>
     }
 
-    <fieldset class="space-y-3 rounded-card border border-line p-3 sm:p-4">
-      <legend class="px-1 text-sm font-semibold">
+    <fieldset class="space-y-3">
+      <legend class="mb-3 text-sm font-semibold">
         {{ taking() ? 'Take from' : 'Move to' }}
       </legend>
       @for (row of rows(); track row.key) {
@@ -40,33 +34,21 @@
       }
     </fieldset>
 
-    <p
-      role="status"
-      class="flex items-center gap-2 rounded-control bg-subtle p-3 text-sm font-medium text-ink"
-    >
+    <app-alert [tone]="leftTone()" live="status">
       @if (left() === 0) {
-        <app-icon name="check-circle" class="text-positive" />
         Everything is allocated.
       } @else if (left() > 0) {
-        <app-icon name="info" />
         {{ left() | money }} left to allocate
       } @else {
-        <app-icon name="alert" class="text-negative" />
         {{ -left() | money }} too much: lower an amount
       }
-    </p>
+    </app-alert>
 
     @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
+      <app-alert tone="error">{{ error }}</app-alert>
     }
 
-    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+    <div class="dialog-footer">
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

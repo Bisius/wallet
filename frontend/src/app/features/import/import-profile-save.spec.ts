@@ -209,7 +209,9 @@ describe('ImportProfileSave', () => {
     });
 
     it('keeps no more of a long header than the API takes: 100 cells of 200 characters', async () => {
-      const header = Array.from({ length: 130 }, (_, index) => (index === 1 ? 'x'.repeat(250) : `c${index}`));
+      const header = Array.from({ length: 130 }, (_, index) =>
+        index === 1 ? 'x'.repeat(250) : `c${index}`,
+      );
       const t = await setup({ file: { parse: parseResponse({ header, columnCount: 130 }) } });
       await t.open();
       await t.type('Wide bank');
@@ -232,7 +234,9 @@ describe('ImportProfileSave', () => {
       await t.type('ING');
       await t.press();
 
-      t.form().querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+      t.form()
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { cancelable: true }));
       await settle(t.fixture);
 
       http.expectOne('/api/import/profiles').flush(importProfileDto({ id: 9, name: 'ING' }));
@@ -337,9 +341,13 @@ describe('ImportProfileSave', () => {
       await t.type('​');
       await t.press();
       // The browser-side check lets it through: the API is the one that knows.
-      flushError(http.expectOne('/api/import/profiles'), 400, 'validation_error', 'Invalid request', [
-        { path: 'name', message: 'Name is required' },
-      ]);
+      flushError(
+        http.expectOne('/api/import/profiles'),
+        400,
+        'validation_error',
+        'Invalid request',
+        [{ path: 'name', message: 'Name is required' }],
+      );
       await settle(t.fixture);
 
       expect(fieldError(t.name())).toBe('Name is required');
@@ -356,7 +364,12 @@ describe('ImportProfileSave', () => {
 
       // The button is disabled while the request is out and loses focus, as in a browser.
       (document.activeElement as HTMLElement | null)?.blur();
-      flushError(http.expectOne('/api/import/profiles'), 500, 'internal_error', 'The database is locked');
+      flushError(
+        http.expectOne('/api/import/profiles'),
+        500,
+        'internal_error',
+        'The database is locked',
+      );
       await settle(t.fixture);
 
       expect(queryAllByRole(t.form() as HTMLElement, 'alert').map(textOf)).toEqual([
@@ -374,9 +387,13 @@ describe('ImportProfileSave', () => {
       await t.type('ING');
       await t.press();
 
-      flushError(http.expectOne('/api/import/profiles'), 400, 'validation_error', 'Invalid request', [
-        { path: 'header', message: 'The header must have a cell for every mapped column' },
-      ]);
+      flushError(
+        http.expectOne('/api/import/profiles'),
+        400,
+        'validation_error',
+        'Invalid request',
+        [{ path: 'header', message: 'The header must have a cell for every mapped column' }],
+      );
       await settle(t.fixture);
 
       expect(queryAllByRole(t.form() as HTMLElement, 'alert').map(textOf)).toEqual([

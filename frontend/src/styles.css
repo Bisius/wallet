@@ -1,4 +1,12 @@
 @import 'tailwindcss';
+/*
+ * Inter Variable, self-hosted (the app runs on a private network, so no CDN). `wght.css` has the
+ * weight axis only (no italics, no optical size) and one @font-face per script with a
+ * `unicode-range`: the browser downloads a file only when the page shows a character of its range,
+ * so a Latin page loads one 48 KB woff2. The build copies the woff2 files to `media/`, and
+ * ngsw-config.json caches them.
+ */
+@import '@fontsource-variable/inter/wght.css';
 
 /*
  * Dark mode uses the class strategy: `<html class="dark">` is set by ThemeService (and, before
@@ -11,16 +19,22 @@
  * never raw palette colors, so a theme only has to redefine the values below.
  *
  * Contrast (WCAG AA) was checked for every pair used in the UI, in both themes:
- *   - text colors (ink, muted, accent, positive, negative, warning) on canvas, surface and subtle:
- *     at least 4.5:1
+ *   - text colors (ink, muted, accent, positive, negative, warning) on canvas, surface, subtle and
+ *     surface-raised: at least 4.5:1
  *   - on-accent / on-negative on their fills, and the *-soft pairs: at least 4.5:1
  *   - line-strong (form control borders) and focus on every surface: at least 3:1
+ *
+ * `line` and `line-soft` are decorative (a card's edge, a divider): the shape of a card is also given
+ * by its fill and shadow, and nothing relies on them to find a control, so they have no ratio.
  */
 @theme {
   /* Surfaces */
   --color-canvas: #f8fafc;
   --color-surface: #ffffff;
   --color-subtle: #f1f5f9;
+  /* Dialogs, menus, toasts and the bottom bar: above the page. In dark mode a shadow would not show,
+     so these are one step lighter than `surface` instead. */
+  --color-surface-raised: #ffffff;
 
   /* Text */
   --color-ink: #0f172a;
@@ -29,6 +43,9 @@
   /* Borders: `line` is decorative, `line-strong` outlines form controls (3:1) */
   --color-line: #e2e8f0;
   --color-line-strong: #64748b;
+  /* The edge of a card: `line` at about half strength, so the shadow (light) or the lighter fill (dark)
+     does the work and the border only closes the shape. Derived, so it follows the theme. */
+  --color-line-soft: color-mix(in srgb, var(--color-line) 55%, transparent);
 
   /* Accent (primary actions, links, active navigation) */
   --color-accent: #1d4ed8;
@@ -65,8 +82,57 @@
   --focus-ring-offset: 2px;
 
   /* Radii */
-  --radius-control: 0.5rem;
-  --radius-card: 0.75rem;
+  --radius-control: 0.625rem;
+  --radius-card: 1rem;
+
+  /*
+   * Elevation. `card` takes the soft one, dialogs, menus and toasts the overlay one. Tailwind copies a
+   * shadow into its utility when it builds (`shadow-card`), so a dark theme that only redefined
+   * `--shadow-card` would not reach the utility. The shadows are made of the two tints below instead,
+   * and dark mode clears the tints: no shadow there, the lighter surface does the lifting.
+   */
+  --shadow-card: 0 1px 2px 0 var(--shadow-tint-soft), 0 2px 8px -2px var(--shadow-tint-soft);
+  --shadow-overlay:
+    0 12px 32px -8px var(--shadow-tint-strong), 0 4px 12px -4px var(--shadow-tint-soft);
+  --shadow-tint-soft: rgb(15 23 42 / 0.06);
+  --shadow-tint-strong: rgb(15 23 42 / 0.22);
+
+  /* Typography. Inter Variable first, the system stack while it loads and for scripts it lacks. */
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  /* For anything that shows an emoji (`font-emoji`): systems without one of these show an empty box. */
+  --font-emoji: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
+
+  /* Motion: 150 ms, and used only behind `motion-safe:` (`motion-safe:animate-dialog-in`). */
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-dialog-in: dialog-in 150ms ease-out;
+  --animate-toast-in: toast-in 150ms ease-out;
+  --animate-sheet-in: sheet-in 150ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.75rem);
+    }
+  }
+
+  @keyframes sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
 }
 
 /* Dark theme: only the colors change. */
@@ -74,6 +140,7 @@
   --color-canvas: #020617;
   --color-surface: #0f172a;
   --color-subtle: #1e293b;
+  --color-surface-raised: #192339;
 
   --color-ink: #f1f5f9;
   --color-muted: #a8b4c6;
@@ -102,19 +169,54 @@
   --color-series-3: #199e70;
 
   --color-focus: #93c5fd;
+
+  --shadow-tint-soft: transparent;
+  --shadow-tint-strong: transparent;
 }
 
 @layer base {
+  /*
+   * The shell's fixed bars, in one place: the sticky top bar (shell/top-bar.ts, 3.75rem on a phone:
+   * 44 px buttons and 8 px above and below), the tab bar at the bottom of a phone (shell/tab-bar.ts)
+   * and, above the tab bar, the room the floating "Add spending" button takes (3.5rem tall, with
+   * 1rem around it). The padding of the page, the place of the toasts and the scroll padding below
+   * all follow these.
+   */
+  :root {
+    --top-bar-height: 3.75rem;
+    --tab-bar-height: 3.5rem;
+    --fab-zone: 5.5rem;
+  }
+
+  /* On the narrowest phones the brand and the switcher do not fit side by side: the bar has two rows. */
+  @media (width < 22.5rem) {
+    :root {
+      --top-bar-height: 5.75rem;
+    }
+  }
+
   html {
-    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
     color-scheme: light;
     /*
-     * The month bar sticks to the top of the page (about 4rem tall) and is drawn over what scrolls
-     * under it. A control that takes focus is scrolled into view up to the very edge of the window,
-     * which is under the bar: going up a list with Shift+Tab hid the focused button completely. The
-     * window leaves room for the bar when it scrolls to a focused control.
+     * The top bar sticks to the top of the page and is drawn over what scrolls under it, and on a phone
+     * the tab bar and the floating button sit over the bottom of it. A control that takes focus is
+     * scrolled into view up to the very edge of the window, which is under a bar: going up a list with
+     * Shift+Tab hid the focused button completely. The window leaves room for the bars when it scrolls
+     * to a focused control (WCAG 2.4.11).
      */
-    scroll-padding-top: 5rem;
+    scroll-padding-top: calc(var(--top-bar-height) + 1rem);
+
+    @media (width < 48rem) {
+      scroll-padding-bottom: calc(
+        var(--tab-bar-height) + var(--fab-zone) + env(safe-area-inset-bottom)
+      );
+    }
+  }
+
+  /* A bottom sheet is modal and short: the page behind does not scroll under a thumb. */
+  html:has(dialog[data-variant='sheet']:modal) {
+    overflow: hidden;
   }
 
   /* Native controls (date pickers, scrollbars, select menus) follow the theme. */
@@ -134,7 +236,7 @@
   }
 
   /* Containers and headings that only take focus from code (route changes, wizard steps). */
-  :where(main, h1, h2, dialog)[tabindex='-1']:focus-visible,
+  :where(main, h1, h2, h3, dialog)[tabindex='-1']:focus-visible,
   dialog:focus-visible {
     outline: none;
   }
@@ -156,49 +258,186 @@
 
 @utility card {
   border-radius: var(--radius-card);
-  border: 1px solid var(--color-line);
+  border: 1px solid var(--color-line-soft);
   background-color: var(--color-surface);
+  box-shadow: var(--shadow-card);
   padding: calc(var(--spacing) * 4);
 
   @media (min-width: 48rem) {
-    padding: calc(var(--spacing) * 6);
+    padding: calc(var(--spacing) * 5);
   }
+}
+
+/*
+ * The type scale, defined once (the primitives of `shared/ui` use these, features do not repeat the
+ * sizes). Figures use tabular numerals so columns of money line up.
+ */
+@utility text-page-title {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+@utility text-section-title {
+  font-size: var(--text-base);
+  line-height: var(--text-base--line-height);
+  font-weight: 600;
+}
+
+/*
+ * The big figure of a page (income, spent, unallocated). It is a size smaller on a phone, where the
+ * most the API accepts (a hundred million, with its sign) at the full size is wider than a card.
+ */
+@utility text-kpi {
+  font-size: var(--text-2xl);
+  line-height: var(--text-2xl--line-height);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+
+  @media (min-width: 40rem) {
+    font-size: var(--text-3xl);
+    line-height: var(--text-3xl--line-height);
+  }
+}
+
+/* A figure inside a card (a balance, a limit). */
+@utility text-stat {
+  font-size: var(--text-xl);
+  line-height: var(--text-xl--line-height);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The small caption above a figure. */
+@utility text-label {
+  font-size: var(--text-xs);
+  line-height: var(--text-xs--line-height);
+  font-weight: 500;
+  color: var(--color-muted);
 }
 
 /*
  * The Save / Cancel row of a form in a dialog. The fields scroll and this row stays at the bottom of
  * the dialog, so the main action is always in reach on a phone. It sits in the dialog's scrolling
- * area, so the negative margins stretch it to the dialog's edges (see `AppDialog`).
+ * area, so the negative margins stretch it to the dialog's edges (see `AppDialog`) and its fill is
+ * the dialog's own, `surface-raised`.
+ *
+ * On a phone the first button (Cancel) is as wide as its text and the last (the main action) takes
+ * the rest of the row, so the thumb finds it. From `sm` the buttons sit at the end of the row. A row
+ * with a single button keeps it at the end on a phone too.
  */
 @utility dialog-footer {
   position: sticky;
   bottom: 0;
   margin-inline: calc(var(--spacing) * -4);
   border-top: 1px solid var(--color-line);
-  background-color: var(--color-surface);
+  background-color: var(--color-surface-raised);
   padding: calc(var(--spacing) * 3) calc(var(--spacing) * 4);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: calc(var(--spacing) * 2);
+
+  & > :only-child {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
 
   @media (min-width: 40rem) {
+    display: flex;
+    justify-content: flex-end;
     margin-inline: calc(var(--spacing) * -5);
     padding-inline: calc(var(--spacing) * 5);
   }
 }
 
 /*
- * A small labelled pill for the state of a row (a duplicate, a credit, an error). It always has words
- * and an icon next to it: the color is never the only signal. Its colors come from utilities next to
- * it (`border-negative bg-negative-soft`), so the two never compete.
+ * The action row that ends a form which is not in a dialog (a wizard step, the settings): a rule
+ * above it, the buttons in a row that wraps, a gap of `3`. Put `justify-between` on it when Back
+ * goes to one end and the main action to the other, `justify-end` for a lone main action.
  */
-@utility badge {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: calc(var(--spacing) * 1);
-  border-radius: calc(infinity * 1px);
-  border-width: 1px;
-  border-style: solid;
-  padding: calc(var(--spacing) * 0.5) calc(var(--spacing) * 2);
-  font-size: var(--text-xs);
-  line-height: var(--text-xs--line-height);
-  font-weight: 500;
-  color: var(--color-ink);
+@utility form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--spacing) * 3);
+  border-top: 1px solid var(--color-line);
+  padding-top: calc(var(--spacing) * 4);
+}
+
+/*
+ * The action row of a wizard step (onboarding, the CSV import): `form-actions` with the way back
+ * (Back) at the start and the main action (Next, or what finishes the wizard) at the end. When they
+ * do not fit one row of a narrow phone the main action drops to a row of its own and stays at the
+ * end, under Back, instead of falling back to the start. A step that has only a main action keeps it
+ * at the end.
+ */
+@utility wizard-actions {
+  @apply form-actions;
+  justify-content: space-between;
+
+  & > :last-child {
+    margin-inline-start: auto;
+  }
+}
+
+/*
+ * A table of figures or rows (`<table class="data-table">`, inside an `app-table-scroll`): the head on
+ * the subtle surface, rows divided by a hairline, the cells padded by `2` and `3`, the total row (a
+ * `tfoot`) set apart by a rule and semibold. Headers are semibold (a row header, `th scope="row"`,
+ * medium). A number is aligned to the right with `cell-num`, in the head and in the body.
+ * The nested rules are `:where()`, so a class on a cell (`whitespace-nowrap`, `align-top`) always wins.
+ */
+@utility data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm--line-height);
+
+  & :where(thead) {
+    background-color: var(--color-subtle);
+  }
+
+  & :where(th, td) {
+    padding: calc(var(--spacing) * 2) calc(var(--spacing) * 3);
+  }
+
+  & :where(thead th) {
+    font-weight: 600;
+  }
+
+  & :where(tbody th) {
+    font-weight: 500;
+  }
+
+  & :where(tbody > tr + tr) {
+    border-top: 1px solid var(--color-line);
+  }
+
+  & :where(tfoot) {
+    border-top: 2px solid var(--color-line-strong);
+    font-weight: 600;
+  }
+}
+
+/* A number in a table cell (`th` or `td`): right-aligned, in tabular numerals so a column lines up. */
+@utility cell-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The box a wide table scrolls sideways in, with the card's rounded edge. `app-table-scroll` is this
+ * with the name and the keyboard stop a scrolling region needs. `relative` keeps the `sr-only` text of
+ * the cells (which is absolutely positioned) inside it, or the columns scrolled out of view would
+ * widen the page.
+ */
+@utility table-scroll {
+  position: relative;
+  overflow-x: auto;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-line);
 }

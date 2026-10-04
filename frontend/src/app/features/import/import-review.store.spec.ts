@@ -19,12 +19,7 @@ import {
   setupWizard,
 } from '../../../testing/import-harness';
 import { SavingsStore } from '../../core/savings.store';
-import {
-  budgetsActiveIn,
-  ImportReviewStore,
-  isSelectable,
-  PAGE_SIZE,
-} from './import-review.store';
+import { budgetsActiveIn, ImportReviewStore, isSelectable, PAGE_SIZE } from './import-review.store';
 import { ImportWizardStore } from './import-wizard.store';
 
 const TEXT = 'Date;Amount;Description\n';
@@ -43,7 +38,13 @@ const CREDIT = previewRow({
   credit: true,
   suggestedBudgetId: 1,
 });
-const DUPLICATE = previewRow({ line: 5, description: 'Rent', amount: 90000, duplicate: true, suggestedBudgetId: 1 });
+const DUPLICATE = previewRow({
+  line: 5,
+  description: 'Rent',
+  amount: 90000,
+  duplicate: true,
+  suggestedBudgetId: 1,
+});
 const BROKEN = previewRow({
   line: 6,
   description: 'Gym',
@@ -137,7 +138,12 @@ describe('ImportReviewStore', () => {
 
       const opening = review.openPreview();
       await settle();
-      flushError(http.expectOne('/api/import/preview'), 400, 'validation_error', 'A quote is never closed on line 9');
+      flushError(
+        http.expectOne('/api/import/preview'),
+        400,
+        'validation_error',
+        'A quote is never closed on line 9',
+      );
 
       expect(await opening).toBe(false);
       expect(wizard.step()).toBe('mapping');
@@ -248,7 +254,10 @@ describe('ImportReviewStore', () => {
       // October: Groceries (from June) only. Fun ended in September and Travel starts in November.
       expect(review.optionsFor(READY).map((budget) => budget.name)).toEqual(['Groceries']);
       // September: Groceries and Fun.
-      expect(review.optionsFor(SEPTEMBER).map((budget) => budget.name)).toEqual(['Groceries', 'Fun']);
+      expect(review.optionsFor(SEPTEMBER).map((budget) => budget.name)).toEqual([
+        'Groceries',
+        'Fun',
+      ]);
       // No date, no choice.
       expect(review.optionsFor(BROKEN)).toEqual([]);
     });
@@ -366,7 +375,9 @@ describe('ImportReviewStore', () => {
     });
 
     it('shows pages of 100 rows and never a page past the last one', async () => {
-      const many = Array.from({ length: 250 }, (_, index) => previewRow({ line: index + 2, suggestedBudgetId: 1 }));
+      const many = Array.from({ length: 250 }, (_, index) =>
+        previewRow({ line: index + 2, suggestedBudgetId: 1 }),
+      );
       const { review } = await open(many);
 
       expect(review.pageCount()).toBe(3);
@@ -489,7 +500,14 @@ describe('ImportReviewStore', () => {
           { line: 7, budgetId: 1 },
         ],
       });
-      request.flush({ created: 3, items: [{ line: 2, id: 1 }, { line: 3, id: 2 }, { line: 7, id: 3 }] });
+      request.flush({
+        created: 3,
+        items: [
+          { line: 2, id: 1 },
+          { line: 3, id: 2 },
+          { line: 7, id: 3 },
+        ],
+      });
       await committing;
 
       expect(review.committing()).toBe(false);
@@ -512,9 +530,13 @@ describe('ImportReviewStore', () => {
       // The shell would have the store already; here it is created by the import.
       const committing = review.commit();
       await settle();
-      http
-        .expectOne('/api/import/commit')
-        .flush({ created: 2, items: [{ line: 2, id: 1 }, { line: 7, id: 2 }] });
+      http.expectOne('/api/import/commit').flush({
+        created: 2,
+        items: [
+          { line: 2, id: 1 },
+          { line: 7, id: 2 },
+        ],
+      });
       await committing;
       await settle();
 
@@ -569,16 +591,18 @@ describe('ImportReviewStore', () => {
         // The budgets may have changed (one was deleted) and the preview is the truth about duplicates.
         http.expectOne('/api/budgets').flush([GROCERIES, FUN]);
         await settle();
-        http.expectOne('/api/import/preview').flush(
-          previewResponse([
-            { ...READY, duplicate: true },
-            NO_SUGGESTION,
-            CREDIT,
-            DUPLICATE,
-            BROKEN,
-            SEPTEMBER,
-          ]),
-        );
+        http
+          .expectOne('/api/import/preview')
+          .flush(
+            previewResponse([
+              { ...READY, duplicate: true },
+              NO_SUGGESTION,
+              CREDIT,
+              DUPLICATE,
+              BROKEN,
+              SEPTEMBER,
+            ]),
+          );
         await committing;
         await settle();
 
@@ -598,16 +622,18 @@ describe('ImportReviewStore', () => {
 
         http.expectOne('/api/budgets').flush([GROCERIES, FUN]);
         await settle();
-        http.expectOne('/api/import/preview').flush(
-          previewResponse([
-            { ...READY, duplicate: true },
-            NO_SUGGESTION,
-            CREDIT,
-            DUPLICATE,
-            BROKEN,
-            SEPTEMBER,
-          ]),
-        );
+        http
+          .expectOne('/api/import/preview')
+          .flush(
+            previewResponse([
+              { ...READY, duplicate: true },
+              NO_SUGGESTION,
+              CREDIT,
+              DUPLICATE,
+              BROKEN,
+              SEPTEMBER,
+            ]),
+          );
         await committing;
         await settle();
 
@@ -625,9 +651,9 @@ describe('ImportReviewStore', () => {
         const { wizard, review, committing } = await refused();
         http.expectOne('/api/budgets').flush([GROCERIES, FUN]);
         await settle();
-        http.expectOne('/api/import/preview').flush(
-          previewResponse([READY, NO_SUGGESTION, CREDIT, DUPLICATE, BROKEN, SEPTEMBER]),
-        );
+        http
+          .expectOne('/api/import/preview')
+          .flush(previewResponse([READY, NO_SUGGESTION, CREDIT, DUPLICATE, BROKEN, SEPTEMBER]));
         await committing;
         await settle();
 
@@ -653,10 +679,18 @@ describe('ImportReviewStore', () => {
 
       const committing = review.commit();
       await settle();
-      flushError(http.expectOne('/api/import/commit'), 400, 'validation_error', 'A quote is never closed on line 9');
+      flushError(
+        http.expectOne('/api/import/commit'),
+        400,
+        'validation_error',
+        'A quote is never closed on line 9',
+      );
       await committing;
 
-      expect(review.commitFailure()).toEqual({ status: 400, message: 'A quote is never closed on line 9' });
+      expect(review.commitFailure()).toEqual({
+        status: 400,
+        message: 'A quote is never closed on line 9',
+      });
       expect(review.rejected()).toEqual([]);
       expect(wizard.step()).toBe('preview');
       expect(review.canCommit()).toBe(true);
@@ -668,12 +702,21 @@ describe('ImportReviewStore', () => {
 
       const committing = review.commit();
       await settle();
-      flushError(http.expectOne('/api/import/commit'), 413, 'payload_too_large', 'Request body too large', {
-        limitBytes: 10485760,
-      });
+      flushError(
+        http.expectOne('/api/import/commit'),
+        413,
+        'payload_too_large',
+        'Request body too large',
+        {
+          limitBytes: 10485760,
+        },
+      );
       await committing;
 
-      expect(review.commitFailure()).toMatchObject({ status: 413, message: 'Request body too large' });
+      expect(review.commitFailure()).toMatchObject({
+        status: 413,
+        message: 'Request body too large',
+      });
     });
 
     it('shows a network failure as one, so the user can try again', async () => {

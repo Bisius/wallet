@@ -142,10 +142,12 @@ describe('DashboardPage', () => {
       trend: () => region('Income, spent and saved'),
       /** The budgets of the progress block, top to bottom. */
       progressNames: () =>
-        Array.from(region('Budget progress').querySelectorAll('h3')).map((h) => words(h)),
+        queryAllByRole(region('Budget progress'), 'listitem').map((li) =>
+          words(li.querySelector('p') as Element),
+        ),
       progressRow: (name: string) =>
-        Array.from(region('Budget progress').querySelectorAll('li')).find((li) =>
-          li.querySelector('h3')?.textContent?.includes(name),
+        queryAllByRole(region('Budget progress'), 'listitem').find((li) =>
+          li.querySelector('p')?.textContent?.includes(name),
         ) as HTMLElement,
       alerts: () => queryAllByRole(element, 'alert').map((alert) => textOf(alert)),
       words,
@@ -178,6 +180,59 @@ describe('DashboardPage', () => {
       ]);
     });
 
+    it('says in one line what each block shows, and keeps the rest behind "How this works"', async () => {
+      const p = await open();
+
+      const blocks: [HTMLElement, description: string, help: string][] = [
+        [
+          p.savings(),
+          'Closed months waiting to be moved to savings.',
+          'It covers every closed month, whichever month you are looking at.',
+        ],
+        [
+          p.progress(),
+          'What each budget has left.',
+          'The budgets that are over, then the ones in warning, come first.',
+        ],
+        [
+          p.bars(),
+          'What you spent from each budget in October 2026, against what it had available.',
+          'A bar that runs past its outline is over budget.',
+        ],
+        [
+          p.trend(),
+          'Month by month, up to October 2026.',
+          'Saved is what moves to savings when a month closes: below zero, money is taken from savings.',
+        ],
+      ];
+      for (const [region, description, help] of blocks) {
+        const name = textOf(region.querySelector('h2') as Element);
+        expect(textOf(region.querySelector('header p') as Element), name).toBe(description);
+        const details = region.querySelector('details') as HTMLDetailsElement;
+        expect(details.open, name).toBe(false);
+        expect(textOf(details.querySelector('summary') as Element), name).toBe('How this works');
+        expect(textOf(details), name).toContain(help);
+      }
+    });
+
+    it('puts the short lists in two columns from xl, and the charts across the whole width', async () => {
+      const p = await open();
+
+      const grid = p.progress().closest('.grid') as HTMLElement;
+      expect(grid.classList).toContain('xl:grid-cols-2');
+      expect(grid.classList).not.toContain('2xl:grid-cols-2');
+      // Savings to move and the renewals are one column, the budget progress the other.
+      expect(Array.from(grid.children).map((child) => child.tagName)).toEqual([
+        'DIV',
+        'APP-BUDGET-PROGRESS-SECTION',
+        'APP-SPENDING-CHART-SECTION',
+        'APP-TREND-CHART-SECTION',
+      ]);
+      expect(grid.children[0].contains(p.savings())).toBe(true);
+      expect(p.bars().closest('app-spending-chart-section')?.classList).toContain('xl:col-span-2');
+      expect(p.trend().closest('app-trend-chart-section')?.classList).toContain('xl:col-span-2');
+    });
+
     it('does not animate anything, so there is nothing for reduced motion to switch off', async () => {
       const p = await open();
 
@@ -207,6 +262,50 @@ describe('DashboardPage', () => {
   });
 
   describe('this month at a glance', () => {
+    it('is a flat strip, not a card: income, spent and unallocated big, fixed costs and budgeted beside them', async () => {
+      const p = await open();
+
+      const strip = getByRole(p.element, 'region', /at a glance/);
+      expect(strip.classList).not.toContain('card');
+      expect(strip.closest('.card')).toBeNull();
+      // One description list: the figures are its direct children, in the order they are read.
+      const figures = Array.from(strip.querySelectorAll('dl > div'));
+      expect(figures.map((figure) => textOf(figure.querySelector('dt') as Element))).toEqual([
+        'Income',
+        'Spent',
+        'Unallocated',
+        'Fixed costs',
+        'Budgeted',
+      ]);
+      const sizeOf = (figure: Element) =>
+        figure.querySelector('dd')?.classList.contains('text-kpi') ? 'large' : 'medium';
+      expect(figures.map(sizeOf)).toEqual(['large', 'large', 'large', 'medium', 'medium']);
+      expect(strip.querySelectorAll('dl')).toHaveLength(1);
+    });
+
+    it('names the month in the heading, with its status beside it', async () => {
+      const p = await open();
+
+      const header = getByRole(p.element, 'region', /at a glance/).querySelector(
+        'header',
+      ) as HTMLElement;
+      expect(textOf(header)).toBe('October 2026 at a glance Current month');
+    });
+
+    it('keeps what the status means behind "How this works", folded away', async () => {
+      const p = await open();
+
+      const strip = getByRole(p.element, 'region', /at a glance/);
+      const details = strip.querySelector('details') as HTMLDetailsElement;
+      expect(details.open).toBe(false);
+      expect(textOf(details.querySelector('summary') as Element)).toBe('How this works');
+      expect(textOf(details)).toContain('This month is still running');
+      // Nothing of it stands open on the page.
+      expect(Array.from(strip.querySelectorAll('p')).filter((p) => !p.closest('details'))).toEqual(
+        [],
+      );
+    });
+
     it('shows income, fixed costs, budgeted, spent and unallocated exactly as the API reports them', async () => {
       // Figures that do not add up on purpose: the page must show what it is told, not compute.
       const p = await open('2026-10', {
@@ -283,7 +382,9 @@ describe('DashboardPage', () => {
       const text = textOf(p.savings());
       expect(text).toContain('All settled');
       expect(text).toContain('Every closed month has been moved to savings.');
-      expect(getByRole(p.savings(), 'link', /Open savings/).getAttribute('href')).toBe('/savings');
+      expect(getByRole(p.savings(), 'link', /See all savings/).getAttribute('href')).toBe(
+        '/savings',
+      );
     });
 
     it('shows how many months wait and the signed total the API gives, and what to do', async () => {
@@ -338,7 +439,7 @@ describe('DashboardPage', () => {
 
       expect(textOf(p.savings())).toContain('1 month to settle');
       // The link keeps the selected month, like the links of the other blocks.
-      expect(getByRole(p.savings(), 'link', /Open savings/).getAttribute('href')).toBe(
+      expect(getByRole(p.savings(), 'link', /See all savings/).getAttribute('href')).toBe(
         '/savings?month=2026-08',
       );
     });
@@ -390,12 +491,12 @@ describe('DashboardPage', () => {
 
       expect(p.progressNames()).toEqual(['🎬 Fun', 'Groceries', 'Transport']);
       expect(textOf(p.progressRow('Groceries'))).toBe(
-        'Groceries Remaining €60.00 Spent €340.00 · Available €400.00 Warning 85% used, warns at 80%',
+        'Groceries Spent €340.00 · Available €400.00 €60.00 remaining Warning 85% used, warns at 80%',
       );
       expect(textOf(p.progressRow('Transport'))).toContain('On track 25% used, warns at 80%');
       // Over budget says by how much, and what is left carries its minus sign.
       expect(textOf(p.progressRow('Fun'))).toBe(
-        'Fun Remaining -€10.00 Spent €230.00 · Available €220.00 Over budget by €10.00 · 104% used',
+        'Fun Spent €230.00 · Available €220.00 -€10.00 remaining Over budget by €10.00 · 104% used',
       );
     });
 
@@ -449,25 +550,31 @@ describe('DashboardPage', () => {
       const p = await open();
 
       const fun = p.progressRow('Fun');
-      expect(fun.style.borderLeftColor).not.toBe('');
-      expect(fun.querySelector('[aria-hidden="true"]')?.textContent).toBe('🎬');
-      expect(p.progressRow('Groceries').style.borderLeftColor).toBe('');
+      const dot = (row: HTMLElement) =>
+        row.querySelector<HTMLElement>('span[aria-hidden="true"].rounded-full');
+      expect(dot(fun)?.style.backgroundColor).not.toBe('');
+      const icon = fun.querySelector('.font-emoji');
+      expect(icon?.getAttribute('aria-hidden')).toBe('true');
+      expect(icon?.textContent).toBe('🎬');
+      // A budget with no color has a neutral dot.
+      expect(dot(p.progressRow('Groceries'))).not.toBeNull();
+      expect(dot(p.progressRow('Groceries'))?.style.backgroundColor).toBe('');
     });
 
     it('links to the Budgets page for the month shown, from the corner of the block', async () => {
       const p = await open();
 
-      const link = getByRole(p.progress(), 'link', /Open budgets/);
+      const link = getByRole(p.progress(), 'link', /See all budgets/);
       expect(link.getAttribute('href')).toBe('/budgets');
       // It sits in the header of the block, with the title, not among the rows.
-      expect(link.parentElement?.querySelector('h2')?.textContent).toContain('Budget progress');
+      expect(link.closest('header')?.querySelector('h2')?.textContent).toContain('Budget progress');
     });
 
     it('carries another month to the Budgets page with it', async () => {
       const p = await open('2026-09', {
         view: monthView({ month: '2026-09', status: 'closed', budgets: [GROCERIES] }),
       });
-      expect(getByRole(p.progress(), 'link', /Open budgets/).getAttribute('href')).toBe(
+      expect(getByRole(p.progress(), 'link', /See all budgets/).getAttribute('href')).toBe(
         '/budgets?month=2026-09',
       );
     });
@@ -481,7 +588,7 @@ describe('DashboardPage', () => {
         '/budgets',
       );
       // The corner link would only repeat it.
-      expect(queryByRole(p.progress(), 'link', /Open budgets/)).toBeNull();
+      expect(queryByRole(p.progress(), 'link', /See all budgets/)).toBeNull();
       // The figures above are still there.
       expect(p.glance()).toContain('Income');
     });

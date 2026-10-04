@@ -10,6 +10,8 @@ coverage/
 # E2E output (Playwright traces, screenshots and the HTML report)
 e2e/test-results/
 e2e/playwright-report/
+# Screenshot baselines of the `visual` project: pixels depend on the machine, so each one records its own
+e2e/visual-baselines/
 
 # Local data (SQLite database lives here by default)
 data/

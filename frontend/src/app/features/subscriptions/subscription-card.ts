@@ -1,16 +1,29 @@
-import { Component, computed, inject, input, output } from '@angular/core';
-import type { MonthKey, MonthSubscriptionLine, SubscriptionDto } from '@wallet/shared';
+import { Component, computed, inject, input, output, viewChild } from '@angular/core';
+import type {
+  MonthKey,
+  MonthSubscriptionLine,
+  SubscriptionDto,
+  SubscriptionStatus,
+} from '@wallet/shared';
 import { SettingsStore } from '../../core/settings.store';
 import { formatDate, formatMonth } from '../../shared/format';
 import { formatMoney, MoneyPipe } from '../../shared/money.pipe';
+import { ActionMenu, MenuItem } from '../../shared/ui/action-menu';
 import { Amount } from '../../shared/ui/amount';
+import { Badge, type BadgeTone } from '../../shared/ui/badge';
 import { Button } from '../../shared/ui/button';
+import { EntityCard } from '../../shared/ui/entity-card';
 import { Icon } from '../../shared/ui/icon';
 import { ProgressBar } from '../../shared/ui/progress-bar';
+import { Stat } from '../../shared/ui/stat';
+import { StatGrid } from '../../shared/ui/stat-grid';
 
-const BADGE = 'rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium';
-
-const STATUS_LABELS = { active: 'Active', upcoming: 'Upcoming', cancelled: 'Cancelled' } as const;
+/** What each status is called, and what it means: running, not started yet, over. */
+const STATUSES: Record<SubscriptionStatus, { label: string; tone: BadgeTone }> = {
+  active: { label: 'Active', tone: 'positive' },
+  upcoming: { label: 'Upcoming', tone: 'accent' },
+  cancelled: { label: 'Cancelled', tone: 'neutral' },
+};
 
 /**
  * One subscription: its price, what it costs per month, when it renews and, for a yearly one, how
@@ -18,13 +31,26 @@ const STATUS_LABELS = { active: 'Active', upcoming: 'Upcoming', cancelled: 'Canc
  *
  * Nothing is calculated here. The reserve, the renewal month and the release come from the month
  * view; the card says them in plain words. The bar only draws `reserveBalance` against
- * `nextRenewalPrice`. The actions are requests: the page does the work.
+ * `nextRenewalPrice`. The actions are requests: the page does the work. Edit and Change price are
+ * buttons; Cancel and Delete are in the card's menu.
  */
 @Component({
   selector: 'app-subscription-card',
-  imports: [Amount, Button, Icon, MoneyPipe, ProgressBar],
+  imports: [
+    ActionMenu,
+    Amount,
+    Badge,
+    Button,
+    EntityCard,
+    Icon,
+    MenuItem,
+    MoneyPipe,
+    ProgressBar,
+    Stat,
+    StatGrid,
+  ],
   templateUrl: './subscription-card.html',
-  host: { class: 'block' },
+  host: { class: 'block h-full' },
 })
 export class SubscriptionCard {
   private readonly settings = inject(SettingsStore);
@@ -40,9 +66,13 @@ export class SubscriptionCard {
   readonly cancel = output<void>();
   readonly remove = output<void>();
 
-  protected readonly badge = BADGE;
-  protected readonly nameId = computed(() => `subscription-name-${this.subscription().id}`);
-  protected readonly statusLabel = computed(() => STATUS_LABELS[this.subscription().status]);
+  private readonly menu = viewChild(ActionMenu);
+  /** Puts the keyboard on the card's "More actions" button (the page does after Cancel). */
+  focusMenu(): void {
+    this.menu()?.focus();
+  }
+
+  protected readonly status = computed(() => STATUSES[this.subscription().status]);
   protected readonly yearly = computed(() => this.subscription().frequency === 'yearly');
 
   protected readonly monthLabel = computed(() => formatMonth(this.month(), this.settings.locale()));

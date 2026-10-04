@@ -9,7 +9,10 @@ import { eur, signedEur } from './money';
  * block. Amounts are integer cents, written as the user reads them only inside the assertions.
  */
 
-/** The Savings link of the navigation, which carries the badge. */
+/**
+ * The Savings link of the navigation that is on screen (the sidebar, or the tab bar of a phone: both
+ * carry the badge, and "Main" is also the start of the tab bar's name "Main (tabs)").
+ */
 export function savingsLink(page: Page): Locator {
   return page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Savings/ });
 }

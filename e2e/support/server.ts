@@ -9,8 +9,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const REPO_ROOT = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 /** The bundled production server (`npm run build`). */
 export const BACKEND_ENTRY = join(REPO_ROOT, 'backend/dist/index.js');
-/** The built Angular app that the server serves in production. */
-export const FRONTEND_DIST = join(REPO_ROOT, 'frontend/dist/frontend/browser');
+/**
+ * The built Angular app that the server serves in production. `PW_FRONTEND_DIST` (the `browser` folder
+ * of a build made with `ng build --output-path <dir>`) points at another build, for runs that must
+ * not share `frontend/dist` with a build in progress.
+ */
+export const FRONTEND_DIST = process.env['PW_FRONTEND_DIST']
+  ? resolve(process.env['PW_FRONTEND_DIST'])
+  : join(REPO_ROOT, 'frontend/dist/frontend/browser');
 /** The preload that replaces `Date`, see `fake-clock.mjs`. */
 export const FAKE_CLOCK_PRELOAD = join(REPO_ROOT, 'e2e/support/fake-clock.mjs');
 
@@ -167,8 +173,10 @@ export class WalletServer {
       WALLET_E2E_NOW: this.clockNow,
       WALLET_E2E_CLOCK_SOCKET: this.clockSocket,
     };
-    // The built app is found next to the backend by default; a variable of the caller's shell must not redirect it.
-    delete env['STATIC_DIR'];
+    // The built app is found next to the backend by default; a variable of the caller's shell must not
+    // redirect it (only `PW_FRONTEND_DIST` does).
+    if (process.env['PW_FRONTEND_DIST']) env['STATIC_DIR'] = FRONTEND_DIST;
+    else delete env['STATIC_DIR'];
 
     const child = spawn(
       process.execPath,

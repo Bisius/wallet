@@ -34,32 +34,26 @@
       </app-field>
       <!--
         The live region is always in the page, so a warning that appears while the amount is typed is
-        announced (a live region only speaks of what changes in it). It holds only what does not depend
+        announced (a live region only speaks of what changes in it). Without a warning the alert is
+        only hidden visually (`sr-only`), not removed, for the same reason. It holds only what does not depend
         on the amount: which source falls short and what it holds. That changes when the warning appears
         or the source or the month changes, and not on every digit typed, which would be read out again
         each time. What the amount would do follows it, outside the region: it is there to be seen, and
         to be read where it stands.
       -->
-      <div
-        [class]="
-          warningLead()
-            ? 'mt-2 flex items-start gap-2 rounded-control border border-warning bg-warning-soft p-3 text-sm text-ink'
-            : ''
-        "
-      >
-        @if (warningLead()) {
-          <app-icon name="alert" class="mt-0.5 text-warning" />
-        }
-        <p class="min-w-0">
-          <span aria-live="polite" aria-atomic="true">
-            @if (warningLead(); as lead) {
-              <span class="font-semibold">Not enough there.</span> {{ lead }}
+      <div [class]="warningLead() ? 'mt-2' : 'sr-only'">
+        <app-alert tone="warning">
+          <p class="min-w-0">
+            <span aria-live="polite" aria-atomic="true">
+              @if (warningLead(); as lead) {
+                <span class="font-semibold">Not enough there.</span> {{ lead }}
+              }
+            </span>
+            @if (warning(); as current) {
+              {{ current.consequence }} You can still move it.
             }
-          </span>
-          @if (warning(); as current) {
-            {{ current.consequence }} You can still move it.
-          }
-        </p>
+          </p>
+        </app-alert>
       </div>
     </div>
 
@@ -84,16 +78,10 @@
     </div>
 
     @if (formError(); as error) {
-      <p
-        role="alert"
-        class="flex items-start gap-2 rounded-control border border-negative bg-negative-soft p-3 text-sm text-ink"
-      >
-        <app-icon name="alert" class="mt-0.5 text-negative" />
-        <span>{{ error }}</span>
-      </p>
+      <app-alert tone="error">{{ error }}</app-alert>
     }
 
-    <div class="dialog-footer grid grid-cols-[auto_1fr] gap-2 sm:flex sm:justify-end">
+    <div class="dialog-footer">
       <button appButton variant="secondary" [disabled]="saving()" (click)="cancelled.emit()">
         Cancel
       </button>

@@ -1,14 +1,18 @@
 import type { Page } from '@playwright/test';
 import { a11yScan, a11yViolations, expectNoA11yViolations, formatViolations } from '../support/axe';
 import { expect, failedResponse, test } from '../support/fixtures';
+import { openMenuItem } from '../support/menu';
+import { goToPage, moreButton, moreSheet, type NavPage, tabBar } from '../support/nav';
 import {
   type ScreenName,
   SCREENS,
   type ThemeName,
+  apiStatus,
   eachStop,
   emptyStops,
   expectDialogOpen,
   expectTheme,
+  onScreen,
   onboardingStops,
   openDialog,
   openPage,
@@ -75,7 +79,7 @@ for (const theme of THEMES) {
         }) => {
           test.setTimeout(WALK_TIMEOUT_MS);
           await seedWallet(wallet.api, { dataset, theme });
-          const stops = dataset === 'rich' ? richStops() : emptyStops();
+          const stops = dataset === 'rich' ? onScreen(richStops(), screen) : emptyStops();
 
           await openPage(page, '/dashboard', 'Dashboard');
           await expectTheme(page, theme);
@@ -110,22 +114,22 @@ for (const theme of THEMES) {
         browserErrors.allow(/ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_EMPTY_RESPONSE/);
         await seedWallet(wallet.api, { dataset: 'rich', theme });
 
-        const pages = [
+        const pages: { link: NavPage; heading: string }[] = [
           { link: 'Dashboard', heading: 'Dashboard' },
           { link: 'Budgets', heading: 'Budgets' },
           { link: 'Spendings', heading: 'Spendings' },
           { link: 'Subscriptions', heading: 'Subscriptions' },
           { link: 'Income', heading: 'Income' },
-          { link: /^Savings/, heading: 'Savings' },
+          { link: 'Savings', heading: 'Savings' },
           { link: 'Report', heading: 'Yearly report' },
           { link: 'Settings', heading: 'Settings' },
         ];
-        const nav = page.getByRole('navigation', { name: 'Main' });
 
         // A user whose server dies while the app is open has visited the pages: their code is loaded.
+        // (A phone reaches the last four through the "More" sheet: `goToPage` does it either way.)
         await openPage(page, '/dashboard', 'Dashboard');
         for (const { link, heading } of pages) {
-          await nav.getByRole('link', { name: link }).click();
+          await goToPage(page, link);
           await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
           await settle(page);
         }
@@ -133,13 +137,13 @@ for (const theme of THEMES) {
         await wallet.stop();
         // The browser tells the app it is offline, which makes it ask the server and say so.
         await page.evaluate(() => window.dispatchEvent(new Event('offline')));
-        await expect(page.getByText('API offline')).toBeVisible();
+        await expect(apiStatus(page, 'API offline')).toBeVisible();
 
         await eachStop(
           pages.map(({ link, heading }) => ({
             name: `${heading} (server down)`,
             open: async (target: Page) => {
-              await nav.getByRole('link', { name: link }).click();
+              await goToPage(target, link);
               await expect(target.getByRole('heading', { level: 1, name: heading })).toBeVisible();
               // Every page that loads something says what failed, in an alert with a way to retry.
               await expect(target.getByRole('alert').first()).toBeVisible();
@@ -202,7 +206,7 @@ test.describe('keyboard, light theme, desktop', () => {
     const insideDialog = () =>
       page.evaluate(() => document.activeElement?.closest('dialog[open]') !== null);
 
-    const dialogs = richStops().filter((stop) => stop.dialog);
+    const dialogs = onScreen(richStops(), 'desktop').filter((stop) => stop.dialog);
     expect(dialogs.length, 'dialogs to check').toBeGreaterThan(25);
 
     await eachStop(dialogs, async ({ dialog }) => {
@@ -210,11 +214,19 @@ test.describe('keyboard, light theme, desktop', () => {
       await openPage(page, dialog.path, dialog.heading);
       await dialog.prepare?.(page);
 
-      // Open it as a keyboard user does: focus the control and press Enter.
+      // Open it as a keyboard user does: focus the control and press Enter. A dialog that an item of
+      // a "More actions" menu opens takes two: Enter opens the menu, then the item is reached and
+      // pressed. `opener` is then the button of the menu, which is where focus comes back to.
       const opener = dialog.opener(page);
       await opener.focus();
       await expect(opener).toBeFocused();
       await page.keyboard.press('Enter');
+      if (dialog.menuItem !== undefined) {
+        const item = openMenuItem(opener, dialog.menuItem);
+        await expect(item).toBeVisible();
+        await item.focus();
+        await page.keyboard.press('Enter');
+      }
       await expectDialogOpen(page);
       const box = openDialog(page);
 
@@ -316,6 +328,63 @@ test.describe('keyboard, light theme, desktop', () => {
       ).toBeFocused();
       // The link of the page you are on says so.
       await expect(nav.getByRole('link', { name: link })).toHaveAttribute('aria-current', 'page');
+    }
+  });
+});
+
+test.describe('keyboard, light theme, phone', () => {
+  test.use({ ...SCREENS.phone, colorScheme: 'light' });
+
+  test('the tab bar and the "More" sheet work with keys, and a new page takes focus on its heading', async ({
+    page,
+    wallet,
+  }) => {
+    await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+    await openPage(page, '/dashboard', 'Dashboard');
+    const title = (name: string) => page.getByRole('heading', { level: 1, name });
+
+    // A tab: Enter on its link, focus on the heading, and the tab says it is the page.
+    const budgets = tabBar(page).getByRole('link', { name: 'Budgets' });
+    await budgets.focus();
+    await page.keyboard.press('Enter');
+    await expect(title('Budgets'), 'focus is on the "Budgets" heading after Enter').toBeFocused();
+    await expect(budgets).toHaveAttribute('aria-current', 'page');
+
+    // "More": Enter opens the sheet and focus goes into it. Escape closes it and gives focus back.
+    const more = moreButton(page);
+    await more.focus();
+    await page.keyboard.press('Enter');
+    await expect(moreSheet(page)).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.closest('dialog[open]') !== null), {
+        message: 'focus is inside the sheet',
+      })
+      .toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(moreSheet(page)).toBeHidden();
+    await expect(more, 'focus returns to the More button').toBeFocused();
+
+    // An item of the sheet with Enter: the page takes focus on its heading, and "More" says the page
+    // is one of its items (in words: aria-current is for links).
+    for (const [name, heading] of [
+      ['Subscriptions', 'Subscriptions'],
+      ['Income', 'Income'],
+      ['Report', 'Yearly report'],
+      ['Settings', 'Settings'],
+    ] as const) {
+      await more.focus();
+      await page.keyboard.press('Enter');
+      const item = moreSheet(page).getByRole('link', { name });
+      await expect(item).toBeVisible();
+      await item.focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        title(heading),
+        `focus is on the "${heading}" heading after Enter`,
+      ).toBeFocused();
+      await expect(moreSheet(page)).toBeHidden();
+      await expect(more).toHaveAccessibleName(new RegExp(`^More\\s*,\\s*current page: ${name}$`));
+      await expect(more).not.toHaveAttribute('aria-current');
     }
   });
 });

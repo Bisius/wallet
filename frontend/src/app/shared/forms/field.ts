@@ -43,7 +43,10 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
   imports: [Icon],
   providers: [{ provide: FIELD_CONTEXT, useExisting: Field }],
   template: `
-    <label [for]="controlId" class="mb-1.5 block text-sm font-medium break-words text-ink">
+    <label
+      [for]="controlId"
+      [class]="labelHidden() ? 'sr-only' : 'mb-1.5 block text-sm font-medium break-words text-ink'"
+    >
       {{ label() }}
       @if (optional()) {
         <span class="font-normal text-muted">(optional)</span>
@@ -69,6 +72,11 @@ export class Field implements FieldContext {
   readonly hint = input<string>();
   /** Marks the field "(optional)". Everything else is understood to be required. */
   readonly optional = input(false, { transform: booleanAttribute });
+  /**
+   * Keeps the label for screen readers only, for a control whose purpose is told by what is around
+   * it (the search box of a toolbar, with a button next to it). It is still the control's name.
+   */
+  readonly labelHidden = input(false, { transform: booleanAttribute });
   /** An error to show whatever the control says, for problems that do not live in the control. */
   readonly error = input<string>();
 

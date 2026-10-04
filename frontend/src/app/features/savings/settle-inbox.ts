@@ -2,16 +2,19 @@ import {
   afterNextRender,
   Component,
   computed,
-  ElementRef,
   inject,
   Injector,
   signal,
   viewChild,
 } from '@angular/core';
 import type { Cents, MonthKey, OutstandingMonthDto } from '@wallet/shared';
+import { Alert } from '../../shared/ui/alert';
 import { Amount } from '../../shared/ui/amount';
 import { Button } from '../../shared/ui/button';
-import { Icon } from '../../shared/ui/icon';
+import { Disclosure } from '../../shared/ui/disclosure';
+import { KeyValue, KeyValues } from '../../shared/ui/key-values';
+import { AppList, ListRow } from '../../shared/ui/list';
+import { AppSection, SectionHelp } from '../../shared/ui/section';
 import { EmptyState } from '../../shared/ui/states';
 import { ToastService } from '../../shared/ui/toast.service';
 import { SavingsData } from './savings-data';
@@ -30,7 +33,20 @@ import { Settlement, settlementPhrase } from './settlement';
  */
 @Component({
   selector: 'app-settle-inbox',
-  imports: [Amount, Button, EmptyState, Icon, SettleSplitDialog],
+  imports: [
+    Alert,
+    Amount,
+    AppList,
+    AppSection,
+    Button,
+    Disclosure,
+    EmptyState,
+    KeyValue,
+    KeyValues,
+    ListRow,
+    SectionHelp,
+    SettleSplitDialog,
+  ],
   templateUrl: './settle-inbox.html',
   host: { class: 'block' },
 })
@@ -39,7 +55,7 @@ export class SettleInbox {
   private readonly settlement = inject(Settlement);
   private readonly toast = inject(ToastService);
   private readonly injector = inject(Injector);
-  private readonly heading = viewChild<ElementRef<HTMLElement>>('heading');
+  private readonly section = viewChild(AppSection);
 
   protected readonly entries = computed<readonly OutstandingMonthDto[]>(
     () => this.data.savings()?.outstanding ?? [],
@@ -139,6 +155,6 @@ export class SettleInbox {
   }
 
   private focusHeading(): void {
-    afterNextRender(() => this.heading()?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => this.section()?.focusHeading(), { injector: this.injector });
   }
 }

@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import type { SavingsTransactionDto } from '@wallet/shared';
 import { expect, failedResponse, json, test, type Wallet } from '../support/fixtures';
+import { moreActions, rowAction } from '../support/menu';
 import { openPage } from '../support/month-ui';
 import { eur } from '../support/money';
 import {
@@ -183,8 +184,9 @@ test.describe('the Move to savings inbox', () => {
     await expect(historyEntry(page, 'Opening balance')).toContainText('+€500.00');
 
     // Undoing a settlement from the history asks first, and puts the month back as a first move.
-    const undo = page.getByRole('button', { name: 'Undo Settled April 2026' });
-    await undo.click();
+    const undo = () =>
+      rowAction(historyEntry(page, 'Settled April 2026').first(), 'Undo settlement');
+    await undo();
     const confirm = page.getByRole('dialog', { name: 'Undo the settlement of April 2026?' });
     await expect(confirm).toContainText(
       'Your savings balance goes back to what it was before the month was settled.',
@@ -192,7 +194,7 @@ test.describe('the Move to savings inbox', () => {
     await page.keyboard.press('Escape');
     await expect(confirm).toBeHidden();
     await expectBalance(page, { balance: 355000 });
-    await undo.click();
+    await undo();
     await confirm.getByRole('button', { name: 'Undo settlement' }).click();
     await expect(
       toast(page, 'Settlement of April 2026 undone. The month is back in the list.'),
@@ -349,7 +351,7 @@ test.describe('splitting a settlement across goals', () => {
     await expect(entry).toContainText('Car: +€400.00');
 
     // Undo takes the parts back from every place at once.
-    await page.getByRole('button', { name: 'Undo Settled March 2026' }).click();
+    await rowAction(historyEntry(page, 'Settled March 2026').first(), 'Undo settlement');
     await page
       .getByRole('dialog', { name: 'Undo the settlement of March 2026?' })
       .getByRole('button', { name: 'Undo settlement' })
@@ -448,7 +450,7 @@ test.describe('a month that takes money out of savings', () => {
     await expectServerBalance(wallet, { balance: 40000, unassigned: 40000 });
 
     // Undo gives it back: 40000 + 10000 = 50000, and the month waits again.
-    await page.getByRole('button', { name: 'Undo Settled March 2026' }).click();
+    await rowAction(historyEntry(page, 'Settled March 2026').first(), 'Undo settlement');
     await page
       .getByRole('dialog', { name: 'Undo the settlement of March 2026?' })
       .getByRole('button', { name: 'Undo settlement' })
@@ -698,7 +700,7 @@ test.describe('money by hand', () => {
     });
 
     // --- Withdraw 50.00 from Holiday: more than it holds is refused, with what it holds.
-    await holiday.getByRole('button', { name: 'Withdraw from Holiday' }).click();
+    await rowAction(holiday, 'Withdraw');
     const withdraw = page.getByRole('dialog', { name: 'Withdraw' });
     await expect(withdraw).toContainText('Holiday holds €300.00.');
     await withdraw.getByLabel('Amount', { exact: true }).fill('300.01');
@@ -746,8 +748,11 @@ test.describe('money by hand', () => {
     });
 
     // ... and 40.00 back from Holiday to the unassigned savings. (An active goal's card has no
-    // Reallocate button of its own: the one under "Your savings" is the way in.)
+    // Reallocate item of its own, in its open menu: the button under "Your savings" is the way in.)
+    await moreActions(holiday).click();
+    await expect(holiday.getByRole('button', { name: 'Withdraw', exact: true })).toBeVisible();
     await expect(holiday.getByRole('button', { name: /^Reallocate/ })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Reallocate', exact: true }).click();
     await move.getByLabel('Move from').selectOption({ label: 'Holiday · €350.00' });
     await move.getByLabel('Move to').selectOption({ label: 'Unassigned savings · €3,450.00' });
@@ -814,12 +819,12 @@ test.describe('money by hand', () => {
     await page.getByLabel('Filter by goal').selectOption({ label: 'All savings' });
 
     // --- Deleting the deposit takes its money out again (asks first): 380000 - 30000 = 350000.
-    await page.getByRole('button', { name: /^Delete Deposit to Holiday, / }).click();
+    await rowAction(historyEntry(page, 'Deposit to Holiday'), 'Delete');
     const confirm = page.getByRole('dialog', { name: 'Delete this entry?' });
     await expect(confirm).toContainText('Deposit to Holiday, May 6, 2026 (€300.00).');
     await confirm.getByRole('button', { name: 'Cancel' }).click();
     await expectBalance(page, { balance: balanceOf(model) });
-    await page.getByRole('button', { name: /^Delete Deposit to Holiday, / }).click();
+    await rowAction(historyEntry(page, 'Deposit to Holiday'), 'Delete');
     await confirm.getByRole('button', { name: 'Delete entry' }).click();
     await expect(toast(page, 'Entry deleted.')).toBeVisible();
     model.deposits -= 30000;
@@ -969,7 +974,7 @@ test.describe('money by hand', () => {
     await expectBalance(page, { balance: 55000, unassigned: 55000 });
 
     // The goal has nothing: the dialog says so before an amount is typed, and refuses any.
-    await page.getByRole('button', { name: 'Withdraw from Holiday' }).click();
+    await rowAction(goalCard(page, 'Holiday'), 'Withdraw');
     await expect(withdraw).toContainText('Holiday holds €0.00: there is nothing to take from it.');
     await withdraw.getByLabel('Amount', { exact: true }).fill('1');
     await withdraw.getByRole('button', { name: 'Withdraw' }).click();
