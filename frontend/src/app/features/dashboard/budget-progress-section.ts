@@ -54,7 +54,7 @@ import { DashboardData } from './dashboard-data';
             </a>
           </app-empty-state>
         } @else {
-          <ul class="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+          <ul class="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
             @for (line of lines; track line.id) {
               <li
                 class="space-y-2 border-l-4 border-line pl-3"
@@ -68,8 +68,8 @@ import { DashboardData } from './dashboard-data';
                     {{ line.name }}
                   </h3>
                   <p class="text-sm">
-                    <span class="text-muted">Remaining</span>
-                    <span class="ml-1 font-semibold"><app-amount [cents]="line.remaining" /></span>
+                    <span class="text-muted">Remaining</span>{{ ' '
+                    }}<span class="font-semibold"><app-amount [cents]="line.remaining" /></span>
                   </p>
                 </div>
                 <p class="text-sm text-muted">

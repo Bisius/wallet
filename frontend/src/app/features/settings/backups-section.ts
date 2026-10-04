@@ -76,7 +76,9 @@ const UNAVAILABLE =
                 <dt class="font-medium">Next due</dt>
                 <dd>
                   {{ when(info.nextDueAt) }}
-                  <span class="text-muted">(a time that has passed means it runs at the next check)</span>
+                  <span class="text-muted"
+                    >(a time that has passed means it runs at the next check)</span
+                  >
                 </dd>
               }
             </dl>
@@ -87,16 +89,23 @@ const UNAVAILABLE =
               </p>
             }
 
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex flex-col items-start gap-2">
               <button
                 #backUp
                 appButton
                 [loading]="making()"
                 [disabled]="!info.automatic"
+                [attr.aria-describedby]="info.automatic ? 'backup-same-day-note' : null"
                 (click)="backUpNow()"
               >
                 Back up now
               </button>
+              @if (info.automatic) {
+                <p id="backup-same-day-note" class="text-sm text-muted">
+                  Only the newest backup of each day is kept, so a second one on the same day
+                  replaces the first. Download the one you want to keep before making another.
+                </p>
+              }
             </div>
 
             @if (failure(); as problem) {
@@ -123,7 +132,10 @@ const UNAVAILABLE =
                 description="The first one is made when you press Back up now, or by the daily schedule."
               />
             } @else {
-              <ul aria-label="Backups, newest first" class="divide-y divide-line rounded-card border border-line">
+              <ul
+                aria-label="Backups, newest first"
+                class="divide-y divide-line rounded-card border border-line"
+              >
                 @for (backup of info.backups; track backup.name) {
                   <li class="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 p-3">
                     <div class="min-w-0 flex-1">
@@ -152,9 +164,9 @@ const UNAVAILABLE =
       }
 
       <p class="text-sm text-muted">
-        A backup holds all your data, so keep it private. To restore one, stop the app, copy the
-        backup over the database file, delete the <code>-wal</code> and <code>-shm</code> files next
-        to it, and start the app again. There is no restore button.
+        A backup holds all your data, so keep it private. To restore one, stop the app and follow
+        the steps in the README under “Backups and restore”: they move the old database aside before
+        the backup is copied in. There is no restore button.
       </p>
     </section>
   `,
@@ -200,7 +212,10 @@ export class BackupsSection {
       await reloaded(this.backups, this.injector);
     } catch (error) {
       const parsed = parseApiError(error);
-      this.failure.set({ unavailable: parsed.code === 'backups_unavailable', message: parsed.message });
+      this.failure.set({
+        unavailable: parsed.code === 'backups_unavailable',
+        message: parsed.message,
+      });
     } finally {
       this.making.set(false);
       // The button was disabled while the request was out, which took focus away: give it back.

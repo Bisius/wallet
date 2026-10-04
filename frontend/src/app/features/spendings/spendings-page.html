@@ -205,18 +205,18 @@
                             </p>
                             <p class="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-muted">
                               <span
-                                class="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium text-ink"
+                                class="inline-flex max-w-full items-center gap-1.5 rounded-full border border-line-strong px-2 py-0.5 text-xs font-medium text-ink"
                               >
                                 @if (budgetOf(spending.budgetId)?.color; as color) {
                                   <span
                                     aria-hidden="true"
-                                    class="size-2 rounded-full"
+                                    class="size-2 shrink-0 rounded-full"
                                     [style.background-color]="color"
                                   ></span>
                                 }
-                                {{
+                                <span class="min-w-0 break-words">{{
                                   budgetOf(spending.budgetId)?.name ?? 'Budget ' + spending.budgetId
-                                }}
+                                }}</span>
                               </span>
                               @if (spending.amount < 0) {
                                 <span class="font-medium text-positive">Refund</span>

@@ -38,7 +38,7 @@ import { UpcomingRenewalsSection } from './upcoming-renewals-section';
         <app-savings-to-move-section />
         <app-upcoming-renewals-section />
         <app-budget-progress-section />
-        <div class="grid items-start gap-6 2xl:grid-cols-2">
+        <div class="grid grid-cols-1 items-start gap-6 2xl:grid-cols-2">
           <app-spending-chart-section />
           <app-trend-chart-section />
         </div>

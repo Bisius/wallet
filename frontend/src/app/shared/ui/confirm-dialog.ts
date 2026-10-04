@@ -21,8 +21,10 @@ import { ConfirmService } from './confirm.service';
     >
       @if (request(); as request) {
         <div class="p-5">
-          <h2 id="confirm-title" class="text-lg font-semibold">{{ request.title }}</h2>
-          <p id="confirm-message" class="mt-2 text-sm text-muted">{{ request.message }}</p>
+          <h2 id="confirm-title" class="text-lg font-semibold break-words">{{ request.title }}</h2>
+          <p id="confirm-message" class="mt-2 text-sm break-words text-muted">
+            {{ request.message }}
+          </p>
           <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button appButton variant="secondary" autofocus (click)="answer(false)">
               {{ request.cancelLabel }}

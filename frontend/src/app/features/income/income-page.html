@@ -28,7 +28,7 @@
         }
         @default {
           @if (monthView(); as view) {
-            <dl class="mt-4 grid gap-3 sm:grid-cols-3">
+            <dl class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div class="rounded-control bg-subtle p-3">
                 <dt class="text-sm text-muted">Salary</dt>
                 <dd class="text-lg font-semibold"><app-amount [cents]="view.income.salary" /></dd>

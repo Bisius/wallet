@@ -26,7 +26,7 @@ import { Amount } from '../../shared/ui/amount';
         }
       </div>
 
-      <dl class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <dl class="flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-2 lg:grid-cols-5">
         <div class="rounded-control bg-subtle p-3">
           <dt class="text-sm text-muted">Income</dt>
           <dd class="text-lg font-semibold"><app-amount [cents]="report().income.total" /></dd>

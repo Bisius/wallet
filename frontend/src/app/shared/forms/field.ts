@@ -43,7 +43,7 @@ export const FIELD_CONTEXT = new InjectionToken<FieldContext>('FIELD_CONTEXT');
   imports: [Icon],
   providers: [{ provide: FIELD_CONTEXT, useExisting: Field }],
   template: `
-    <label [for]="controlId" class="mb-1.5 block text-sm font-medium text-ink">
+    <label [for]="controlId" class="mb-1.5 block text-sm font-medium break-words text-ink">
       {{ label() }}
       @if (optional()) {
         <span class="font-normal text-muted">(optional)</span>

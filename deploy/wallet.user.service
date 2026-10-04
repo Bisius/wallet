@@ -1,0 +1,85 @@
+# Wallet as a systemd USER service: runs under your own account, needs no root and no extra user, and
+# can use a Node that lives in your home (nvm, fnm). The README, "Run it at home", has the steps.
+#
+#   mkdir -p ~/.config/systemd/user && cp deploy/wallet.user.service ~/.config/systemd/user/wallet.service
+#   $EDITOR ~/.config/systemd/user/wallet.service        # set ExecStart to your node (`command -v node`)
+#   systemctl --user daemon-reload && systemctl --user enable --now wallet
+#   loginctl enable-linger "$USER"                       # keep it running when you are logged out
+#   journalctl --user -u wallet -f
+#
+# Assumptions, change them below if yours differ:
+#   - the app is built in ~/wallet (`npm ci && npm run build` there), so the bundle is
+#     ~/wallet/backend/dist/index.js and the UI is ~/wallet/frontend/dist/frontend/browser
+#   - the database and the backups go to ~/.local/state/wallet (%S is that state folder)
+#
+# THERE IS NO LOGIN. Anyone who can reach the port can read and change every number: keep it on a
+# home LAN or a VPN, and set HOST=127.0.0.1 in ~/.config/wallet.env if a reverse proxy or
+# `tailscale serve` sits in front of it.
+#
+# This is the system unit (wallet.service) without what an unprivileged user manager cannot do:
+# a different User=, PrivateDevices=, CapabilityBoundingSet=, ProtectKernelModules=/Logs= and
+# ProtectClock=. Your home is read-only for the service (so a Node under ~/.nvm still runs), and
+# only ~/.local/state/wallet is writable.
+
+[Unit]
+Description=Wallet personal finance manager
+After=network.target
+# A bad setup (a folder that is not writable, a port in use) exits at startup with a message that
+# names the cause: after 5 failed starts in 2 minutes systemd stops retrying, and the message is
+# in the journal (journalctl --user -u wallet).
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=%h/wallet
+
+# Defaults. ~/.config/wallet.env (optional, the leading "-") is read AFTER these and wins, so
+# put only the variables you want to change there, for example:
+#   TZ=Europe/Rome
+#   PORT=3400
+#   HOST=127.0.0.1
+# TZ decides what "today" is, and so when a month ends: without it the server uses the zone of
+# /etc/localtime. A mistyped zone name silently means UTC.
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3400
+Environment=DATABASE_PATH=%S/wallet/wallet.db
+Environment=BACKUP_DIR=%S/wallet/backups
+EnvironmentFile=-%E/wallet.env
+
+# EDIT THIS: the absolute path of a Node that satisfies `engines` in package.json (`command -v node`
+# after `nvm use`; systemd does not read your shell profile and has no nvm). It is the version
+# number in the path that changes when you upgrade Node.
+# node itself, not `npm start`: npm would sit between systemd and the app and swallow SIGTERM.
+ExecStart=%h/.nvm/versions/node/v24.16.0/bin/node %h/wallet/backend/dist/index.js
+
+Restart=on-failure
+RestartSec=5
+# On SIGTERM the app stops listening, waits for a backup in flight and closes the database.
+TimeoutStopSec=30
+
+# ~/.local/state/wallet: the database, its -wal/-shm files and the backups. Private to you: it is
+# all your money. Do NOT create a folder ~/.config/wallet (the env file above is a plain file, on
+# purpose): when it exists and the state folder does not yet, systemd takes it for an old setup and
+# puts the state folder INSIDE it, as a symlink.
+StateDirectory=wallet
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+# No MemoryDenyWriteExecute: V8 needs writable and executable memory for its JIT.
+
+[Install]
+WantedBy=default.target

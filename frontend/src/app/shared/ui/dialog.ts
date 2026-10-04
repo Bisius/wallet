@@ -48,7 +48,7 @@ let nextDialogId = 0;
       <div class="flex max-h-[min(94dvh,52rem)] flex-col">
         <h2
           [id]="titleId"
-          class="shrink-0 border-b border-line px-4 py-3 text-lg font-semibold sm:px-5"
+          class="shrink-0 border-b border-line px-4 py-3 text-lg font-semibold break-words sm:px-5"
         >
           {{ heading() }}
         </h2>

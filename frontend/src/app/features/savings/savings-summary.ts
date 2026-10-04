@@ -19,7 +19,7 @@ import { SavingsData } from './savings-data';
       <section aria-labelledby="savings-summary-heading" class="card space-y-4">
         <h2 id="savings-summary-heading" class="text-lg font-semibold">Your savings</h2>
 
-        <dl class="grid gap-3 sm:grid-cols-2">
+        <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div class="rounded-control bg-subtle p-3">
             <dt class="text-sm text-muted">Savings balance</dt>
             <dd class="text-2xl font-semibold">

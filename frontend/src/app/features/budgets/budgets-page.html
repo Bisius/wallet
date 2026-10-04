@@ -69,7 +69,7 @@
                 </button>
               </app-empty-state>
             } @else {
-              <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              <ul class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 @for (card of cards(); track card.line.id; let first = $first; let last = $last) {
                   <li>
                     <app-budget-card

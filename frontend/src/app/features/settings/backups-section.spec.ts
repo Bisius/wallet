@@ -11,7 +11,9 @@ import { BackupsSection } from './backups-section';
 
 /** What a person in any time zone reads for an instant: the same formatter the section uses. */
 const when = (iso: string) =>
-  new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso));
+  new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(iso),
+  );
 
 const NEWEST = backupDto({
   name: 'wallet-20261003-142530.db',
@@ -131,20 +133,57 @@ describe('BackupsSection', () => {
   it('explains up front that backups are off, with no backup folder, and turns the button off', async () => {
     const t = await setup(backupsDto({ automatic: false }));
 
-    expect(textOf(t.section())).toContain('Automatic backups Off: this server has no backup folder.');
+    expect(textOf(t.section())).toContain(
+      'Automatic backups Off: this server has no backup folder.',
+    );
     expect(textOf(t.section())).toContain('Set BACKUP_DIR');
     expect(t.button().disabled).toBe(true);
     expect(textOf(t.section())).not.toContain('Next due');
   });
 
-  it('reminds in one quiet line that a backup holds everything and how to restore it', async () => {
+  it('reminds in one quiet line that a backup holds everything and where the restore steps are', async () => {
     const t = await setup();
 
     const text = textOf(t.section());
     expect(text).toContain('A backup holds all your data, so keep it private.');
-    expect(text).toContain('stop the app, copy the backup over the database file');
+    expect(text).toContain(
+      'stop the app and follow the steps in the README under “Backups and restore”',
+    );
+    expect(text).toContain('move the old database aside before the backup is copied in');
     expect(text).toContain('There is no restore button.');
     expect(queryByRole(t.element, 'button', /restore/i)).toBeNull();
+  });
+
+  it('no longer tells anyone to copy the backup over the live database or to delete the -wal files', async () => {
+    const t = await setup();
+
+    const text = textOf(t.section());
+    expect(text).not.toContain('copy the backup over');
+    expect(text).not.toContain('delete the');
+    expect(text).not.toContain('-wal');
+  });
+
+  it('says next to the button that a second backup on the same day replaces the first', async () => {
+    const t = await setup();
+
+    const note = textOf(t.section());
+    expect(note).toContain(
+      'Only the newest backup of each day is kept, so a second one on the same day replaces the first. ' +
+        'Download the one you want to keep before making another.',
+    );
+    // A screen reader reads it with the button, not only when it happens to browse past it.
+    const id = t.button().getAttribute('aria-describedby');
+    expect(id).toBeTruthy();
+    expect(textOf(t.element.querySelector(`#${id}`) as HTMLElement)).toContain(
+      'replaces the first',
+    );
+  });
+
+  it('keeps that sentence away when backups are off and the button cannot be pressed', async () => {
+    const t = await setup(backupsDto({ automatic: false }));
+
+    expect(textOf(t.section())).not.toContain('replaces the first');
+    expect(t.button().hasAttribute('aria-describedby')).toBe(false);
   });
 
   describe('Back up now', () => {
@@ -158,7 +197,10 @@ describe('BackupsSection', () => {
       expect(t.button().disabled).toBe(true);
       expect(t.button().getAttribute('aria-busy')).toBe('true');
 
-      const made = backupDto({ name: 'wallet-20261003-150000.db', createdAt: '2026-10-03T15:00:00.000Z' });
+      const made = backupDto({
+        name: 'wallet-20261003-150000.db',
+        createdAt: '2026-10-03T15:00:00.000Z',
+      });
       request.flush(made);
       await settle(t.fixture);
       http.expectOne('/api/backups').flush({ ...ON, backups: [made, ...ON.backups] });
@@ -222,7 +264,9 @@ describe('BackupsSection', () => {
 
       const alert = getByRole(t.element, 'alert');
       expect(textOf(alert)).toContain('Backups are not available on this server.');
-      expect(textOf(alert)).toContain('This server has no backup folder, so it cannot make backups.');
+      expect(textOf(alert)).toContain(
+        'This server has no backup folder, so it cannot make backups.',
+      );
       expect(textOf(alert)).toContain('Set BACKUP_DIR');
       expect(textOf(alert)).not.toContain('The backup was not made.');
     });

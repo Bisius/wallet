@@ -29,6 +29,9 @@ COPY package.json package-lock.json ./
 COPY shared/package.json shared/
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
+# The e2e workspace (Playwright tests, see e2e/README.md) is left out on purpose: .dockerignore excludes
+# it, and `npm ci` treats a workspace whose folder is missing as absent (checked with a dry run: the
+# lockfile still validates and nothing from e2e is installed), so no browser tooling enters the image.
 # --ignore-scripts: the only packages with install scripts (esbuild, @parcel/watcher, lmdb, msgpackr-extract)
 # are dev-only and get their binaries from optional platform packages, so nothing needs a script
 # (npm 12 blocks them by default anyway) and nothing gets compiled.

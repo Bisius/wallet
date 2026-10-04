@@ -1,0 +1,23 @@
+{
+  "name": "@wallet/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Playwright end-to-end tests that drive the production build in a real browser",
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:flows": "playwright test --project=flows",
+    "e2e:sweep": "playwright test --project=sweep",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "1.62.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "@wallet/shared": "*",
+    "better-sqlite3": "^13.0.3",
+    "playwright-core": "1.62.1",
+    "typescript": "~6.0.2"
+  }
+}

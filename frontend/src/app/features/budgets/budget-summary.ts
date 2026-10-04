@@ -97,11 +97,15 @@ export class BudgetSummary {
 
   protected readonly explanation = computed(() => STATUS_EXPLANATIONS[this.view().status]);
 
-  /** Four tiles sit in two columns or four; five (with `spent`) in two, three or five. */
+  /**
+   * On a phone the tiles are a wrapping row: two to a row, and an amount too wide for half the row
+   * (a million or more) takes a row of its own instead of pushing the page sideways. From `sm` up
+   * they are a grid: four tiles in two columns or four, five (with `spent`) in three or five.
+   */
   protected readonly gridClass = computed(() =>
     this.showSpent()
-      ? 'grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5'
-      : 'grid grid-cols-2 gap-3 lg:grid-cols-4',
+      ? 'flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-3 xl:grid-cols-5'
+      : 'flex flex-wrap gap-3 *:grow *:basis-32 sm:grid sm:grid-cols-2 lg:grid-cols-4',
   );
   /** With five tiles the last one takes the leftover cell(s) of its row. */
   protected readonly lastTileClass = computed(() =>

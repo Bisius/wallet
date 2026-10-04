@@ -81,14 +81,14 @@ export interface BarChartRow {
       <ul aria-hidden="true" class="space-y-4">
         @for (row of rowViews(); track row.key) {
           <li class="space-y-1.5">
-            <div class="flex items-baseline justify-between gap-x-4">
-              <span class="min-w-0 font-medium break-words">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+              <span class="min-w-0 flex-1 basis-32 font-medium break-words">
                 @if (row.icon) {
                   <span class="mr-1">{{ row.icon }}</span>
                 }
                 {{ row.label }}
               </span>
-              <span class="shrink-0 text-sm tabular-nums">
+              <span class="ml-auto text-right text-sm tabular-nums">
                 <span class="font-semibold">{{ row.valueText }}</span>
                 @if (row.trackText) {
                   <span class="text-muted"> of {{ row.trackText }}</span>

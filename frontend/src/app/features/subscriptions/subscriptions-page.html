@@ -72,7 +72,7 @@
                 </h2>
                 <p class="text-sm text-muted">{{ section.description }}</p>
               </div>
-              <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+              <ul class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
                 @for (subscription of section.items; track subscription.id) {
                   <li>
                     <app-subscription-card

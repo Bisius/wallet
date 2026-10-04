@@ -73,7 +73,7 @@ function untilText(daysUntil: number): string {
             </a>
           </app-empty-state>
         } @else {
-          <ul class="grid gap-3 lg:grid-cols-2">
+          <ul class="grid grid-cols-1 gap-3 lg:grid-cols-2">
             @for (item of items(); track item.renewal.id) {
               <li
                 class="space-y-2 rounded-control border-l-4 border-line-strong bg-subtle p-3"

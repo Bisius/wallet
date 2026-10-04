@@ -12,12 +12,14 @@ Personal finance manager: salary, extra income, monthly/yearly subscriptions, bu
 | `shared/`   | `@wallet/shared`   | API contract (zod schemas + DTO types) and pure helpers (`Cents`, `MonthKey`). Shipped as TS source, so there is no build step.                                                                   |
 | `backend/`  | `@wallet/backend`  | Express 5 + Drizzle ORM + better-sqlite3. `src/modules/<feature>/` holds routes, services and tests. `src/domain/` holds the pure ledger engine. `src/db/schema.ts` holds all tables.             |
 | `frontend/` | `@wallet/frontend` | Angular 22 (standalone, zoneless, OnPush by default, signals) + Tailwind v4. `src/app/features/<feature>/` holds pages and API services. Angular conventions are in `frontend/.claude/CLAUDE.md`. |
+| `e2e/`      | `@wallet/e2e`      | Playwright end-to-end tests that drive the production build in a real browser (fixtures start a fresh server per test and can move its clock). Setup and conventions are in `e2e/README.md`.      |
 
 ## Commands (repo root, Node 24: `nvm use`)
 
 - `npm run dev`: API on http://localhost:3400 (tsx watch) + Angular on http://localhost:4200 (proxies `/api`)
 - `npm test` · `npm run typecheck`: all workspaces. Run a single package with `-w @wallet/backend`.
 - `npm run build && NODE_ENV=production npm start`: one process on :3400 serving the API and the UI
+- `npm run e2e`: Playwright against the production build (run `npm run build` first; needs a Chromium, see `e2e/README.md`). It is not part of `npm test`, which needs no browser.
 - `npm run db:generate -- --name <change>`: create a migration after editing `backend/src/db/schema.ts`. Migrations apply automatically on startup.
 
 ## Rules

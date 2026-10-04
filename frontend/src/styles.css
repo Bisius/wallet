@@ -139,6 +139,15 @@
     outline: none;
   }
 
+  /*
+   * A fieldset never gets narrower than its content by default (`min-inline-size: min-content`), so
+   * one long unbroken word inside it (a goal's name in a label) widened it past the dialog or the
+   * screen. It shrinks like any other box, and the words inside wrap.
+   */
+  fieldset {
+    min-width: 0;
+  }
+
   /* Money columns line up. */
   :where(.tabular-nums) {
     font-variant-numeric: tabular-nums;

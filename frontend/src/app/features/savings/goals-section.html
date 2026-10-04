@@ -28,7 +28,7 @@
         All your goals are archived. Create a new goal, or bring one back below.
       </p>
     } @else {
-      <ul class="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+      <ul class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
         @for (goal of inUse(); track goal.id) {
           <li>
             <app-goal-card
@@ -55,7 +55,7 @@
           holds. Unarchive it to use it again, or delete it to move its balance to unassigned
           savings.
         </p>
-        <ul class="mt-4 grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+        <ul class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
           @for (goal of archived(); track goal.id) {
             <li>
               <app-goal-card

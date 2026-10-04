@@ -1,0 +1,83 @@
+# Wallet as a systemd service (no Docker). The README, "Run it at home", has the install steps.
+#
+#   sudo cp deploy/wallet.service /etc/systemd/system/wallet.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now wallet
+#   journalctl -u wallet -f
+#
+# Assumptions, change them below if yours differ:
+#   - the app is built in /opt/wallet (`npm ci && npm run build` there), so the bundle is
+#     /opt/wallet/backend/dist/index.js and the UI is /opt/wallet/frontend/dist/frontend/browser
+#   - Node is /usr/bin/node and new enough (see `engines` in package.json; `node -v`)
+#   - a system user `wallet` exists:  sudo useradd --system --no-create-home --shell /usr/sbin/nologin wallet
+#
+# THERE IS NO LOGIN. Anyone who can reach the port can read and change every number: keep it on a
+# home LAN or a VPN, and set HOST=127.0.0.1 in /etc/wallet.env if a reverse proxy or
+# `tailscale serve` sits in front of it.
+
+[Unit]
+Description=Wallet personal finance manager
+After=network.target
+# A bad setup (a folder that is not writable, a port in use) exits at startup with a message that
+# names the cause: after 5 failed starts in 2 minutes systemd stops retrying, and the message is
+# in the journal (journalctl -u wallet).
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=wallet
+Group=wallet
+WorkingDirectory=/opt/wallet
+
+# Defaults. /etc/wallet.env (optional, the leading "-") is read AFTER these and wins, so put
+# only the variables you want to change there, for example:
+#   TZ=Europe/Rome
+#   PORT=3400
+#   HOST=127.0.0.1
+# TZ decides what "today" is, and so when a month ends: without it the server uses the zone of
+# /etc/localtime. A mistyped zone name silently means UTC.
+Environment=NODE_ENV=production
+Environment=HOST=0.0.0.0
+Environment=PORT=3400
+Environment=DATABASE_PATH=/var/lib/wallet/wallet.db
+Environment=BACKUP_DIR=/var/lib/wallet/backups
+EnvironmentFile=-/etc/wallet.env
+
+# node itself, not `npm start`: npm would sit between systemd and the app and swallow SIGTERM.
+ExecStart=/usr/bin/node /opt/wallet/backend/dist/index.js
+
+Restart=on-failure
+RestartSec=5
+# On SIGTERM the app stops listening, waits for a backup in flight and closes the database.
+TimeoutStopSec=30
+
+# /var/lib/wallet, created and owned by the service user: the database, its -wal/-shm files and the
+# backups. Everything else is read-only for the service. Private to that user: it is all your money,
+# so reading it (to copy a backup away, say) takes sudo. Do NOT create a folder /etc/wallet (the env
+# file above is a plain file, on purpose): systemd can take a configuration folder of the same name
+# for an old setup and put the state folder inside it.
+StateDirectory=wallet
+StateDirectoryMode=0700
+UMask=0077
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+# No MemoryDenyWriteExecute: V8 needs writable and executable memory for its JIT.
+
+[Install]
+WantedBy=multi-user.target
