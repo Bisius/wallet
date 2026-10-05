@@ -22,6 +22,13 @@
       "when": 1791035565278,
       "tag": "0002_import_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1791189281947,
+      "tag": "0003_telegram",
+      "breakpoints": true
     }
   ]
 }

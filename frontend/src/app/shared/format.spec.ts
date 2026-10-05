@@ -7,6 +7,8 @@ import {
   formatDate,
   formatDateTime,
   formatMonth,
+  formatTime,
+  formatTimeUntil,
   lastDayOf,
 } from './format';
 
@@ -111,6 +113,42 @@ describe('formatDateTime', () => {
   it('falls back to a readable format for an ill-formed locale, and returns text it cannot read as it is', () => {
     expect(formatDateTime('2026-10-03T14:25:30.000Z', 'not a locale', 'UTC')).toContain('2026');
     expect(formatDateTime('yesterday', 'en-US')).toBe('yesterday');
+  });
+});
+
+describe('formatTime', () => {
+  it('writes the time of day in the locale, in the zone it is given', () => {
+    expect(formatTime('2026-10-03T14:25:30.000Z', 'en-US', 'UTC')).toBe('2:25 PM');
+    expect(formatTime('2026-10-03T14:25:30.000Z', 'en-US', 'Asia/Tokyo')).toBe('11:25 PM');
+    expect(formatTime('2026-10-03T14:25:30.000Z', 'de-DE', 'UTC')).toBe('14:25');
+  });
+
+  it('falls back for an ill-formed locale, and returns text it cannot read as it is', () => {
+    expect(formatTime('2026-10-03T14:25:30.000Z', 'not a locale', 'UTC')).toContain('2:25');
+    expect(formatTime('later', 'en-US')).toBe('later');
+  });
+});
+
+describe('formatTimeUntil', () => {
+  const at = Date.parse('2026-10-05T10:00:00.000Z');
+  const until = (iso: string, nowMs = at, locale = 'en-US') => formatTimeUntil(iso, nowMs, locale);
+
+  it('counts whole minutes, rounded up', () => {
+    expect(until('2026-10-05T10:10:00.000Z')).toBe('in 10 minutes');
+    expect(until('2026-10-05T10:09:01.000Z')).toBe('in 10 minutes');
+    expect(until('2026-10-05T10:01:00.000Z')).toBe('in 1 minute');
+    expect(until('2026-10-05T10:00:10.000Z')).toBe('in 1 minute');
+  });
+
+  it('says "this minute" at the instant and after it', () => {
+    expect(until('2026-10-05T10:00:00.000Z')).toBe('this minute');
+    expect(until('2026-10-05T09:50:00.000Z')).toBe('this minute');
+  });
+
+  it('follows the locale, falls back for an ill-formed one, and returns text it cannot read as it is', () => {
+    expect(until('2026-10-05T10:10:00.000Z', at, 'de-DE')).toBe('in 10 Minuten');
+    expect(until('2026-10-05T10:10:00.000Z', at, 'not a locale')).toBe('in 10 minutes');
+    expect(until('soon')).toBe('soon');
   });
 });
 

@@ -24,6 +24,9 @@ import { settingsRoutes } from './modules/settings/settings.routes';
 import { spendingRoutes } from './modules/spendings/spendings.routes';
 import { subscriptionRoutes } from './modules/subscriptions/subscriptions.routes';
 import { tagRoutes } from './modules/tags/tags.routes';
+import { budgetAlertWriteHook } from './modules/telegram/telegram.notifications';
+import { telegramRoutes } from './modules/telegram/telegram.routes';
+import type { TelegramHandle } from './modules/telegram/telegram.types';
 import { todayRoutes } from './modules/today/today.routes';
 import { transferRoutes } from './modules/transfers/transfers.routes';
 
@@ -37,9 +40,16 @@ export interface CreateAppOptions {
   clock?: Clock;
   /** `backupDir` is optional here: without it there is no backup directory (tests, in-memory database). */
   config: Pick<Config, 'env' | 'staticDir'> & Partial<Pick<Config, 'backupDir'>>;
+  /**
+   * The Telegram bot, when one runs (`index.ts` passes it when `TELEGRAM_BOT_TOKEN` is set). Without
+   * it the bot is off: `GET /api/telegram` says so and the endpoints that need a bot answer 409
+   * `telegram_not_configured`. `createApp` never starts a bot, and neither does any test: they pass
+   * a fake (`src/testing/fake-telegram.ts`) or nothing.
+   */
+  telegram?: TelegramHandle;
 }
 
-export function createApp({ db, clock = systemClock, config }: CreateAppOptions) {
+export function createApp({ db, clock = systemClock, config, telegram }: CreateAppOptions) {
   const deps: AppDeps = { db, clock };
   const app = express();
 
@@ -58,6 +68,10 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   if (config.env === 'development') app.use(requestLogger);
 
   const api = Router();
+  // Budget alerts (docs/DOMAIN.md, "Budget alerts"): after every write that succeeded, on any route
+  // (a settings change moves the warning threshold, a restore changes everything), ask the Telegram
+  // watcher for a check (debounced, 2 s). Only with a bot; it never fails a request.
+  if (telegram) api.use(budgetAlertWriteHook(telegram.notify));
   // Reachable before onboarding.
   api.use('/health', healthRoutes(deps));
   api.use('/today', todayRoutes(deps));
@@ -79,6 +93,7 @@ export function createApp({ db, clock = systemClock, config }: CreateAppOptions)
   api.use('/reports', onboarded, reportRoutes(deps));
   api.use('/export', onboarded, exportRoutes(deps));
   api.use('/import', onboarded, importRoutes(deps));
+  api.use('/telegram', onboarded, telegramRoutes({ ...deps, telegram }));
   api.use((_req, _res, next) => next(notFound('Route')));
   app.use('/api', api);
 

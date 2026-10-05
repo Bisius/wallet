@@ -18,4 +18,5 @@ export * from './settings';
 export * from './spendings';
 export * from './subscriptions';
 export * from './tags';
+export * from './telegram';
 export * from './transfers';

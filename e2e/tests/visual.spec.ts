@@ -9,6 +9,7 @@ import {
   settle,
 } from '../support/pages';
 import { seedWallet } from '../support/rich-data';
+import { type TelegramWorld, telegramStops } from '../support/telegram-stops';
 
 /*
  * Screenshots of the whole app, to see what a change to the look did and to catch a page that a
@@ -66,8 +67,18 @@ function slug(name: string): string {
 
 const STOPS = richStops();
 
+/**
+ * The Telegram section of Settings in each state of the bot: these need a server with the bot and its
+ * fake Telegram, so they are their own tests (below). The world is the one of the test that runs.
+ */
+let world: TelegramWorld | undefined;
+const TELEGRAM_STOPS = telegramStops(() => {
+  if (!world) throw new Error('A Telegram stop was opened outside a test');
+  return world;
+});
+
 // Two stops with one name would share a baseline and silently overwrite each other.
-const slugs = STOPS.map((stop) => slug(stop.name));
+const slugs = [...STOPS, ...TELEGRAM_STOPS].map((stop) => slug(stop.name));
 const duplicates = slugs.filter((name, index) => slugs.indexOf(name) !== index);
 if (duplicates.length > 0) {
   throw new Error(
@@ -93,6 +104,16 @@ const VOLATILE_TEXT: readonly [pattern: RegExp, replacement: string][] = [
   // A backup is named after the second it was made: `wallet-20260310-090013.db`.
   [/\bwallet-\d{8}-\d{6}\.db\b/g, 'wallet-20260310-090000.db'],
 ];
+
+/**
+ * The pairing code of Settings is random, and 8 characters of it are in the picture: it becomes a
+ * constant of the same length.
+ */
+async function pinPairingCode(page: Page): Promise<void> {
+  await page
+    .locator('[data-pairing] code')
+    .evaluateAll((codes) => codes.forEach((code) => (code.textContent = 'ABCD2345')));
+}
 
 async function pinVolatileText(page: Page): Promise<void> {
   await page.evaluate(
@@ -183,6 +204,7 @@ async function settleForShot(
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await waitForStillLayout(page);
   await pinVolatileText(page);
+  await pinPairingCode(page);
   // Nothing hovered, and sticky bars where they belong: the stop may have scrolled to a button.
   await page.mouse.move(0, 0);
   // Not with a menu open: it closes when the page scrolls, and the shot is of what the window shows.
@@ -218,6 +240,32 @@ for (const variant of VARIANTS) {
 
         // A full page for a page. A modal dialog is positioned in the window, over a backdrop, and a
         // menu is placed in the window beside its button, so those are shot as the window shows them.
+        await expect(page).toHaveScreenshot(`${shot}.png`, { fullPage: !stop.modal && !stop.menu });
+      });
+    }
+  });
+}
+
+// The Telegram section of Settings, in each state of the bot (a server with the bot and its fake Telegram).
+for (const variant of VARIANTS) {
+  test.describe(`${variant.name}, Telegram`, () => {
+    test.use({ ...SCREENS[variant.screen], colorScheme: variant.theme, telegramBot: true });
+
+    for (const stop of TELEGRAM_STOPS) {
+      if ((stop.modal || stop.menu) && !variant.dialogs) continue;
+      const shot = `${slug(stop.name)}-${variant.name}`;
+
+      test(shot, async ({ page, wallet, telegram }) => {
+        test.info().annotations.push({ type: 'stop', description: stop.name });
+        world = { wallet, telegram };
+        await seedWallet(wallet.api, { dataset: 'rich', theme: variant.theme });
+        await keepToastsOnScreen(page);
+        await stop.open(page);
+        await expectTheme(page, variant.theme);
+        await settleForShot(page, {
+          toTop: !stop.menu,
+          grow: variant.screen === 'phone' && !stop.modal && !stop.menu,
+        });
         await expect(page).toHaveScreenshot(`${shot}.png`, { fullPage: !stop.modal && !stop.menu });
       });
     }

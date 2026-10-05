@@ -20,10 +20,13 @@ import type {
   SubscriptionCreateInput,
   SubscriptionDto,
   TransferCreateInput,
+  TelegramPairingDto,
+  TelegramStatusDto,
   TodayResponse,
   TransferDto,
 } from '@wallet/shared';
 import { json } from './api';
+import type { FakeTelegram } from './fake-telegram';
 
 /*
  * Typed helpers for the calls that specs repeat to put a server into a state before the browser
@@ -147,4 +150,32 @@ export async function settleMonth(
   }
   const body = { amount: entry.outstanding, ...(allocations && { allocations }) };
   return json(await api.post(`/api/savings/settle/${month}`, { data: body }));
+}
+
+/** `GET /api/telegram`: the bot as Settings reads it (connection, link, pending code, preferences). */
+export async function getTelegramStatus(api: APIRequestContext): Promise<TelegramStatusDto> {
+  return json(await api.get('/api/telegram'));
+}
+
+/** `POST /api/telegram/pairing`: a one-time code (and the link that sends it), replacing a pending one. */
+export async function createPairingCode(api: APIRequestContext): Promise<TelegramPairingDto> {
+  return json(await api.post('/api/telegram/pairing'));
+}
+
+/**
+ * Links the owner of the fake Telegram the way a person does, without the browser: waits until the bot
+ * is polling, makes a code through the API and has the owner send `/start <code>`. Returns the status
+ * after the link. The greeting is the first message of the chat. Pass `as` to link somebody else.
+ */
+export async function linkTelegram(
+  api: APIRequestContext,
+  telegram: FakeTelegram,
+  as = telegram.owner,
+): Promise<TelegramStatusDto> {
+  await telegram.waitUntilPolling();
+  const { code } = await createPairingCode(api);
+  await as.say(`/start ${code}`);
+  const status = await getTelegramStatus(api);
+  if (!status.link) throw new Error(`The code ${code} did not link ${as.person.first_name}`);
+  return status;
 }

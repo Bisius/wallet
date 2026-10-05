@@ -58,6 +58,23 @@ const GUARDED: [string, string, string, object?][] = [
   ['POST', '/api/tags', 'ok', { name: 'Groceries' }],
   ['PATCH', '/api/tags/1', 'ok', { name: 'Food' }],
   ['DELETE', '/api/tags/1', 'ok'],
+  ['GET', '/api/telegram', 'ok'],
+  ['POST', '/api/telegram/pairing', 'ok', {}],
+  ['DELETE', '/api/telegram/pairing', 'ok'],
+  ['DELETE', '/api/telegram/link', 'ok'],
+  [
+    'PUT',
+    '/api/telegram/notifications',
+    'ok',
+    {
+      budgetAlerts: true,
+      renewalYearlyDays: 7,
+      renewalMonthlyDays: 1,
+      monthlyRecap: true,
+      notifyAt: '09:00',
+    },
+  ],
+  ['POST', '/api/telegram/test', 'ok', {}],
   // The guard runs before validation: an invalid request is still a 409, not a 400.
   ['POST', '/api/budgets', 'bad', {}],
   ['GET', '/api/spendings?limit=0', 'bad'],
@@ -76,6 +93,7 @@ const GUARDED: [string, string, string, object?][] = [
   ['GET', '/api/spendings?q=%20', 'bad'],
   ['POST', '/api/tags', 'bad', {}],
   ['PATCH', '/api/tags/abc', 'bad', {}],
+  ['PUT', '/api/telegram/notifications', 'bad', {}],
 ];
 
 function send(app: Parameters<typeof request>[0], method: string, path: string, body?: object) {

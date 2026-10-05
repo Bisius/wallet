@@ -298,3 +298,112 @@ export const importProfiles = sqliteTable('import_profiles', {
   createdAt: timestamp(),
   updatedAt: timestamp(),
 });
+
+// --- The Telegram bot (docs/DOMAIN.md, "Telegram bot"; migration 0003_telegram) -------------------
+//
+// None of these tables holds a fact: they are in no ledger figure, no export and no check of
+// `start_month_after_facts` (`earliestFactMonth` reads the fact tables by name). They ARE in the
+// backups, which copy the whole database file, so a restore brings the link and the preferences
+// back. There is no "delete all my data" feature today; if one is ever added it must clear
+// `telegram_entries` and `telegram_notifications` (they describe the deleted facts) and keep the
+// link and the preferences (they belong to the install, not to its data).
+
+/** The linked Telegram account: one row at most (id is always 1). */
+export const telegramLink = sqliteTable(
+  'telegram_link',
+  {
+    id: integer().primaryKey(),
+    /** Telegram's id of the account. The only sender the bot answers. A safe JS integer (52 bits). */
+    userId: integer().notNull(),
+    /** Where everything the bot sends goes: the private chat with that account. */
+    chatId: integer().notNull(),
+    firstName: text().notNull(),
+    /** Without the `@`. An account may have none. */
+    username: text(),
+    linkedAt: timestamp(),
+  },
+  (t) => [check('telegram_link_singleton', sql`${t.id} = 1`)],
+);
+
+/** The pending pairing code: one row at most (id is always 1), while a code is open. */
+export const telegramPairing = sqliteTable(
+  'telegram_pairing',
+  {
+    id: integer().primaryKey(),
+    /** 8 characters from an alphabet without 0, O, 1 and I. */
+    code: text().notNull(),
+    /** ISO-8601 UTC instant, 10 minutes after the code was made. */
+    expiresAt: text().notNull(),
+    /** Wrong codes tried since this one was made, from any sender. At 5 the row is deleted. */
+    failedAttempts: integer().notNull().default(0),
+  },
+  (t) => [
+    check('telegram_pairing_singleton', sql`${t.id} = 1`),
+    check('telegram_pairing_attempts', sql`${t.failedAttempts} >= 0`),
+  ],
+);
+
+/**
+ * The notification preferences: one row at most (id is always 1). The row is created by the first
+ * `PUT /api/telegram/notifications`; until then the preferences read as
+ * `DEFAULT_TELEGRAM_NOTIFICATIONS`, so the defaults live in one place (the shared contract) and not
+ * in SQL. Unlinking keeps it. It lives apart from `settings` because `PUT /api/settings` replaces
+ * exactly five fields.
+ */
+export const telegramSettings = sqliteTable(
+  'telegram_settings',
+  {
+    id: integer().primaryKey(),
+    budgetAlerts: integer({ mode: 'boolean' }).notNull(),
+    renewalYearlyDays: integer().notNull(),
+    renewalMonthlyDays: integer().notNull(),
+    monthlyRecap: integer({ mode: 'boolean' }).notNull(),
+    /** `HH:MM`, 24-hour, server time zone. */
+    notifyAt: text().notNull(),
+  },
+  (t) => [
+    check('telegram_settings_singleton', sql`${t.id} = 1`),
+    check(
+      'telegram_settings_days',
+      sql`${t.renewalYearlyDays} between 0 and 30 and ${t.renewalMonthlyDays} between 0 and 30`,
+    ),
+  ],
+);
+
+/**
+ * What the bot created, for `/undo`: one row per spending or income it stored. Exactly one of the
+ * two ids is set, and deleting the spending or the income (from anywhere) deletes its row.
+ */
+export const telegramEntries = sqliteTable(
+  'telegram_entries',
+  {
+    id: id(),
+    spendingId: integer().references(() => spendings.id, { onDelete: 'cascade' }),
+    incomeId: integer().references(() => incomes.id, { onDelete: 'cascade' }),
+    createdAt: timestamp(),
+  },
+  (t) => [
+    // A row is made once per spending or income (SQLite lets several NULLs through a unique index).
+    uniqueIndex('telegram_entries_spending_uq').on(t.spendingId),
+    uniqueIndex('telegram_entries_income_uq').on(t.incomeId),
+    check('telegram_entries_one_target', sql`(${t.spendingId} is null) <> (${t.incomeId} is null)`),
+  ],
+);
+
+/**
+ * The dedupe log of the notifications. A row is written after Telegram accepted the message (or by
+ * the baseline, which sends nothing), so a failed send is retried and a sent one never repeated.
+ * Keys: `<month>:<budgetId>` for `budget_alert` (value: the highest level notified), and
+ * `<subscriptionId>:<billingDate>` for `renewal`, and the month recapped for `recap`.
+ */
+export const telegramNotifications = sqliteTable(
+  'telegram_notifications',
+  {
+    id: id(),
+    kind: text({ enum: ['budget_alert', 'renewal', 'recap'] }).notNull(),
+    key: text().notNull(),
+    value: text(),
+    sentAt: timestamp(),
+  },
+  (t) => [uniqueIndex('telegram_notifications_kind_key_uq').on(t.kind, t.key)],
+);

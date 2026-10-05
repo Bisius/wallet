@@ -6,10 +6,12 @@ import {
 } from '@playwright/test';
 import { withReadableErrors } from './api';
 import { BrowserErrors, type BrowserErrorMatcher } from './browser-errors';
+import { FakeTelegram } from './fake-telegram';
 import { WalletServer } from './server';
 
 export { ApiRequestError, json } from './api';
 export { failedResponse, type BrowserErrorMatcher } from './browser-errors';
+export { FakeTelegram, FAKE_BOT_TOKEN, FAKE_BOT_USERNAME } from './fake-telegram';
 
 /** Where the fake clock starts unless a file says otherwise (`test.use({ walletNow })`). */
 export const DEFAULT_NOW = '2026-03-10T09:00:00';
@@ -63,10 +65,25 @@ interface WalletOptions {
   failOnConsoleErrors: boolean;
   /** Console errors that are expected in every test of the file (see `failedResponse`). */
   allowedConsoleErrors: BrowserErrorMatcher[];
+  /**
+   * Starts the server WITH the Telegram bot: a fake Bot API (`telegram`) is started before it and
+   * closed after it, and the server gets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_API_ROOT` pointing at the
+   * fake (and `APP_URL`, with `{ appUrl }`). Off by default: a server without the option has no token,
+   * so its bot is off, whatever the shell that runs the suite exports.
+   */
+  telegramBot: boolean | { appUrl?: string };
 }
 
 interface WalletFixtures {
   wallet: Wallet;
+  /**
+   * The fake Bot API of this test, and the person who types to the bot (`telegram.say(...)`,
+   * `telegram.tap(...)`, `telegram.lastMessage()`). Only with `test.use({ telegramBot: true })`: asking
+   * for it without the option is an error.
+   */
+  telegram: FakeTelegram;
+  /** The fake, or undefined when the option is off. Started before `wallet`, closed after it. */
+  fakeTelegram: FakeTelegram | undefined;
   /** The console errors and uncaught exceptions of this test's browser, with `allow()` for expected ones. */
   browserErrors: BrowserErrors;
 }
@@ -95,14 +112,45 @@ export const test = base.extend<WalletFixtures & WalletOptions>({
   walletNow: [DEFAULT_NOW, { option: true }],
   failOnConsoleErrors: [true, { option: true }],
   allowedConsoleErrors: [[], { option: true }],
+  telegramBot: [false, { option: true }],
   // The service worker would cache pages and answer from the cache, between tests and across a
   // restart. A spec that is about the worker turns it back on with `test.use({ serviceWorkers: 'allow' })`.
   serviceWorkers: async ({}, use) => {
     await use('block');
   },
 
-  wallet: async ({ playwright, walletNow }, use, testInfo) => {
-    const server = await WalletServer.start(walletNow);
+  fakeTelegram: async ({ telegramBot }, use, testInfo) => {
+    if (!telegramBot) {
+      await use(undefined);
+      return;
+    }
+    const fake = await FakeTelegram.start();
+    try {
+      await use(fake);
+    } finally {
+      // The server of the test is gone by now (it depends on this fixture), so nothing is polling.
+      if (testInfo.status !== testInfo.expectedStatus) {
+        await testInfo.attach('telegram-chat.txt', {
+          body: fake.transcript(),
+          contentType: 'text/plain',
+        });
+      }
+      await fake.close();
+    }
+  },
+
+  telegram: async ({ fakeTelegram }, use) => {
+    if (!fakeTelegram) {
+      throw new Error('The `telegram` fixture needs the bot: test.use({ telegramBot: true })');
+    }
+    await use(fakeTelegram);
+  },
+
+  wallet: async ({ playwright, walletNow, fakeTelegram, telegramBot }, use, testInfo) => {
+    const appUrl = typeof telegramBot === 'object' ? telegramBot.appUrl : undefined;
+    const server = await WalletServer.start(walletNow, {
+      env: fakeTelegram?.serverEnv({ appUrl }),
+    });
     let apiContext = await newApiContext(playwright, server.baseURL);
 
     const wallet: Wallet = {

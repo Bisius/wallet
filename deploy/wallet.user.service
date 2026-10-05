@@ -39,8 +39,16 @@ WorkingDirectory=%h/wallet
 #   TZ=Europe/Rome
 #   PORT=3400
 #   HOST=127.0.0.1
+#   TELEGRAM_BOT_TOKEN=<token from @BotFather>
+#   APP_URL=https://wallet.<tailnet>.ts.net
 # TZ decides what "today" is, and so when a month ends: without it the server uses the zone of
 # /etc/localtime. A mistyped zone name silently means UTC.
+# TELEGRAM_BOT_TOKEN turns the Telegram bot on (README, "Telegram bot"); the bot is off without it.
+# APP_URL, the address of the app as your phone reaches it, is optional: it adds "Open" links to some
+# bot messages. TELEGRAM_API_ROOT is for the tests only: do not set it. The token is a secret:
+#   chmod 600 ~/.config/wallet.env
+# Keep the file out of version control and out of copies you do not want to hold the token. One bot
+# per Wallet: a second instance with the same token fights this one for the bot's messages.
 Environment=NODE_ENV=production
 Environment=HOST=0.0.0.0
 Environment=PORT=3400
@@ -73,6 +81,8 @@ ProtectHome=read-only
 PrivateTmp=true
 ProtectKernelTunables=true
 ProtectControlGroups=true
+# AF_INET and AF_INET6 let the Telegram bot call out to api.telegram.org (HTTPS, long polling). The
+# bot only ever calls out: nothing listens for it, so no port or firewall rule is needed for it.
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 RestrictNamespaces=true
 RestrictRealtime=true

@@ -52,6 +52,7 @@ import { SavingsApi } from '../savings/savings.api';
 import { BackupsSection } from './backups-section';
 import { ExportSection } from './export-section';
 import { TagsSection } from './tags-section';
+import { TelegramSection } from './telegram-section';
 
 const THEME_LABELS: Record<Theme, string> = {
   system: 'Same as my device',
@@ -62,8 +63,9 @@ const THEME_LABELS: Record<Theme, string> = {
 /**
  * Currency, locale, theme, budget warning threshold and start month (`PUT /api/settings`). After the
  * start month changed, it asks for the savings balance on the new first day: the opening balance
- * follows the start month's date but never its amount. Below the form, the tags (`TagsSection`) and
- * the data: CSV export, the way into the CSV import, and the backups.
+ * follows the start month's date but never its amount. Below the form, the tags (`TagsSection`), the
+ * Telegram bot (`TelegramSection`) and the data: CSV export, the way into the CSV import, and the
+ * backups.
  */
 @Component({
   selector: 'app-settings-page',
@@ -81,6 +83,7 @@ const THEME_LABELS: Record<Theme, string> = {
     MoneyPipe,
     OpeningBalanceDialog,
     TagsSection,
+    TelegramSection,
     ExportSection,
     BackupsSection,
     RouterLink,

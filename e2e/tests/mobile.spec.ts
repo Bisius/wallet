@@ -21,6 +21,7 @@ import {
   walk,
 } from '../support/pages';
 import { type Dataset, seedWallet } from '../support/rich-data';
+import { telegramStops } from '../support/telegram-stops';
 
 /*
  * The wallet on a phone: 390 x 844 CSS px, `isMobile` (without it Chromium widens the layout viewport
@@ -125,6 +126,22 @@ for (const theme of THEMES) {
       });
     }
 
+    test.describe('Settings with the Telegram bot switched on', () => {
+      // "Not configured" is the plain `settings` stop above; these need a bot and its fake Telegram.
+      test.use({ telegramBot: true });
+
+      test('the Telegram section in every state', async ({ page, wallet, telegram }) => {
+        test.setTimeout(WALK_TIMEOUT_MS);
+        await seedWallet(wallet.api, { dataset: 'rich', theme });
+        await openPage(page, '/dashboard', 'Dashboard');
+        await expectTheme(page, theme);
+
+        await walk(page, onScreen(telegramStops({ wallet, telegram }), 'phone'), async (stop) => {
+          await expectPhoneLayout(page, stop, label(stop.name, 'rich'));
+        });
+      });
+    });
+
     test.describe('a wallet that was never set up', () => {
       // `GET /api/settings` is a 404 until the wizard is done, by design (see onboarding.spec.ts).
       test.use({ allowedConsoleErrors: [failedResponse(404, /\/api\/settings$/)] });
@@ -155,6 +172,19 @@ test.describe('the narrowest phone, 320 px (WCAG 1.4.10 Reflow)', () => {
     await openPage(page, '/dashboard', 'Dashboard');
     await walk(page, onScreen(richStops(), 'phone'), async (stop) => {
       await expectPhoneLayout(page, stop, `${stop.name} | light | 320 px | rich`);
+    });
+  });
+
+  test.describe('with the Telegram bot switched on', () => {
+    test.use({ telegramBot: true });
+
+    test('the Telegram section in every state', async ({ page, wallet, telegram }) => {
+      test.setTimeout(WALK_TIMEOUT_MS);
+      await seedWallet(wallet.api, { dataset: 'rich', theme: 'light' });
+      await openPage(page, '/dashboard', 'Dashboard');
+      await walk(page, onScreen(telegramStops({ wallet, telegram }), 'phone'), async (stop) => {
+        await expectPhoneLayout(page, stop, `${stop.name} | light | 320 px | rich`);
+      });
     });
   });
 });

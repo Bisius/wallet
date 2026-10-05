@@ -13,7 +13,7 @@
 #   /app/backend/dist/index.js               tsup bundle (inlines @wallet/shared)
 #   /app/backend/drizzle/                    MIGRATIONS_DIR = BACKEND_ROOT/drizzle (applied on startup)
 #   /app/frontend/dist/frontend/browser/     default static dir = BACKEND_ROOT/../frontend/dist/frontend/browser
-#   /app/node_modules/                       external runtime dependencies: better-sqlite3, drizzle-orm, express, helmet, zod
+#   /app/node_modules/                       external runtime dependencies: better-sqlite3, drizzle-orm, express, grammy, helmet, zod
 #   /data/                                   volume: SQLite database (+ WAL files) and backups
 #
 # Build and run:  docker compose up -d --build   (see docker-compose.yml)

@@ -47,6 +47,7 @@ import {
   createSubscription,
   getMonth,
   getSavings,
+  getTelegramStatus,
   onboard,
   setSalary,
   settleMonth,
@@ -844,9 +845,9 @@ test.describe('a backup from an older version', () => {
     const before = await observe(api, options);
     const made = await json<BackupDto>(await api.post('/api/backups'));
 
-    // The backup as an older version made it: the schema before the last two migrations
-    // (`0001_savings_group_id` and `0002_import_profiles`) and without their rows in the table that
-    // records which migrations were applied.
+    // The backup as an older version made it: the schema before the last three migrations
+    // (`0001_savings_group_id`, `0002_import_profiles` and `0003_telegram`) and without their rows in
+    // the table that records which migrations were applied.
     const folder = await mkdtemp(join(tmpdir(), 'wallet-e2e-older-'));
     try {
       const older = join(folder, 'wallet-older.db');
@@ -856,14 +857,19 @@ test.describe('a backup from an older version', () => {
           drop index savings_transactions_group_idx;
           alter table savings_transactions drop column group_id;
           drop table import_profiles;
-          delete from __drizzle_migrations where created_at in (select created_at from __drizzle_migrations order by created_at desc limit 2);
+          drop table telegram_entries;
+          drop table telegram_link;
+          drop table telegram_notifications;
+          drop table telegram_pairing;
+          drop table telegram_settings;
+          delete from __drizzle_migrations where created_at in (select created_at from __drizzle_migrations order by created_at desc limit 3);
         `);
       });
       expect(queryDatabase<number>(older, 'select count(*) from __drizzle_migrations')).toBe(1);
       expect(
         queryDatabase<number>(
           older,
-          "select count(*) from sqlite_master where name = 'import_profiles'",
+          "select count(*) from sqlite_master where name = 'import_profiles' or name like 'telegram_%'",
         ),
       ).toBe(0);
 
@@ -872,9 +878,9 @@ test.describe('a backup from an older version', () => {
       await rm(folder, { recursive: true, force: true });
     }
 
-    // The three migrations are applied again, at startup, and the figures are what they were.
+    // The four migrations are applied again, at startup, and the figures are what they were.
     expect(queryDatabase<number>(wallet.dbPath, 'select count(*) from __drizzle_migrations')).toBe(
-      3,
+      4,
     );
     expect(await observe(api, options)).toEqual(before);
 
@@ -904,5 +910,23 @@ test.describe('a backup from an older version', () => {
         'select count(*) from savings_transactions where group_id is not null',
       ),
     ).toBe(2);
+
+    // And the tables of the Telegram bot are back too (they hold no money): with no token the bot is off,
+    // and the preferences can be saved and read.
+    await api.put('/api/telegram/notifications', {
+      data: {
+        budgetAlerts: false,
+        renewalYearlyDays: 3,
+        renewalMonthlyDays: 1,
+        monthlyRecap: true,
+        notifyAt: '07:30',
+      },
+    });
+    expect(await getTelegramStatus(api)).toMatchObject({
+      configured: false,
+      connection: 'off',
+      link: null,
+      notifications: { budgetAlerts: false, renewalYearlyDays: 3, notifyAt: '07:30' },
+    });
   });
 });

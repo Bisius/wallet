@@ -20,6 +20,13 @@ export const FRONTEND_DIST = process.env['PW_FRONTEND_DIST']
 /** The preload that replaces `Date`, see `fake-clock.mjs`. */
 export const FAKE_CLOCK_PRELOAD = join(REPO_ROOT, 'e2e/support/fake-clock.mjs');
 
+/**
+ * Variables of the shell that must never reach a test server: with them set, every server of the suite
+ * would poll the real Telegram with the real bot token and fight the bot that is live on the machine.
+ * A server gets them only from its `env` option (the fake Bot API of `fake-telegram.ts`).
+ */
+export const TELEGRAM_ENV = ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_API_ROOT', 'APP_URL'] as const;
+
 const START_TIMEOUT_MS = 20_000;
 const STOP_TIMEOUT_MS = 10_000;
 /** A few attempts, in case the free port that was picked is taken before the server binds it. */
@@ -37,6 +44,14 @@ const LOG_LIMIT = 64 * 1024;
  * The folder, the port and the clock survive `stop()` and `start()`: the same database comes back
  * on the same address, and the clock resumes at the instant it was stopped at.
  */
+export interface WalletServerOptions {
+  /**
+   * Environment variables of the server process, kept across `stop()` and `start()`. The only way the
+   * Telegram variables (`TELEGRAM_ENV`) reach a server: they are removed from the shell's environment.
+   */
+  env?: Record<string, string>;
+}
+
 export class WalletServer {
   /** The private folder holding everything this server writes (it is also the server's cwd). */
   readonly dir: string;
@@ -46,13 +61,15 @@ export class WalletServer {
   readonly initialNow: string;
 
   private readonly clockSocket: string;
+  private readonly extraEnv: Record<string, string>;
   private port: number | undefined;
   private child: ChildProcess | undefined;
   private clockNow: string;
   private output = '';
 
-  private constructor(dir: string, initialNow: string) {
+  private constructor(dir: string, initialNow: string, options: WalletServerOptions) {
     this.dir = dir;
+    this.extraEnv = { ...options.env };
     this.dbPath = join(dir, 'wallet.db');
     this.backupDir = join(dir, 'backups');
     this.clockSocket = join(dir, 'clock.sock');
@@ -61,9 +78,13 @@ export class WalletServer {
   }
 
   /** Makes the folder and starts the server in it. */
-  static async start(initialNow: string): Promise<WalletServer> {
+  static async start(initialNow: string, options: WalletServerOptions = {}): Promise<WalletServer> {
     // A short prefix: a unix socket path has a length limit (about 100 characters).
-    const server = new WalletServer(await mkdtemp(join(tmpdir(), 'wallet-e2e-')), initialNow);
+    const server = new WalletServer(
+      await mkdtemp(join(tmpdir(), 'wallet-e2e-')),
+      initialNow,
+      options,
+    );
     try {
       await server.start();
     } catch (error) {
@@ -177,6 +198,9 @@ export class WalletServer {
     // redirect it (only `PW_FRONTEND_DIST` does).
     if (process.env['PW_FRONTEND_DIST']) env['STATIC_DIR'] = FRONTEND_DIST;
     else delete env['STATIC_DIR'];
+    // Nor may the shell's Telegram settings: a server has a bot only when its test asked for one.
+    for (const name of TELEGRAM_ENV) delete env[name];
+    Object.assign(env, this.extraEnv);
 
     const child = spawn(
       process.execPath,

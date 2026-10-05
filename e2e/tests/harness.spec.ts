@@ -1,7 +1,10 @@
 import { existsSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import type { BudgetDto } from '@wallet/shared';
-import { ApiRequestError, expect, json, test } from '../support/fixtures';
+import type { TelegramStatusDto } from '@wallet/shared';
+import { FAKE_BOT_USERNAME, FakeTelegram } from '../support/fake-telegram';
+import { ApiRequestError, expect, json } from '../support/fixtures';
+import { test } from '../support/servers';
 import {
   addSpending,
   createBudget,
@@ -217,6 +220,112 @@ test.describe('service workers', () => {
     test('the app registers its own', async ({ page, wallet }) => {
       await openDashboard(page, wallet.api);
       await expect.poll(() => registrations(page)).toBe(1);
+    });
+  });
+});
+
+test.describe('the Telegram bot of a test server', () => {
+  /** The variables of the shell that a server must never inherit, set here to something that would do harm. */
+  const SHELL_SETTINGS = {
+    TELEGRAM_BOT_TOKEN: '123456:the-real-token-of-the-live-bot',
+    TELEGRAM_API_ROOT: 'http://127.0.0.1:9',
+    APP_URL: 'https://wallet.live.example',
+  };
+
+  /** Runs `body` with the shell exporting the Telegram variables, and puts the environment back. */
+  async function withShellSettings<T>(body: () => Promise<T>): Promise<T> {
+    const saved = Object.keys(SHELL_SETTINGS).map((name) => [name, process.env[name]] as const);
+    Object.assign(process.env, SHELL_SETTINGS);
+    try {
+      return await body();
+    } finally {
+      for (const [name, value] of saved) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
+
+  test('never inherits the Telegram settings of the shell: a server without the option has no bot', async ({
+    servers,
+  }) => {
+    const plain = await withShellSettings(() => servers.start());
+    await onboard(plain.api, { startMonth: '2026-03', salary: 250000 });
+
+    const status = await json<TelegramStatusDto>(await plain.api.get('/api/telegram'));
+    expect(status).toMatchObject({ configured: false, connection: 'off', bot: null, link: null });
+    expect(plain.log()).toContain('Telegram bot is off');
+    // Asking it to make a code is refused for the same reason.
+    const pairing = await plain.api.post('/api/telegram/pairing', { failOnStatusCode: false });
+    expect(pairing.status()).toBe(409);
+    expect(await pairing.json()).toMatchObject({ error: { code: 'telegram_not_configured' } });
+  });
+
+  test('gives a server that asked for the bot the fake Bot API, and not the settings of the shell', async ({
+    servers,
+  }) => {
+    const telegram = await FakeTelegram.start();
+    let wallet: Awaited<ReturnType<typeof servers.start>> | undefined;
+    try {
+      const running = await withShellSettings(() => servers.start(undefined, { telegram }));
+      wallet = running;
+      await onboard(running.api, { startMonth: '2026-03', salary: 250000 });
+
+      await telegram.waitUntilPolling();
+      await expect
+        .poll(
+          async () =>
+            (await json<TelegramStatusDto>(await running.api.get('/api/telegram'))).connection,
+        )
+        .toBe('running');
+      const status = await json<TelegramStatusDto>(await running.api.get('/api/telegram'));
+      expect(status).toMatchObject({ configured: true, bot: { username: FAKE_BOT_USERNAME } });
+      // The bot's start, in the order the runtime promises: no webhook, who am I, the menu, then polling.
+      expect(
+        telegram
+          .calls()
+          .map((call) => call.method)
+          .filter((method, index, all) => all.indexOf(method) === index)
+          .slice(0, 4),
+      ).toEqual(['deleteWebhook', 'getMe', 'setMyCommands', 'getUpdates']);
+      expect(telegram.commands().map(({ command }) => command)).toEqual([
+        'spending',
+        'income',
+        'status',
+        'recent',
+        'undo',
+        'cancel',
+        'help',
+      ]);
+      expect(telegram.calls('getUpdates')[0]?.params).toMatchObject({
+        allowed_updates: ['message', 'callback_query'],
+      });
+      // Nothing of the shell's settings (its API root would be refused) was used.
+      expect(running.log()).not.toContain('127.0.0.1:9');
+    } finally {
+      // The bot talks to the fake until the server is gone: close the fake last.
+      await wallet?.stop();
+      await telegram.close();
+    }
+  });
+
+  test.describe('the bot option of the wallet fixture', () => {
+    test.use({ telegramBot: true });
+
+    test('starts the fake before the server, and the bot connects again to it after a restart', async ({
+      wallet,
+      telegram,
+    }) => {
+      await onboard(wallet.api, { startMonth: '2026-03', salary: 250000 });
+      await telegram.waitUntilPolling();
+      expect(telegram.apiRoot).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      // The server restarts on the same fake: the bot connects again.
+      const calls = telegram.calls('getMe').length;
+      await wallet.stop();
+      await wallet.start();
+      await telegram.waitForCall('getMe', (call) => call.seq > calls);
+      await telegram.waitUntilPolling();
+      expect(telegram.calls('getMe').length).toBe(calls + 1);
     });
   });
 });

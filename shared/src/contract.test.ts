@@ -69,6 +69,16 @@ import type {
   UpcomingRenewalsQuery,
 } from './subscriptions';
 import type { TagCreateInput, TagDto, TagUpdateInput } from './tags';
+import type {
+  TelegramBotDto,
+  TelegramConnectionState,
+  TelegramLinkDto,
+  TelegramNotificationSettingsDto,
+  TelegramNotificationSettingsInput,
+  TelegramPairingDto,
+  TelegramProblem,
+  TelegramStatusDto,
+} from './telegram';
 import type { TransferCreateInput, TransferDto, TransferListQuery } from './transfers';
 
 describe('contract types', () => {
@@ -371,6 +381,40 @@ describe('contract types', () => {
       | 'import_rows_rejected'
     >().toExtend<ApiErrorCode>();
     expectTypeOf<PayloadTooLargeDetails>().toEqualTypeOf<{ limitBytes: number }>();
+  });
+
+  it('the Phase 10 error codes exist', () => {
+    expectTypeOf<
+      'telegram_not_configured' | 'telegram_not_linked' | 'telegram_unavailable'
+    >().toExtend<ApiErrorCode>();
+  });
+
+  it('telegram status, pairing and link', () => {
+    expectTypeOf<TelegramStatusDto>().toEqualTypeOf<{
+      configured: boolean;
+      connection: 'off' | 'connecting' | 'running' | 'error';
+      problem: 'invalid_token' | 'conflict' | 'unreachable' | 'blocked' | null;
+      bot: { username: string } | null;
+      link: { name: string; username: string | null; linkedAt: string } | null;
+      pairing: { code: string; expiresAt: string; deepLink: string | null } | null;
+      notifications: TelegramNotificationSettingsDto;
+    }>();
+    expectTypeOf<TelegramStatusDto['connection']>().toEqualTypeOf<TelegramConnectionState>();
+    expectTypeOf<TelegramStatusDto['problem']>().toEqualTypeOf<TelegramProblem | null>();
+    expectTypeOf<TelegramStatusDto['bot']>().toEqualTypeOf<TelegramBotDto | null>();
+    expectTypeOf<TelegramStatusDto['link']>().toEqualTypeOf<TelegramLinkDto | null>();
+    expectTypeOf<TelegramStatusDto['pairing']>().toEqualTypeOf<TelegramPairingDto | null>();
+  });
+
+  it('telegram notification settings: the body is the response', () => {
+    expectTypeOf<TelegramNotificationSettingsInput>().toEqualTypeOf<{
+      budgetAlerts: boolean;
+      renewalYearlyDays: number;
+      renewalMonthlyDays: number;
+      monthlyRecap: boolean;
+      notifyAt: string;
+    }>();
+    expectTypeOf<TelegramNotificationSettingsDto>().toEqualTypeOf<TelegramNotificationSettingsInput>();
   });
 
   it('export query', () => {

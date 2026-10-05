@@ -4,6 +4,7 @@ Personal finance manager: salary, extra income, monthly/yearly subscriptions, bu
 
 - **Plan / roadmap:** `docs/PLAN.md` (phases, endpoints, what's done)
 - **Money rules:** `docs/DOMAIN.md`. It is the source of truth for every calculation. Read it before touching balances.
+- **Telegram bot:** `docs/TELEGRAM-PLAN.md` (module `backend/src/modules/telegram/`). It is off unless `TELEGRAM_BOT_TOKEN` is set. Never log the token: it is in every Bot API URL, so anything logged goes through the module's `redact()`.
 
 ## Layout
 

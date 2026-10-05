@@ -1,5 +1,6 @@
 import { ceilDiv } from '@wallet/shared/money';
 import { monthDiff, monthRange } from '@wallet/shared/month';
+import { DEFAULT_TELEGRAM_NOTIFICATIONS } from '@wallet/shared/telegram';
 import type {
   BackupDto,
   BackupsDto,
@@ -23,6 +24,9 @@ import type {
   SpendingsPage,
   SubscriptionDto,
   TagDto,
+  TelegramLinkDto,
+  TelegramPairingDto,
+  TelegramStatusDto,
   TransferDto,
   UpcomingRenewalDto,
   YearlyReportDto,
@@ -453,6 +457,40 @@ export function backupsDto(overrides: Partial<BackupsDto> = {}): BackupsDto {
     backups: [],
     lastBackupAt: null,
     nextDueAt: null,
+    ...overrides,
+  };
+}
+
+/**
+ * The Telegram bot's status. Defaults: a bot that is set up and running as @wallet_bot, with nobody
+ * linked, no code pending and the default notification preferences.
+ */
+export function telegramStatusDto(overrides: Partial<TelegramStatusDto> = {}): TelegramStatusDto {
+  return {
+    configured: true,
+    connection: 'running',
+    problem: null,
+    bot: { username: 'wallet_bot' },
+    link: null,
+    pairing: null,
+    notifications: { ...DEFAULT_TELEGRAM_NOTIFICATIONS },
+    ...overrides,
+  };
+}
+
+/** The linked Telegram account. Defaults: Anna, @anna, linked on 2026-10-04. */
+export function telegramLinkDto(overrides: Partial<TelegramLinkDto> = {}): TelegramLinkDto {
+  return { name: 'Anna', username: 'anna', linkedAt: '2026-10-04T08:30:00.000Z', ...overrides };
+}
+
+/** A pending pairing code. Defaults: valid for ten minutes from 10:00 UTC on 2026-10-05, with a link. */
+export function telegramPairingDto(
+  overrides: Partial<TelegramPairingDto> = {},
+): TelegramPairingDto {
+  return {
+    code: 'K7M2QX9P',
+    expiresAt: '2026-10-05T10:10:00.000Z',
+    deepLink: 'https://t.me/wallet_bot?start=K7M2QX9P',
     ...overrides,
   };
 }

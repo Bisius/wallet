@@ -21,6 +21,7 @@ import {
   walk,
 } from '../support/pages';
 import { type Dataset, seedWallet } from '../support/rich-data';
+import { telegramStops } from '../support/telegram-stops';
 
 /*
  * Accessibility, with axe-core, of every page and every state a user opens, in both themes and on
@@ -90,6 +91,24 @@ for (const theme of THEMES) {
           });
         });
       }
+
+      test.describe('Settings with the Telegram bot switched on', () => {
+        // A server with a bot (and the fake Telegram it talks to): the section of Settings in every state
+        // it can be in. "Not configured" is the plain `settings` stop of the walks above.
+        test.use({ telegramBot: true });
+
+        test('every state of the Telegram section', async ({ page, wallet, telegram }) => {
+          test.setTimeout(WALK_TIMEOUT_MS);
+          await seedWallet(wallet.api, { dataset: 'rich', theme });
+          await openPage(page, '/dashboard', 'Dashboard');
+          await expectTheme(page, theme);
+
+          await walk(page, onScreen(telegramStops({ wallet, telegram }), screen), async (stop) => {
+            await themeIsApplied(page, stop.name);
+            await expectNoA11yViolations(page, where(stop.name, 'rich'));
+          });
+        });
+      });
 
       test.describe('a wallet that was never set up', () => {
         // `GET /api/settings` is a 404 until the wizard is done, by design (see onboarding.spec.ts).

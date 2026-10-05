@@ -2,6 +2,7 @@ import { copyFile, rm } from 'node:fs/promises';
 import type { PlaywrightWorkerArgs } from '@playwright/test';
 import { withReadableErrors } from './api';
 import { expect, test as base, type Wallet } from './fixtures';
+import type { FakeTelegram } from './fake-telegram';
 import { WalletServer } from './server';
 
 /**
@@ -22,9 +23,20 @@ export interface ExtraWallet extends Wallet {
   kill(): Promise<void>;
 }
 
+export interface ServerOptions {
+  /**
+   * Gives the server a bot that talks to this fake Bot API (the same one as another server's, for two
+   * programs with one token). Without it the server has no token and its bot is off. The test owns the
+   * fake and closes it: a `telegramBot: true` test's own is `telegram`.
+   */
+  telegram?: FakeTelegram;
+  /** `APP_URL` of the server with the bot. */
+  appUrl?: string;
+}
+
 export interface Servers {
   /** Starts a server on a new, empty database. The clock starts at `now` (default: where `wallet`'s clock is now). */
-  start(now?: string): Promise<ExtraWallet>;
+  start(now?: string, options?: ServerOptions): Promise<ExtraWallet>;
   /**
    * Starts a server whose database is a copy of the file `database` (a backup). The server is
    * started on its own empty database first, stopped, given the copy, and started again, so it
@@ -78,8 +90,12 @@ export const test = base.extend<{ servers: Servers }>({
     };
 
     const servers: Servers = {
-      async start(now) {
-        return adopt(await WalletServer.start(now ?? (await wallet.getNow())));
+      async start(now, options) {
+        return adopt(
+          await WalletServer.start(now ?? (await wallet.getNow()), {
+            env: options?.telegram?.serverEnv({ appUrl: options.appUrl }),
+          }),
+        );
       },
       async startOnCopyOf(database, now) {
         const server = await WalletServer.start(now ?? (await wallet.getNow()));

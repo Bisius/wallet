@@ -15,10 +15,13 @@ describe('API_ERROR_STATUS', () => {
     tag_name_taken: 409,
     import_profile_name_taken: 409,
     backups_unavailable: 409,
+    telegram_not_configured: 409,
+    telegram_not_linked: 409,
     payload_too_large: 413,
     import_rows_rejected: 422,
     rule_violation: 422,
     internal_error: 500,
+    telegram_unavailable: 503,
   };
 
   it.each(Object.entries(expected))('%s is HTTP %i', (code, status) => {

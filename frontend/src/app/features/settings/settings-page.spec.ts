@@ -16,7 +16,7 @@ import {
   textOf,
   typeInto,
 } from '../../../testing/dom';
-import { tagDto } from '../../../testing/fixtures';
+import { tagDto, telegramStatusDto } from '../../../testing/fixtures';
 import {
   flushError,
   primeStores,
@@ -65,9 +65,11 @@ describe('SettingsPage', () => {
     TestBed.inject(ThemeService);
     await primeStores(http, { settings });
     const fixture = await render(SettingsPage);
-    // The page lists the tags below the form (see tags-section.spec.ts for what it does with them) and
-    // the backups under it (see backups-section.spec.ts).
+    // The page lists the tags below the form (see tags-section.spec.ts for what it does with them), the
+    // Telegram bot under them (telegram-section.spec.ts) and the backups under that
+    // (backups-section.spec.ts).
     http.expectOne('/api/tags').flush(tags);
+    http.expectOne('/api/telegram').flush(telegramStatusDto());
     http.expectOne('/api/backups').flush(NO_BACKUPS);
     await settle(fixture);
     const element = fixture.nativeElement as HTMLElement;
@@ -123,12 +125,24 @@ describe('SettingsPage', () => {
     ).toBeTruthy();
   });
 
-  it('is three titled sections, General, Tags and Data, with the data split into three blocks', async () => {
+  it('has the Telegram bot between the tags and the data, outside the settings form', async () => {
+    const { element } = await setup();
+
+    const telegram = getByRole(element, 'region', 'Telegram');
+    expect(getByRole(telegram, 'heading', 'Telegram')).toBeTruthy();
+    expect(getByRole(telegram, 'button', 'Link Telegram')).toBeTruthy();
+    expect(element.querySelector('form')?.contains(telegram)).toBe(false);
+    const sections = Array.from(element.querySelectorAll('h2')).map((heading) => textOf(heading));
+    expect(sections.indexOf('Telegram')).toBe(sections.indexOf('Tags') + 1);
+    expect(sections.indexOf('Data')).toBe(sections.indexOf('Telegram') + 1);
+  });
+
+  it('is four titled sections, General, Tags, Telegram and Data, with the data split into three blocks', async () => {
     const { element } = await setup();
 
     const headings = (level: string) =>
       Array.from(element.querySelectorAll(level)).map((heading) => textOf(heading));
-    expect(headings('h2')).toEqual(['General', 'Tags', 'Data']);
+    expect(headings('h2')).toEqual(['General', 'Tags', 'Telegram', 'Data']);
     expect(headings('h3')).toEqual(['Export', 'Import', 'Backups']);
     // The form is the General section, and the three blocks are the Data section.
     const general = getByRole(element, 'region', 'General');

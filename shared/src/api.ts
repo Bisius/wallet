@@ -64,6 +64,17 @@ export type ApiErrorCode =
    */
   | 'backups_unavailable'
   /**
+   * 409. `POST /api/telegram/pairing` or `POST /api/telegram/test` while `TELEGRAM_BOT_TOKEN` is not
+   * set: the Telegram bot is off, so there is no bot to link or to send a message with (see
+   * shared/src/telegram.ts).
+   */
+  | 'telegram_not_configured'
+  /**
+   * 409. `POST /api/telegram/test` while no Telegram account is linked: there is no chat to send
+   * the message to.
+   */
+  | 'telegram_not_linked'
+  /**
    * 413. The request body is larger than the limit of its route: 100 kB (`DEFAULT_BODY_LIMIT_BYTES`)
    * everywhere, 10 MiB (`IMPORT_MAX_BODY_BYTES`) for the `/api/import` endpoints, which carry a CSV
    * file. `details` is a `PayloadTooLargeDetails`.
@@ -80,7 +91,12 @@ export type ApiErrorCode =
    */
   | 'rule_violation'
   /** 500. Unexpected server error. The message is generic; the cause is only in the server log. */
-  | 'internal_error';
+  | 'internal_error'
+  /**
+   * 503. `POST /api/telegram/test` when the message could not be sent: the bot is not running (see
+   * `TelegramStatusDto.connection`), or Telegram refused the message.
+   */
+  | 'telegram_unavailable';
 
 /** The HTTP status that goes with each `ApiErrorCode`. */
 export const API_ERROR_STATUS = {
@@ -96,10 +112,13 @@ export const API_ERROR_STATUS = {
   tag_name_taken: 409,
   import_profile_name_taken: 409,
   backups_unavailable: 409,
+  telegram_not_configured: 409,
+  telegram_not_linked: 409,
   payload_too_large: 413,
   import_rows_rejected: 422,
   rule_violation: 422,
   internal_error: 500,
+  telegram_unavailable: 503,
 } as const satisfies Record<ApiErrorCode, number>;
 
 /** `error.details` of a 413 `payload_too_large`. */

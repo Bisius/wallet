@@ -124,7 +124,11 @@ export function formatDateTime(iso: string, locale: string, timeZone?: string): 
   const key = `${locale}|${timeZone ?? ''}`;
   let format = dateTimeFormats.get(key);
   if (!format) {
-    const options: Intl.DateTimeFormatOptions = { dateStyle: 'medium', timeStyle: 'short', timeZone };
+    const options: Intl.DateTimeFormatOptions = {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+      timeZone,
+    };
     try {
       format = new Intl.DateTimeFormat(locale, options);
     } catch {
@@ -133,6 +137,52 @@ export function formatDateTime(iso: string, locale: string, timeZone?: string): 
     dateTimeFormats.set(key, format);
   }
   return format.format(date);
+}
+
+const timeFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * An instant (an ISO-8601 timestamp) as a time of day in the given locale: "2:25 PM". It is shown in the
+ * viewer's time zone, unless `timeZone` says otherwise. An unreadable timestamp comes back as it is.
+ */
+export function formatTime(iso: string, locale: string, timeZone?: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const key = `${locale}|${timeZone ?? ''}`;
+  let format = timeFormats.get(key);
+  if (!format) {
+    const options: Intl.DateTimeFormatOptions = { timeStyle: 'short', timeZone };
+    try {
+      format = new Intl.DateTimeFormat(locale, options);
+    } catch {
+      format = new Intl.DateTimeFormat(FALLBACK_LOCALE, options);
+    }
+    timeFormats.set(key, format);
+  }
+  return format.format(date);
+}
+
+const relativeFormats = new Map<string, Intl.RelativeTimeFormat>();
+
+/**
+ * How long it is from `nowMs` (milliseconds, the caller's clock) until an instant, in whole minutes
+ * rounded up, in the given locale: "in 9 minutes", "in 1 minute", and "this minute" for the last
+ * minute and for an instant that has passed. It is for display only (a countdown): nothing decides
+ * anything by it. An unreadable timestamp comes back as it is.
+ */
+export function formatTimeUntil(iso: string, nowMs: number, locale: string): string {
+  const target = new Date(iso).getTime();
+  if (Number.isNaN(target)) return iso;
+  let format = relativeFormats.get(locale);
+  if (!format) {
+    try {
+      format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    } catch {
+      format = new Intl.RelativeTimeFormat(FALLBACK_LOCALE, { numeric: 'auto' });
+    }
+    relativeFormats.set(locale, format);
+  }
+  return format.format(Math.max(0, Math.ceil((target - nowMs) / 60_000)), 'minute');
 }
 
 const SIZE_UNITS = ['B', 'KB', 'MB', 'GB'] as const;

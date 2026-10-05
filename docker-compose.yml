@@ -4,8 +4,9 @@
 #   docker compose up -d --build
 #   open http://<host>:3400
 #
-# Compose reads PORT, TZ and BIND_ADDRESS from the shell or from `.env`. The other settings are fixed
-# below because they have to agree with the /data volume.
+# Compose reads PORT, TZ and BIND_ADDRESS from the shell or from `.env`, and so the Telegram bot's
+# TELEGRAM_BOT_TOKEN and APP_URL. The other settings are fixed below because they have to agree with
+# the /data volume.
 
 # A fixed project name keeps the volume name stable: without it Compose names the project after the
 # folder, and cloning this repo into a differently named folder would start with an empty database.
@@ -27,7 +28,7 @@ services:
       # host do NOT protect it. To narrow it down, set BIND_ADDRESS in .env:
       #   BIND_ADDRESS=127.0.0.1        only this machine (put `tailscale serve` or a reverse proxy in front)
       #   BIND_ADDRESS=100.64.0.1       only the Tailscale address of this machine (use your own)
-      - "${BIND_ADDRESS:-0.0.0.0}:${PORT:-3400}:${PORT:-3400}"
+      - '${BIND_ADDRESS:-0.0.0.0}:${PORT:-3400}:${PORT:-3400}'
 
     environment:
       PORT: ${PORT:-3400}
@@ -42,6 +43,21 @@ services:
       # name also silently means UTC. The app's own log lines carry no timestamps, so TZ does not
       # change them (`docker logs -t` stamps lines in UTC regardless).
       TZ: ${TZ:-UTC}
+      # The Telegram bot (README, "Telegram bot"). It is off unless the token is set. Like TZ, these
+      # come from the shell or from `.env`, which is git-ignored and kept out of the image: never
+      # write the token in this file. Changing `.env` needs `docker compose up -d`: `restart` keeps
+      # the environment the container was created with.
+      #
+      # The token from @BotFather. Unset or empty: the bot is off and nothing else changes. One bot
+      # per Wallet: a second instance (a development copy, a restore drill) needs a bot of its own,
+      # or the two fight over the same messages (409 conflicts).
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      # The address of the app as your phone reaches it, e.g. https://wallet.<tailnet>.ts.net (an
+      # http:// or https:// address). Optional: it adds "Open" links to some bot messages.
+      APP_URL: ${APP_URL:-}
+      # TELEGRAM_API_ROOT is for the tests only (a fake Telegram). Leave it alone: the token is part
+      # of every request address, so it must never point at a server you do not control.
+      #   TELEGRAM_API_ROOT: https://api.telegram.org
 
     volumes:
       # A named volume inherits the ownership of /data in the image (user `node`, uid 1000), so it
@@ -82,7 +98,7 @@ services:
       driver: json-file
       options:
         max-size: 10m
-        max-file: "3"
+        max-file: '3'
 
 volumes:
   wallet-data:
